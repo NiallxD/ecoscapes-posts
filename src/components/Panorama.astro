@@ -1,0 +1,221 @@
+---
+import { asset } from '../lib/paths';
+import PanelNav from './PanelNav.astro';
+
+interface Props { src: string; caption: string; northOffset: number; prev?: string; next?: string }
+const { src, caption, northOffset, prev, next } = Astro.props;
+---
+<section class="panel" id="view" aria-label="Panorama">
+  <div class="panel-stage">
+    <!-- The caption no longer shows in the rail, so it is what names the viewer
+         to a screen reader rather than being dropped. -->
+    <div class="psv" id="psv" role="img" aria-label={caption} data-src={asset(src)} data-north={northOffset}></div>
+
+    <div class="pano-loading" id="pano-loading">
+      <span class="spinner" aria-hidden="true"></span>
+      <span>Loading the view…</span>
+    </div>
+
+    <!-- Both of this panel's controls ride in the nav pill. They share it until
+         one of them is spent: pan the view and the prompt has done its job, so
+         the motion button takes the whole row; turn motion on and neither is
+         needed any more. -->
+    <PanelNav prev={prev} next={next}>
+      <div class="pano-row" id="pano-row">
+        <p class="pano-hint" id="pano-hint">
+          Drag to look around<span class="pano-rotate"> · turn sideways for more</span>
+        </p>
+        <button class="chip" id="gyro" type="button" aria-pressed="false" hidden>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+            <circle cx="12" cy="12" r="9" /><ellipse cx="12" cy="12" rx="9" ry="3.6" />
+          </svg>
+          <span id="gyro-label">Use motion</span>
+        </button>
+      </div>
+    </PanelNav>
+  </div>
+
+  <div class="panel-rail">
+    <h2>The Eagle</h2>
+    <p>
+      Observe the place around you from the perspective of the Eagle. Situate
+      yourself in this incredible landscape.
+    </p>
+  </div>
+</section>
+
+<style>
+  .psv { position: absolute; inset: 0; background: #0a0f0d; }
+  .psv :global(canvas) { display: block; }
+
+  .pano-loading {
+    position: absolute; inset: 0; display: flex; gap: 0.7rem;
+    align-items: center; justify-content: center;
+    font-size: 0.83rem; color: var(--ink-dim); background: var(--bg);
+    transition: opacity 0.4s; pointer-events: none;
+  }
+  .pano-loading[hidden] { display: flex !important; opacity: 0; }
+  .spinner {
+    width: 15px; height: 15px; border-radius: 50%;
+    border: 2px solid var(--line); border-top-color: var(--accent);
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .pano-row { display: flex; align-items: center; gap: 0.4rem; flex: 1; min-width: 0; }
+  .pano-hint {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    text-align: center;
+    font-size: 0.76rem;
+    color: var(--ink-dim);
+    pointer-events: none;
+  }
+  /* Alone in the row the button centres and takes the width; sharing it, it
+     keeps to its own size so the prompt has somewhere to sit. */
+  #gyro {
+    flex: none;
+    background: none;
+    border-color: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  #gyro:hover:not(:disabled) { border-color: transparent; color: var(--accent); }
+  .pano-row:not([data-shared]) #gyro { flex: 1; justify-content: center; }
+
+  /* A 360 panorama in a portrait window shows a narrow slice of itself, so say
+     so -- but only where the line has room. Sharing the row with the motion
+     button it does not, and the prompt is the part that has to read. */
+  @media (orientation: landscape), (min-width: 40rem) {
+    .pano-rotate { display: none; }
+  }
+  .pano-row[data-shared] .pano-rotate { display: none; }
+</style>
+
+<script>
+  const mount = document.getElementById('psv') as HTMLElement | null;
+  if (mount) {
+    const loading = document.getElementById('pano-loading')!;
+    const hint = document.getElementById('pano-hint')!;
+    const row = document.getElementById('pano-row')!;
+    const gyroBtn = document.getElementById('gyro') as HTMLButtonElement;
+    const gyroLabel = document.getElementById('gyro-label')!;
+    // The pill the row sits in, so it can go too once it holds nothing.
+    const pill = row.closest('.nav-mid') as HTMLElement | null;
+
+    // Photo Sphere Viewer pulls in three.js, so it is only fetched once the
+    // panel is actually approaching the viewport.
+    const boot = async () => {
+      const [{ Viewer }, { GyroscopePlugin }] = await Promise.all([
+        import('@photo-sphere-viewer/core'),
+        import('@photo-sphere-viewer/gyroscope-plugin'),
+      ]);
+      await import('@photo-sphere-viewer/core/index.css');
+
+      const viewer = new Viewer({
+        container: mount,
+        panorama: mount.dataset.src!,
+        navbar: false,
+        defaultZoomLvl: 0,
+        minFov: 32,
+        maxFov: 95,
+        moveSpeed: 1.1,
+        touchmoveTwoFingers: false,
+        mousewheel: false,
+        loadingTxt: '',
+        sphereCorrection: { pan: (Number(mount.dataset.north) * Math.PI) / 180 },
+        plugins: [
+          [
+            GyroscopePlugin,
+            {
+              absolutePosition: false,
+              moveMode: 'smooth',
+              // Camera roll is the twitchiest axis handheld: the horizon tips
+              // with every small wrist movement, which reads as the whole world
+              // rocking. Holding it level costs nothing -- you look around by
+              // turning, not by tilting.
+              roll: false,
+            },
+          ],
+        ],
+      });
+
+      viewer.addEventListener('ready', () => { loading.hidden = true; }, { once: true });
+      // The prompt has been answered the moment the view moves, and the motion
+      // button then has the row to itself.
+      viewer.addEventListener(
+        'position-updated',
+        () => {
+          hint.hidden = true;
+          row.removeAttribute('data-shared');
+        },
+        { once: true },
+      );
+
+      // Motion control. iOS requires the permission request to happen inside a
+      // user gesture, which is exactly what this click is -- there is no way to
+      // enable the gyroscope without the button, so it is part of the design.
+      const DOE = (window as any).DeviceOrientationEvent;
+      if (!DOE) return; // desktop without any orientation sensor
+
+      gyroBtn.hidden = false;
+      if (!hint.hidden) row.setAttribute('data-shared', '');
+      const gyro = viewer.getPlugin(GyroscopePlugin) as any;
+      let on = false;
+
+
+      const setState = (enabled: boolean, label?: string) => {
+        on = enabled;
+        gyroBtn.setAttribute('aria-pressed', String(enabled));
+        gyroLabel.textContent = label ?? (enabled ? 'Motion on' : 'Use motion');
+      };
+
+      gyroBtn.addEventListener('click', async () => {
+        if (on) { gyro.stop(); setState(false); return; }
+
+        if (typeof DOE.requestPermission === 'function') {
+          try {
+            if ((await DOE.requestPermission()) !== 'granted') {
+              setState(false, 'Motion blocked');
+              gyroBtn.disabled = true;
+              return;
+            }
+          } catch {
+            setState(false, 'Motion blocked');
+            gyroBtn.disabled = true;
+            return;
+          }
+        }
+
+        // Chrome on desktop exposes the API but never fires a reading, so give
+        // it a moment to prove it works before claiming motion is on.
+        let fired = false;
+        const probe = (e: DeviceOrientationEvent) => { if (e.alpha !== null) fired = true; };
+        addEventListener('deviceorientation', probe);
+        gyro.start();
+        setState(true);
+        // Motion is now driving the view, so neither the prompt nor the button
+        // has anything left to say and the whole pill stands down.
+        if (pill) pill.hidden = true;
+        setTimeout(() => {
+          removeEventListener('deviceorientation', probe);
+          if (fired) return;
+          gyro.stop();
+          setState(false, 'No motion sensor');
+          gyroBtn.disabled = true;
+          // Bring it back to say so: vanishing silently would look like the tap
+          // simply did nothing.
+          if (pill) pill.hidden = false;
+          hint.hidden = true;
+          row.removeAttribute('data-shared');
+        }, 1200);
+      });
+    };
+
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) { io.disconnect(); boot(); }
+    }, { rootMargin: '200px' });
+    io.observe(mount);
+  }
+</script>

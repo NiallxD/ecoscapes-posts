@@ -1,0 +1,89 @@
+---
+/** The deck's one way to move by hand: a pair of arrows on the foot of every
+ *  panel. Photo Sphere Viewer and the scrubber both swallow horizontal drags,
+ *  so a swipe is not reliably available -- the arrows are the primary control,
+ *  not a decoration on top of one. */
+interface Props { prev?: string; next?: string; prompt?: boolean }
+const { prev, next, prompt = false } = Astro.props;
+
+// A panel with its own controls puts them in the slot, so they share the row
+// with the arrows instead of stacking above it and eating the panel twice.
+const hasControls = Astro.slots.has('default');
+// A panel whose far corner is a button of its own rather than a way onwards --
+// the last panel has nowhere to go next, but plenty to do.
+const hasEnd = Astro.slots.has('end');
+---
+<nav class="panel-nav" aria-label="Move between sections">
+  {prev && (
+    <a class="step step-prev" href={prev} aria-label="Previous section">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <path d="M15 5l-7 7 7 7" />
+      </svg>
+    </a>
+  )}
+  {hasControls && (
+    <div class="nav-mid"><slot /></div>
+  )}
+  {hasEnd && <slot name="end" />}
+  {!hasEnd && next && (
+    <a class:list={['step', 'step-next', { prompt }]} href={next} aria-label="Next section">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <path d="M9 5l7 7-7 7" />
+      </svg>
+    </a>
+  )}
+</nav>
+
+<style>
+  /* Sits inside .panel-stage, so on the panels that carry a rail it rides just
+     above it. --nav-safe is set by the layout for the panels whose stage really
+     does reach the bottom of the screen. */
+  .panel-nav {
+    position: absolute;
+    z-index: 4;
+    left: 0.9rem;
+    right: 0.9rem;
+    bottom: calc(1rem + var(--nav-safe, 0px));
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    pointer-events: none;
+  }
+  /* A panel's own controls get one long pill between the two arrow circles: the
+     same backing, the same height, stretched to whatever is left of the row.
+     With it present the auto margins below resolve to nothing and the arrows
+     still sit hard in their corners. */
+  .nav-mid {
+    flex: 1;
+    min-width: 0;
+    height: 46px;
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    padding: 0 0.3rem;
+    border-radius: 999px;
+    background: rgba(13, 18, 16, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+  /* .step itself is global chrome in the layout, so a panel's own button can
+     wear it through the end slot. What stays here is this row's flourish. */
+
+  /* First panel only: nothing has been touched yet and there is no back arrow
+     to pair with, so the one arrow has to read as the way on. */
+  .step-next.prompt {
+    border-color: var(--accent);
+    color: var(--accent);
+    animation: ring 2.6s ease-out infinite;
+  }
+  .step-next.prompt svg { animation: nudge 2.2s ease-in-out infinite; }
+  @keyframes nudge {
+    0%, 100% { transform: translateX(0); }
+    50% { transform: translateX(4px); }
+  }
+  @keyframes ring {
+    0% { box-shadow: 0 0 0 0 rgba(127, 209, 166, 0.45); }
+    70%, 100% { box-shadow: 0 0 0 15px rgba(127, 209, 166, 0); }
+  }
+</style>

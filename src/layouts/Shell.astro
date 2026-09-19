@@ -1,0 +1,211 @@
+---
+import { asset } from '../lib/paths';
+
+interface Props { title: string; description?: string }
+const { title, description = 'Scan the post. See the place, then see it change.' } = Astro.props;
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="icon" href={asset('/favicon.svg')} type="image/svg+xml" />
+    <link rel="manifest" href={asset('/manifest.webmanifest')} />
+    <meta name="theme-color" content="#0d1210" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="EcoScapes" />
+  </head>
+  <body>
+    <slot />
+    <script>
+      // Progressive enhancement only: every view works without the worker.
+      if ('serviceWorker' in navigator) {
+        const base = import.meta.env.BASE_URL;
+        addEventListener('load', async () => {
+          try {
+            await navigator.serviceWorker.register(`${base.replace(/\/$/, '')}/sw.js`, { scope: base });
+            const reg = await navigator.serviceWorker.ready;
+
+            // On a first visit the CSS and JS are already in flight before the
+            // worker controls the page, so its fetch handler never sees them and
+            // they would be missing offline. The page knows exactly what it
+            // loaded, so it tells the worker rather than the worker guessing at
+            // build-hashed filenames.
+            const seen = new Set();
+            const report = (entries) => {
+              const urls = [];
+              for (const entry of entries) {
+                const url = new URL(entry.name, location.href);
+                if (url.origin !== location.origin) continue;
+                if (!url.pathname.includes('/_astro/')) continue; // media has its own cache
+                if (seen.has(url.href)) continue;
+                seen.add(url.href);
+                urls.push(url.href);
+              }
+              if (urls.length) reg.active?.postMessage({ type: 'cache-page', assets: urls });
+            };
+
+            reg.active?.postMessage({ type: 'cache-page', assets: [location.href] });
+            // `buffered` replays what loaded before this ran; the observer then
+            // picks up lazily imported chunks as they arrive.
+            new PerformanceObserver((list) => report(list.getEntries()))
+              .observe({ type: 'resource', buffered: true });
+          } catch {
+            /* no worker: the site still works, it just will not work offline */
+          }
+        });
+      }
+    </script>
+    <style is:global>
+      :root {
+        --ink: #eef2ee;
+        --ink-dim: #9aa79f;
+        --bg: #0d1210;
+        --bg-lift: #161d1a;
+        --line: #2a3531;
+        --accent: #7fd1a6;
+        /* Undoing something, rather than doing it: throwing away a photograph. */
+        --danger: #ef8b8b;
+        --safe-t: env(safe-area-inset-top, 0px);
+        --safe-b: env(safe-area-inset-bottom, 0px);
+        /* Whatever the dynamic viewport leaves out. In a browser that is the
+           toolbar at the foot of the screen, which is what this is for; it is
+           not meaningful when installed (there it is the status bar, at the
+           top), and the standalone rules at the end of this sheet override
+           everything that reads it. */
+        --chrome: calc(100lvh - 100dvh);
+        /* What a panel keeps clear at its foot. Safari reports the home
+           indicator in safe-area-inset-bottom even while its own toolbar sits
+           on that strip, and a panel sized to 100dvh already stops above the
+           toolbar -- honouring the inset as well insets it twice and leaves a
+           dead band. Subtracting the chrome takes it back to 0 whenever
+           something else already covers it. */
+        --foot: max(0px, calc(var(--safe-b) - var(--chrome)));
+        color-scheme: dark;
+      }
+      * { box-sizing: border-box; }
+      /* Beats any component's own display rule. */
+      [hidden] { display: none !important; }
+      /* Sized in the same units as the deck: a body measured any other way ends
+         at a different line and its background shows as a band under the foot
+         of every panel. */
+      html, body { margin: 0; height: 100dvh; overflow: hidden; }
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font: 400 16px/1.5 ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+        -webkit-font-smoothing: antialiased;
+        overscroll-behavior: none;
+      }
+      h1, h2, h3 { font-weight: 600; letter-spacing: -0.015em; margin: 0; }
+      a { color: inherit; }
+      button { font: inherit; color: inherit; }
+      .eyebrow {
+        font-size: 0.7rem; letter-spacing: 0.16em; text-transform: uppercase;
+        color: var(--ink-dim); margin: 0;
+      }
+      /* Shared control chrome for the buttons that float over each experience. */
+      .chip {
+        display: inline-flex; align-items: center; gap: 0.5em;
+        padding: 0.62em 1.05em; border-radius: 999px;
+        border: 1px solid var(--line); background: rgba(13, 18, 16, 0.72);
+        backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+        font-size: 0.82rem; font-weight: 500; cursor: pointer;
+        transition: border-color 0.18s, background 0.18s, opacity 0.18s;
+      }
+      .chip:hover:not(:disabled) { border-color: var(--accent); }
+      .chip:disabled { opacity: 0.45; cursor: default; }
+      .chip[aria-pressed='true'] { border-color: var(--accent); color: var(--accent); }
+      /* The round buttons at either end of a panel's control row. Shared rather
+         than owned by PanelNav, because a panel can put its own button in that
+         corner through the nav's end slot, and scoped styles do not reach
+         slotted markup. */
+      .step {
+        pointer-events: auto; flex: none;
+        width: 46px; height: 46px;
+        display: grid; place-items: center;
+        border-radius: 50%; color: var(--ink); text-decoration: none;
+        background: rgba(13, 18, 16, 0.5);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+        cursor: pointer;
+        transition: border-color 0.18s, background 0.18s;
+      }
+      .step:hover:not(:disabled) { border-color: var(--accent); }
+      .step:disabled { opacity: 0.45; cursor: default; }
+      .step svg { width: 20px; height: 20px; }
+      /* Whichever ends exist keep their own corner, with no placeholder element
+         for a missing one. */
+      .step-prev { margin-right: auto; }
+      .step-next { margin-left: auto; }
+      /* The deck: one full-viewport panel per experience, snapped vertically.
+         100dvh rather than 100vh so the panels do not sit under the mobile
+         browser's collapsing toolbar. */
+      .deck {
+        height: 100dvh; display: flex;
+        overflow-x: scroll; overflow-y: hidden; scroll-snap-type: x mandatory;
+        scroll-behavior: smooth; scrollbar-width: none;
+        overscroll-behavior-x: contain;
+      }
+      .deck::-webkit-scrollbar { display: none; }
+      .panel {
+        flex: 0 0 100%; width: 100%;
+        position: relative; height: 100dvh; scroll-snap-align: start;
+        scroll-snap-stop: always; display: flex; flex-direction: column; overflow: hidden;
+      }
+      /* Experiences fill the panel; the rail below stays outside the canvas so a
+         one-finger drag on the panorama pans it while the rail still scrolls. */
+      .panel-stage { position: relative; flex: 1; min-height: 0; }
+      .panel-rail {
+        flex: none; padding: 0.9rem 1.15rem calc(0.9rem + var(--foot));
+        border-top: 1px solid var(--line); background: var(--bg);
+        display: flex; flex-direction: column; align-items: center;
+        text-align: center; gap: 0.25rem;
+      }
+      .panel-rail h2 { font-size: 0.95rem; letter-spacing: 0.01em; }
+      .panel-rail p {
+        margin: 0; font-size: 0.83rem; line-height: 1.45;
+        color: var(--ink-dim); max-width: 32rem;
+      }
+      /* Status lines the scripts write into: empty until there is something to
+         say, so they take no room in the rail until then. */
+      .panel-rail .rail-note { font-size: 0.75rem; }
+      .panel-rail .rail-note:empty { display: none; }
+
+      /* Phone landscape is short: give the media panels the rail's height back.
+         The captions it carries are secondary, and both experiences are
+         self-describing once they fill the screen. */
+      @media (orientation: landscape) and (max-height: 520px) {
+        #view .panel-rail,
+        #change .panel-rail { display: none; }
+        /* Without the rail underneath it, the stage now reaches the foot of the
+           screen, so the arrow row is what has to clear the home indicator. */
+        #view, #change { --nav-safe: var(--foot); }
+      }
+
+      /* Installed, the dynamic viewport stops below the status bar -- measured
+         on an iPhone: screen 932, lvh 932, dvh 873, and the page still starts
+         at the top of the screen, so a panel sized to dvh ends 59px short and
+         leaves a black chin. The large viewport is the whole screen, which is
+         what a standalone app should fill; --foot then keeps the controls off
+         the home indicator, which nothing else is covering here.
+
+         This has to come after the rules it overrides: same specificity, so
+         source order decides, and sitting above them it silently lost.
+
+         In a browser the dynamic viewport is exactly right and none of this
+         applies. */
+      @media (display-mode: standalone), (display-mode: fullscreen) {
+        :root { --foot: var(--safe-b); }
+        html, body, .deck, .panel { height: 100lvh; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+      }
+    </style>
+  </body>
+</html>

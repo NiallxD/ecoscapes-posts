@@ -1,0 +1,87 @@
+---
+import { getCollection } from 'astro:content';
+import Shell from '../layouts/Shell.astro';
+import { asset } from '../lib/paths';
+
+// This page, not a location, is the PWA start_url: an installed app has exactly
+// one, and a single post's page would be the wrong home for someone who scans a
+// second post somewhere else.
+const locations = (await getCollection('locations')).sort((a, b) => a.data.title.localeCompare(b.data.title));
+
+/** A series is either a video or a year-by-year image sequence; the card says
+ *  which span it covers either way. */
+const span = ({ video, years }: { video?: { from: number; to: number }; years?: number[] }) =>
+  video
+    ? { from: video.from, to: video.to, note: 'time-lapse' }
+    : { from: years![0], to: years!.at(-1)!, note: `${years!.length} frames` };
+---
+<Shell title="EcoScapes Field Posts">
+  <main class="home">
+    <header>
+      <p class="eyebrow">Sea-to-Sky · Howe Sound Biosphere Region</p>
+      <h1>Field posts</h1>
+      <p class="lede">
+        Every post carries a QR code. Scan it and you get the view from where you
+        are standing, the same ground seen from orbit since 1984, and a way to add
+        your own photograph to the record.
+      </p>
+    </header>
+
+    <ul class="grid">
+      {locations.map((loc) => (
+        <li>
+          <a href={asset(`/p/${loc.id}/`)}>
+            <img src={asset(loc.data.pano.card ?? loc.data.pano.src)} alt="" loading="lazy" decoding="async" />
+            <div class="card-copy">
+              <p class="eyebrow">{loc.data.place}</p>
+              <h2>{loc.data.title}</h2>
+              <p class="card-note">{span(loc.data.series).from}–{span(loc.data.series).to} · {span(loc.data.series).note}</p>
+            </div>
+          </a>
+        </li>
+      ))}
+    </ul>
+
+    <p class="install" id="install" hidden>
+      Add this to your home screen and it opens full-screen, and keeps working
+      without a signal.
+    </p>
+  </main>
+</Shell>
+
+<style>
+  .home {
+    max-width: 44rem; margin: 0 auto;
+    padding: calc(var(--safe-t) + 2.6rem) 1.25rem calc(var(--safe-b) + 3rem);
+  }
+  h1 { font-size: clamp(2rem, 8vw, 2.9rem); margin: 0.4rem 0 0.9rem; }
+  .lede { font-size: 1rem; line-height: 1.6; color: var(--ink-dim); margin: 0 0 2.2rem; max-width: 34rem; }
+
+  .grid { list-style: none; padding: 0; margin: 0; display: grid; gap: 1rem; }
+  @media (min-width: 40rem) { .grid { grid-template-columns: 1fr 1fr; } }
+
+  .grid a {
+    display: block; text-decoration: none; border: 1px solid var(--line);
+    border-radius: 14px; overflow: hidden; background: var(--bg-lift);
+    transition: border-color 0.2s, transform 0.2s;
+  }
+  .grid a:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .grid img { width: 100%; aspect-ratio: 2 / 1; object-fit: cover; display: block; }
+  .card-copy { padding: 0.9rem 1rem 1.05rem; }
+  .card-copy h2 { font-size: 1.08rem; margin: 0.3rem 0 0.35rem; }
+  .card-note { margin: 0; font-size: 0.76rem; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+
+  .install {
+    margin: 2.2rem 0 0; padding: 0.9rem 1rem; border-radius: 12px;
+    border: 1px solid var(--line); background: var(--bg-lift);
+    font-size: 0.83rem; color: var(--ink-dim);
+  }
+</style>
+
+<script>
+  // Only worth suggesting to people who have not already installed it.
+  const el = document.getElementById('install');
+  const standalone =
+    matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true;
+  if (el && !standalone) el.hidden = false;
+</script>

@@ -1,0 +1,399 @@
+---
+import PanelNav from './PanelNav.astro';
+
+interface Props { prompt: string; shareTo: string; title: string; prev?: string; next?: string }
+const { prompt, shareTo, title, prev, next } = Astro.props;
+---
+<section class="panel" id="add" aria-label="Add your photograph" data-share-to={shareTo} data-title={title} data-next={next}>
+  <div class="panel-stage cap-stage">
+    <div class="cap-empty" id="cap-empty">
+      <!-- What to do, drawn rather than described: the phone goes into the
+           holder on the post, and then it takes the picture. The holder is the
+           whole point of the post -- it is what makes every photograph from
+           here line up with every other one. -->
+      <svg class="cap-guide" viewBox="0 0 200 170" aria-hidden="true">
+        <path class="g-ground" d="M44 150H156" />
+        <path class="g-post" d="M100 150V82" />
+        <!-- Held on its long edge, the way the view is framed, and resting on
+             the holder's arms rather than sitting on its floor. -->
+        <g class="g-phone">
+          <rect x="76" y="52" width="48" height="24" rx="4" />
+          <circle class="g-lens" cx="86" cy="64" r="2.8" />
+          <circle class="g-flash" cx="86" cy="64" r="2.8" />
+        </g>
+        <!-- Drawn after the phone so its arms close over it. -->
+        <path class="g-cradle" d="M70 60v16a6 6 0 006 6h48a6 6 0 006-6V60" />
+      </svg>
+      <div class="cap-copy">
+        <p class="eyebrow">Add to the record</p>
+        <h2>Take the shot</h2>
+        <p class="cap-prompt">{prompt}</p>
+      </div>
+      <!-- The whole camera integration, for now: the OS camera, no permissions
+           plumbing, works on iOS and Android. The label that opens it lives in
+           the nav pill below. -->
+      <input type="file" id="cap-input" accept="image/*" capture="environment" hidden />
+    </div>
+
+    <div class="cap-result" id="cap-result" hidden>
+      <img id="cap-preview" alt="The photograph you just took" />
+    </div>
+
+    <!-- What to do with the shot rides in the nav pill, like every other
+         panel's controls. It is empty until there is a shot to act on, and the
+         pill goes with it. -->
+    <PanelNav prev={prev}>
+      <label class="chip cap-go" id="cap-go" for="cap-input">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+          <path d="M3 8.5A2.5 2.5 0 015.5 6h2L9 4h6l1.5 2h2A2.5 2.5 0 0121 8.5v9A2.5 2.5 0 0118.5 20h-13A2.5 2.5 0 013 17.5z" />
+          <circle cx="12" cy="13" r="3.4" />
+        </svg>
+        Open camera
+      </label>
+      <div class="cap-actions" id="cap-actions" hidden>
+        <button class="chip cap-retake" id="cap-retake" type="button">Retake</button>
+      </div>
+      <Fragment slot="end">
+        <!-- The far corner carries whichever of these the panel is currently
+             asking for: move on without a photograph, or send the one taken. -->
+        {next && (
+          <a class="step step-next" id="cap-skip" href={next} aria-label="Skip and move on">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M9 5l7 7-7 7" />
+            </svg>
+          </a>
+        )}
+        <button class="step step-next cap-send" id="cap-send" type="button" aria-label={`Send your photograph to ${shareTo}`} hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true">
+            <path d="M12 19V5m0 0l-6 6m6-6l6 6" />
+          </svg>
+        </button>
+      </Fragment>
+    </PanelNav>
+
+    <!-- Asked for once the photograph is taken and the send button tapped: a
+         line about the place, in your words, travelling with the picture. The
+         prompt rotates so it reads as an invitation rather than a form field,
+         and stops the moment it is being answered. -->
+    <div class="cap-sheet" id="cap-sheet" hidden>
+      <label class="sr-only" for="cap-note">Say something about this place</label>
+      <textarea id="cap-note" rows="2" maxlength="280" placeholder="What did you see?"></textarea>
+      <div class="cap-sheet-row">
+        <button class="chip" id="cap-cancel" type="button">Cancel</button>
+        <button class="chip cap-primary" id="cap-confirm" type="button">Send to {shareTo}</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel-rail">
+    <h2>The Bear</h2>
+    <p>
+      Explore the landscape like the Bear. Share what you find and help tell the
+      story of the changing landscape around us.
+    </p>
+    <!-- Written to once you share; empty until then. -->
+    <p class="rail-note" id="cap-status"></p>
+  </div>
+</section>
+
+<style>
+  .cap-stage { display: grid; place-items: center; padding: 1.4rem 1.4rem 4.6rem; }
+  .cap-empty {
+    display: flex; flex-direction: column; align-items: center; gap: 1.15rem;
+    text-align: center; max-width: 24rem;
+  }
+  .cap-guide {
+    width: min(58vw, 12.5rem); height: auto; fill: none;
+    stroke: var(--line); stroke-width: 2; stroke-linecap: round;
+  }
+  .g-phone rect { stroke: var(--ink-dim); }
+  .g-cradle, .g-lens { stroke: var(--accent); }
+  .g-flash { stroke: var(--accent); }
+
+  /* The post and its holder draw themselves in once, on arrival. */
+  .g-ground, .g-post, .g-cradle {
+    stroke-dasharray: 130;
+    stroke-dashoffset: 130;
+    animation: cap-draw 0.9s ease-out forwards;
+  }
+  .g-post { animation-delay: 0.15s; }
+  .g-cradle { animation-delay: 0.4s; }
+  @keyframes cap-draw { to { stroke-dashoffset: 0; } }
+
+  /* Then the phone goes in, and the shutter goes off, over and over: this is
+     the instruction, so it repeats rather than playing once and stopping. */
+  .g-phone {
+    transform-box: view-box;
+    animation: cap-place 4.6s ease-in-out 0.9s infinite;
+  }
+  @keyframes cap-place {
+    0%, 8% { transform: translateY(-26px); opacity: 0; }
+    30%, 100% { transform: translateY(0); opacity: 1; }
+  }
+  .g-flash {
+    transform-box: view-box;
+    transform-origin: 86px 64px;
+    opacity: 0;
+    animation: cap-flash 4.6s ease-out 0.9s infinite;
+  }
+  @keyframes cap-flash {
+    0%, 46% { opacity: 0; transform: scale(1); }
+    56% { opacity: 0.85; transform: scale(2.6); }
+    72%, 100% { opacity: 0; transform: scale(4.2); }
+  }
+  .cap-copy h2 { font-size: 1.55rem; margin: 0.3rem 0 0.5rem; }
+  .cap-prompt { margin: 0; font-size: 0.9rem; color: var(--ink-dim); line-height: 1.5; }
+  /* Both states of the pill: whichever one is showing takes the whole row. */
+  .cap-go {
+    flex: 1;
+    min-width: 0;
+    justify-content: center;
+    background: none;
+    border-color: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .cap-go:hover { border-color: transparent; color: var(--accent); }
+
+  .cap-result { position: absolute; inset: 0; }
+  #cap-preview { width: 100%; height: 100%; object-fit: cover; }
+
+  .cap-actions {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.2rem;
+  }
+  /* Inside the nav pill, so no backing of their own. */
+  .cap-actions .chip {
+    flex: none;
+    padding: 0.5em 0.75em;
+    background: none;
+    border-color: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .cap-actions .chip:hover:not(:disabled) { border-color: transparent; color: var(--accent); }
+  /* Throwing the photograph away, which is the one thing here you cannot undo. */
+  .cap-retake { color: var(--danger); }
+  .cap-actions .cap-retake:hover:not(:disabled) { color: var(--danger); }
+  .cap-primary { color: var(--accent); font-weight: 600; }
+  .cap-send { color: var(--accent); border-color: rgba(127, 209, 166, 0.55); }
+
+  .cap-sheet {
+    position: absolute;
+    z-index: 5;
+    left: 0.9rem;
+    right: 0.9rem;
+    bottom: calc(4.4rem + var(--nav-safe, 0px));
+    padding: 0.8rem;
+    border-radius: 16px;
+    background: rgba(8, 13, 11, 0.86);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    /* Driven from the visual viewport when the keyboard opens. */
+    transition: transform 0.22s ease-out;
+  }
+  #cap-note {
+    width: 100%;
+    resize: none;
+    font: inherit;
+    /* 16px exactly, and never in rem: iOS zooms the page in on focusing any
+       field whose text is smaller than this, and the panel is a fixed-size
+       deck that has no business being zoomed. */
+    font-size: 16px;
+    line-height: 1.4;
+    color: var(--ink);
+    background: none;
+    border: none;
+    padding: 0;
+    outline: none;
+  }
+  #cap-note::placeholder { color: var(--ink-dim); transition: opacity 0.35s; }
+  #cap-note[data-swapping]::placeholder { opacity: 0; }
+  .cap-sheet-row { display: flex; justify-content: flex-end; gap: 0.5rem; }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px;
+    overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  }
+
+  @media (orientation: landscape) and (max-height: 520px) {
+    .cap-guide { width: 11rem; }
+    .cap-copy h2 { font-size: 1.25rem; }
+  }
+</style>
+
+<script>
+  const section = document.getElementById('add');
+  if (section) {
+    const input = document.getElementById('cap-input') as HTMLInputElement;
+    const empty = document.getElementById('cap-empty')!;
+    const result = document.getElementById('cap-result')!;
+    const actions = document.getElementById('cap-actions')!;
+    const go = document.getElementById('cap-go')!;
+    const send = document.getElementById('cap-send') as HTMLButtonElement;
+    const skip = document.getElementById('cap-skip');
+    const onward = section.dataset.next;
+    const sheet = document.getElementById('cap-sheet')!;
+    const note = document.getElementById('cap-note') as HTMLTextAreaElement;
+    const preview = document.getElementById('cap-preview') as HTMLImageElement;
+    const status = document.getElementById('cap-status')!;
+    const shareTo = section.dataset.shareTo!;
+    let file: File | null = null;
+    let url: string | null = null;
+
+    // ---- The prompt ------------------------------------------------------
+    // Asking "add a message" gets you nothing; asking something in particular
+    // gets you a sentence. They rotate because a single question starts to read
+    // as a label, and because a different one may be the one you can answer.
+    const PROMPTS = [
+      'What did you see?',
+      'How does this place make you feel?',
+      'What is your connection to this landscape?',
+      'What has changed since you were last here?',
+      'What would you want someone to notice here?',
+    ];
+    const ROTATE_MS = 4200;
+    let promptAt = Math.floor(Math.random() * PROMPTS.length);
+    let rotator: number | undefined;
+
+    const showPrompt = () => { note.placeholder = PROMPTS[promptAt % PROMPTS.length]; };
+
+    const stopRotating = () => {
+      clearInterval(rotator);
+      rotator = undefined;
+      note.removeAttribute('data-swapping');
+    };
+
+    // Rotating under someone who is reading or typing is just noise, so it runs
+    // only while the field is empty and unfocused.
+    const startRotating = () => {
+      stopRotating();
+      rotator = window.setInterval(() => {
+        if (note.value || document.activeElement === note) return;
+        note.setAttribute('data-swapping', '');
+        setTimeout(() => {
+          promptAt += 1;
+          showPrompt();
+          note.removeAttribute('data-swapping');
+        }, 350);
+      }, ROTATE_MS);
+    };
+
+    note.addEventListener('focus', stopRotating);
+    note.addEventListener('input', stopRotating);
+
+    // The deck is a fixed, unscrollable viewport, so the browser cannot scroll
+    // the field into view the way it would on an ordinary page -- the keyboard
+    // simply covers it. The visual viewport reports how much of the window the
+    // keyboard is taking, and the sheet rides up by exactly that.
+    const vv = window.visualViewport;
+    const GAP = 8; // breathing room between the sheet and the keyboard
+    const lift = () => {
+      if (!vv) return;
+      const covered = Math.max(0, innerHeight - vv.height - vv.offsetTop);
+      if (!covered) { sheet.style.transform = ''; return; }
+      // Only far enough to clear it. The sheet already sits above the nav row,
+      // so riding the keyboard's full height would leave it stranded halfway up
+      // the photograph with a gap underneath.
+      sheet.style.transform = '';
+      const restingGap = innerHeight - sheet.getBoundingClientRect().bottom;
+      const rise = Math.max(0, covered - restingGap + GAP);
+      sheet.style.transform = rise ? `translateY(-${Math.round(rise)}px)` : '';
+    };
+    const drop = () => { sheet.style.transform = ''; };
+    if (vv) {
+      // `scroll` as well as `resize`: iOS shifts the visual viewport around as
+      // the keyboard animates, and only the pair of them tracks it throughout.
+      vv.addEventListener('resize', lift);
+      vv.addEventListener('scroll', lift);
+    }
+    note.addEventListener('focus', lift);
+    note.addEventListener('blur', drop);
+
+    // ---- The sheet -------------------------------------------------------
+    const openSheet = () => {
+      promptAt = Math.floor(Math.random() * PROMPTS.length);
+      showPrompt();
+      sheet.hidden = false;
+      // Deliberately not focused: focusing would stop the rotation before it
+      // showed anything, and would throw the keyboard over the photograph
+      // before there is a word to type. Tapping the field does both.
+      startRotating();
+    };
+    const closeSheet = () => {
+      stopRotating();
+      note.blur();
+      drop();
+      sheet.hidden = true;
+    };
+
+    const reset = () => {
+      if (url) URL.revokeObjectURL(url);
+      url = null; file = null; input.value = '';
+      result.hidden = true; empty.hidden = false;
+      actions.hidden = true; go.hidden = false;
+      send.hidden = true;
+      if (skip) skip.hidden = false;
+      note.value = '';
+      closeSheet();
+      status.textContent = '';
+    };
+
+    input.addEventListener('change', () => {
+      file = input.files?.[0] ?? null;
+      if (!file) return;
+      url = URL.createObjectURL(file);
+      preview.src = url;
+      empty.hidden = true; result.hidden = false;
+      actions.hidden = false; go.hidden = true;
+      send.hidden = false;
+      if (skip) skip.hidden = true;
+    });
+
+    // The photograph is away, so the panel has nothing left to ask for.
+    const moveOn = () => {
+      if (!onward) return;
+      document.querySelector(onward)?.scrollIntoView({ behavior: 'smooth' });
+    };
+
+    document.getElementById('cap-retake')!.addEventListener('click', reset);
+    send.addEventListener('click', () => (sheet.hidden ? openSheet() : closeSheet()));
+    document.getElementById('cap-cancel')!.addEventListener('click', closeSheet);
+
+    document.getElementById('cap-confirm')!.addEventListener('click', async () => {
+      if (!file) return;
+      const said = note.value.trim();
+      const payload = {
+        files: [file],
+        title: section.dataset.title!,
+        // What they wrote leads; the place is context underneath it.
+        text: said ? `${said}\n\n— ${section.dataset.title}` : `A photograph from ${section.dataset.title}`,
+      };
+      // No backend on a static host, so hand the file to the OS share sheet --
+      // this is the seam where an upload endpoint slots in later.
+      if (navigator.canShare?.(payload)) {
+        try {
+          await navigator.share(payload);
+          closeSheet();
+          status.textContent = `Handed to your share sheet for ${shareTo}.`;
+          moveOn();
+        } catch { /* user dismissed the sheet */ }
+        return;
+      }
+      const a = document.createElement('a');
+      a.href = url!; a.download = `ecoscapes-${Date.now()}.jpg`; a.click();
+      closeSheet();
+      status.textContent = said
+        ? 'Saved to your downloads — sharing is not supported in this browser, so your message could not travel with it.'
+        : 'Saved to your downloads — sharing is not supported in this browser.';
+      moveOn();
+    });
+  }
+</script>

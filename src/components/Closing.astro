@@ -1,0 +1,322 @@
+---
+import { asset, wallTiles } from '../lib/paths';
+import PanelNav from './PanelNav.astro';
+
+interface Props { prev?: string; wall?: { dir: string; full?: string; ext: string; dates: string[] } }
+const { prev, wall } = Astro.props;
+
+// Three columns, dealt round-robin so neighbouring dates never end up stacked
+// on top of each other. Each column repeats its own tiles once: the scroll is a
+// translate of exactly half the strip, so the second copy is underneath the
+// first at the moment it wraps and the seam never shows.
+const COLUMNS = 3;
+const tiles = wall ? wallTiles(wall) : [];
+const columns = Array.from({ length: COLUMNS }, (_, c) => tiles.filter((_, i) => i % COLUMNS === c));
+const stamp = (iso: string) =>
+  new Date(`${iso}T12:00:00`).toLocaleDateString('en-CA', { year: 'numeric', month: 'short' });
+// Noon, so a date never slides into the day before in a western timezone.
+const longStamp = (iso: string) =>
+  new Date(`${iso}T12:00:00`).toLocaleDateString('en-CA', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+---
+<section class="panel closing" id="onward" aria-label="Take this with you">
+  <div class="panel-stage closing-stage">
+    {tiles.length > 0 && (
+      <div class="wall" aria-hidden="true">
+        {columns.map((column, c) => (
+          <div class={`wall-col wall-col-${c}`}>
+            {[...column, ...column].map((tile) => (
+              <figure class="wall-tile">
+                <!-- Not lazy: the browser decides what is "near the viewport" from a
+                     box that is being animated continuously, and gets it badly
+                     wrong here -- one column loaded a single tile and drifted
+                     the rest past as blanks. Low priority instead, so they
+                     queue behind the panorama and the clip but do arrive. -->
+                <img src={asset(tile.src)} alt="" fetchpriority="low" decoding="async" />
+                <figcaption>{stamp(tile.date)}</figcaption>
+              </figure>
+            ))}
+          </div>
+        ))}
+      </div>
+    )}
+
+    <div class="closing-copy">
+      <p class="eyebrow">Keep going</p>
+      <h2>Take this with you</h2>
+      <p>
+        The Bear does not stop at one clearing. What you just did here — stand
+        still, look properly, notice what has changed, say what you saw — works
+        anywhere in the Sea-to-Sky.
+      </p>
+      <p class="closing-dim">
+        There are posts like this one across the region, each with its own QR
+        code and its own view. Every photograph and every story sent from them
+        joins the same record, so the landscape gets told by the people who
+        walk it rather than by the satellites alone.
+      </p>
+      <a class="chip closing-more" href={asset('/')}>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+          <path d="M12 21s7-5.6 7-11a7 7 0 10-14 0c0 5.4 7 11 7 11z" /><circle cx="12" cy="10" r="2.5" />
+        </svg>
+        Find another post
+      </a>
+    </div>
+
+    <PanelNav prev={prev}>
+      {tiles.length > 0 && (
+        <button class="chip wall-btn" id="wall-btn" type="button" aria-pressed="false">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+            <rect x="3" y="3" width="7.5" height="7.5" rx="1.5" />
+            <rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5" />
+            <rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5" />
+            <rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5" />
+          </svg>
+          <span id="wall-btn-label">Contributions</span>
+        </button>
+      )}
+    </PanelNav>
+  </div>
+
+  <!-- Full screen and in date order: the wall behind the copy is a texture,
+       this is the record itself, big enough to actually look at. -->
+  {tiles.length > 0 && (
+    <div class="gallery" id="gallery" hidden>
+      <header class="gallery-bar">
+        <div>
+          <p class="eyebrow">Contributions</p>
+          <p class="gallery-count">{tiles.length} photographs from this post</p>
+        </div>
+        <button class="step gallery-close" id="gallery-close" type="button" aria-label="Close contributions">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
+      </header>
+      <div class="gallery-scroll" id="gallery-scroll">
+        {tiles.map((tile, i) => (
+          <figure class="shot">
+            <img
+              src={asset(tile.full)}
+              alt={`This view on ${longStamp(tile.date)}`}
+              loading={i < 2 ? 'eager' : 'lazy'}
+              decoding="async"
+            />
+            <figcaption>{longStamp(tile.date)}</figcaption>
+          </figure>
+        ))}
+        <p class="gallery-end">The next one could be yours.</p>
+      </div>
+    </div>
+  )}
+</section>
+
+<style>
+  /* No rail under this stage, so the arrow row clears the foot itself. */
+  .closing { --nav-safe: var(--foot); }
+
+  .closing-stage {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: calc(var(--safe-t) + 3rem) 1.5rem 5.2rem;
+  }
+
+  /* ---- The wall ---------------------------------------------------------
+     Photographs taken from this same post on other days, drifting upwards
+     behind the words: the argument the copy is making, shown rather than
+     stated. Columns run at different speeds because three strips in lockstep
+     read as one sliding sheet. */
+  .wall {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    display: flex;
+    gap: 0.5rem;
+    padding: 0 0.5rem;
+    overflow: hidden;
+    /* Faded at both ends so the tiles arrive and leave rather than being cut,
+       and held well back so the copy stays the thing you read. */
+    opacity: 0.4;
+    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 82%, transparent);
+    mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 82%, transparent);
+  }
+  .wall-col {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    /* Starts above the top edge: at rest the first tile would otherwise sit on
+       the seam rather than in the frame. */
+    animation: wall-drift linear infinite;
+    will-change: transform;
+  }
+  /* Same tile shape throughout -- these are one view photographed again and
+     again, and varying the crops would invent a difference. What breaks the
+     grid is the offset: each column starts part of a tile higher than the one
+     beside it, so the rows never line up across the wall. */
+  .wall-col-0 { animation-duration: 64s; margin-top: -2.4rem; }
+  .wall-col-1 { animation-duration: 44s; margin-top: -5.1rem; }
+  .wall-col-2 { animation-duration: 82s; margin-top: -0.9rem; }
+  /* Exactly half the strip: the duplicate half has taken its place by then. */
+  @keyframes wall-drift {
+    from { transform: translateY(0); }
+    to { transform: translateY(calc(-50% - 0.25rem)); }
+  }
+
+  /* The layout's blanket reduced-motion rule shortens every duration to
+     0.01ms, which for an infinite animation means it loops flat out rather
+     than stopping. Three columns of photographs is the wrong place to leave
+     that running, so this one is switched off outright and the wall simply
+     stands still. */
+  @media (prefers-reduced-motion: reduce) {
+    .wall-col { animation: none; }
+  }
+
+  /* Flat inside the nav pill, like every other panel's controls. */
+  .wall-btn {
+    flex: 1;
+    min-width: 0;
+    justify-content: center;
+    background: none;
+    border-color: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .wall-btn:hover:not(:disabled) { border-color: transparent; color: var(--accent); }
+
+  /* Fixed rather than absolute: the panel clips its overflow and the deck
+     scrolls sideways, so the only way to be genuinely full screen is to leave
+     both behind. Above the story bar too -- this is the whole screen's job
+     while it is open. */
+  .gallery {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+  }
+  .gallery-bar {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: calc(var(--safe-t) + 0.9rem) 1rem 0.9rem 1.15rem;
+    border-bottom: 1px solid var(--line);
+  }
+  .gallery-count { margin: 0.25rem 0 0; font-size: 0.85rem; color: var(--ink-dim); }
+  .gallery-close { margin-left: auto; }
+
+  .gallery-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    /* Its own scroll, with nothing handed back to the deck behind it. */
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding: 1rem 1.15rem calc(2rem + var(--safe-b));
+    display: flex;
+    flex-direction: column;
+    gap: 1.6rem;
+  }
+  .shot { margin: 0; }
+  .shot img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 12px;
+    background: var(--bg-lift);
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+  }
+  .shot figcaption {
+    margin-top: 0.5rem;
+    font-size: 0.82rem;
+    color: var(--ink-dim);
+    font-variant-numeric: tabular-nums;
+  }
+  .gallery-end {
+    margin: 0.4rem 0 0;
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--ink-dim);
+  }
+
+  .wall-tile { position: relative; margin: 0; flex: none; }
+  .wall-tile img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 8px;
+  }
+  .wall-tile figcaption {
+    position: absolute;
+    left: 0.3rem;
+    bottom: 0.3rem;
+    padding: 0.15em 0.45em;
+    border-radius: 5px;
+    background: rgba(6, 10, 9, 0.66);
+    font-size: 0.56rem;
+    letter-spacing: 0.04em;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* The copy sits over the wall, with its own backing so it never has to
+     compete with whatever tile happens to be passing behind it. */
+  .closing-copy {
+    position: relative;
+    z-index: 1;
+    max-width: 30rem;
+    padding: 1.4rem 1.3rem 1.5rem;
+    border-radius: 18px;
+    background: rgba(9, 14, 12, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+  }
+  .closing-copy h2 { font-size: clamp(1.7rem, 7.5vw, 2.3rem); line-height: 1.12; margin: 0.45rem 0 1rem; }
+  .closing-copy p { margin: 0 0 1rem; font-size: 1rem; line-height: 1.55; }
+  .closing-dim { color: var(--ink-dim); font-size: 0.92rem; }
+  .closing-more { margin-top: 0.4rem; }
+
+  @media (orientation: landscape) and (max-height: 520px) {
+    .closing-stage { align-items: flex-start; overflow-y: auto; }
+    .closing-copy h2 { font-size: 1.4rem; }
+    .closing-copy p { font-size: 0.9rem; margin-bottom: 0.7rem; }
+  }
+</style>
+
+<script>
+  const btn = document.getElementById('wall-btn') as HTMLButtonElement | null;
+  const gallery = document.getElementById('gallery');
+  const scroll = document.getElementById('gallery-scroll');
+  const close = document.getElementById('gallery-close');
+
+  if (btn && gallery && scroll && close) {
+    const open = () => {
+      gallery.hidden = false;
+      btn.setAttribute('aria-pressed', 'true');
+      // Always from the beginning: it is a sequence, and dropping someone
+      // wherever they last left off loses the point of it being in order.
+      scroll.scrollTop = 0;
+      close.focus();
+    };
+    const shut = () => {
+      gallery.hidden = true;
+      btn.setAttribute('aria-pressed', 'false');
+      btn.focus();
+    };
+
+    btn.addEventListener('click', open);
+    close.addEventListener('click', shut);
+    addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !gallery.hidden) shut();
+    });
+  }
+</script>
