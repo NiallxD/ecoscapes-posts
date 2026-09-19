@@ -97,7 +97,7 @@ pano:
       place: above
       radius: 15
 series:
-  caption: Forest ecosystem integrity, 1985–2022
+  caption: Landcover and land-use change, 1984–2024
   source: TerrAdapt · Sea-to-Sky model area
   rail:
     title: The Raven
@@ -169,8 +169,8 @@ series:
     poster: /media/feather-park-01/series-poster.jpg
     # Playback speed. The export is slow; this is the knob for it.
     speed: 0.5
-    from: 1985
-    to: 2022
+    from: 1984
+    to: 2024
     # This export carries no year of its own -- it is a plain 3D view of the
     # valley -- so the panel draws the year itself from the position in the clip.
     burnedIn: false
