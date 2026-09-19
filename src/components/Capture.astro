@@ -68,8 +68,12 @@ const { prompt, shareTo, title, rail, prev, next } = Astro.props;
         </svg>
         Open camera
       </label>
+      <!-- The two things to do with a photograph before sending it, sharing the
+           row equally: neither is the greater offer, and the caption is only
+           ever an offer -- the arrow in the corner sends with or without it. -->
       <div class="cap-actions" id="cap-actions" hidden>
         <button class="chip cap-retake" id="cap-retake" type="button">Retake</button>
+        <button class="chip cap-caption" id="cap-caption" type="button">Add caption</button>
       </div>
       <Fragment slot="end">
         <!-- The far corner carries whichever of these the panel is currently
@@ -104,7 +108,7 @@ const { prompt, shareTo, title, rail, prev, next } = Astro.props;
       <textarea id="cap-note" rows="2" maxlength="280" placeholder="What did you see?"></textarea>
       <div class="cap-sheet-row">
         <button class="chip" id="cap-cancel" type="button">Cancel</button>
-        <button class="chip cap-primary" id="cap-confirm" type="button">Send to {shareTo}</button>
+        <button class="chip cap-primary" id="cap-confirm" type="button">Done</button>
       </div>
     </div>
   </div>
@@ -251,10 +255,13 @@ const { prompt, shareTo, title, rail, prev, next } = Astro.props;
     justify-content: center;
     gap: 0.2rem;
   }
-  /* Inside the nav pill, so no backing of their own. */
+  /* Inside the nav pill, so no backing of their own. Half the row each, so the
+     pair reads as one control rather than as a button with an afterthought. */
   .cap-actions .chip {
-    flex: none;
-    padding: 0.5em 0.75em;
+    flex: 1 1 0;
+    min-width: 0;
+    justify-content: center;
+    padding: 0.5em 0.4em;
     background: none;
     border-color: transparent;
     backdrop-filter: none;
@@ -429,6 +436,7 @@ const { prompt, shareTo, title, rail, prev, next } = Astro.props;
       note.value = '';
       closeSheet();
       status.textContent = '';
+      caption.textContent = 'Add caption';
     };
 
     input.addEventListener('change', () => {
@@ -449,8 +457,21 @@ const { prompt, shareTo, title, rail, prev, next } = Astro.props;
     };
 
     document.getElementById('cap-retake')!.addEventListener('click', reset);
-    send.addEventListener('click', () => (sheet.hidden ? openSheet() : closeSheet()));
-    document.getElementById('cap-cancel')!.addEventListener('click', closeSheet);
+
+    // The caption button owns the sheet now: writing something is a step of its
+    // own that can be skipped, rather than a gate on the way to sending.
+    const caption = document.getElementById('cap-caption')!;
+    const labelCaption = () => {
+      caption.textContent = note.value.trim() ? 'Edit caption' : 'Add caption';
+    };
+    caption.addEventListener('click', () => (sheet.hidden ? openSheet() : closeSheet()));
+    // Cancel throws the words away; Done keeps them and closes. Neither sends:
+    // that is the arrow's job, whether or not this was ever opened.
+    document.getElementById('cap-cancel')!.addEventListener('click', () => {
+      note.value = '';
+      labelCaption();
+      closeSheet();
+    });
 
     // ---- Sending ---------------------------------------------------------
     // A staged send, over the photograph: a bar that fills, then a tick. It is
@@ -483,7 +504,12 @@ const { prompt, shareTo, title, rail, prev, next } = Astro.props;
       await wait(900);
     };
 
-    document.getElementById('cap-confirm')!.addEventListener('click', async () => {
+    document.getElementById('cap-confirm')!.addEventListener('click', () => {
+      labelCaption();
+      closeSheet();
+    });
+
+    send.addEventListener('click', async () => {
       if (!file) return;
       const said = note.value.trim();
       closeSheet();

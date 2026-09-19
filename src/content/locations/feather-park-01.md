@@ -194,10 +194,10 @@ closing:
     anywhere in the Sea-to-Sky.
   note: >-
     There are posts like this one across the region, each with its own QR code
-    and its own view. Every photograph and every story sent from them joins the
-    same record, so the landscape gets told by the people who walk it rather
-    than by the satellites alone.
+    and its own view.
   action: Find another post
+  # The second button, beside it.
+  install: Add to home
 wall:
   dir: /media/feather-park-01/wall
   full: /media/feather-park-01/wall-full

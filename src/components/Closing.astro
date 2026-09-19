@@ -5,7 +5,7 @@ import PanelNav from './PanelNav.astro';
 interface Props {
   prev?: string;
   /** The panel's own words, from the location file. */
-  copy: { eyebrow: string; title: string; body: string; note: string; action: string };
+  copy: { eyebrow: string; title: string; body: string; note: string; action: string; install: string };
   wall?: { dir: string; full?: string; ext: string; dates: string[] };
 }
 const { prev, copy, wall } = Astro.props;
@@ -54,12 +54,47 @@ const longStamp = (iso: string) =>
       <h2>{copy.title}</h2>
       <p>{copy.body}</p>
       <p class="closing-dim">{copy.note}</p>
-      <a class="chip closing-more" href={asset('/')}>
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-          <path d="M12 21s7-5.6 7-11a7 7 0 10-14 0c0 5.4 7 11 7 11z" /><circle cx="12" cy="10" r="2.5" />
-        </svg>
-        {copy.action}
-      </a>
+      <div class="closing-actions">
+        <!-- A button, not a link, purely so that it is the same kind of thing as
+             the one beside it: a link and a button are measured by different
+             rules -- the engine's, not this sheet's -- and two pills side by
+             side at different heights is the one thing this row must not do.
+             The address it goes to still lives in the markup. -->
+        <button class="chip closing-more" id="closing-more" type="button" data-href={asset('/')}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+            <path d="M12 21s7-5.6 7-11a7 7 0 10-14 0c0 5.4 7 11 7 11z" /><circle cx="12" cy="10" r="2.5" />
+          </svg>
+          {copy.action}
+        </button>
+        <!-- Hidden until the script has decided this device can be offered
+             anything: already installed, and there is nothing to offer. -->
+        <button class="chip closing-install" id="closing-install" type="button" hidden>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+            <rect x="4" y="4" width="16" height="16" rx="3.5" />
+            <path d="M12 8.5v7M8.5 12h7" />
+          </svg>
+          {copy.install}
+        </button>
+      </div>
+    </div>
+
+    <!-- iOS never fires the install prompt: adding to the home screen is a
+         thing the person does through the browser's own share sheet, so all
+         this panel can do is say where it is. -->
+    <div class="howto" id="howto" role="dialog" aria-modal="true" aria-labelledby="howto-title">
+      <div class="howto-card">
+        <h3 id="howto-title">Add this to your home screen</h3>
+        <p class="howto-lede">Adding to your home screen makes this experience behave like an app.</p>
+        <!-- Filled by the script: which button to look for, and what it is
+             called, differ by browser -- and pointing at the wrong icon is
+             worse than not pointing at all. -->
+        <ol class="howto-steps" id="howto-steps"></ol>
+        <!-- Only shown when the steps above are a guess rather than a match. -->
+        <p class="howto-dim" id="howto-dim" hidden>
+          If you cannot see it, look for <b>Install</b> or <b>Add to Home Screen</b> in your browser's menu.
+        </p>
+        <button class="chip howto-close" id="howto-close" type="button">Got it</button>
+      </div>
     </div>
 
     <PanelNav prev={prev}>
@@ -288,6 +323,113 @@ const longStamp = (iso: string) =>
 
   /* The copy sits over the wall, with its own backing so it never has to
      compete with whatever tile happens to be passing behind it. */
+  /* Two ways onwards, the same size as each other: neither is the lesser
+     offer. Stacked on a phone, where side by side would squeeze both labels
+     onto two lines, and side by side once there is width for it. */
+  .closing-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 1.1rem;
+  }
+  /* A stated height, not an inherited one. These two are a link and a button,
+     and how tall each comes out from its padding and line box is decided partly
+     by the engine -- Safari measures a button by its own rules. Two pills side
+     by side at slightly different heights is the kind of thing that cannot be
+     unseen, so the height is taken out of the browser's hands. 44px is also a
+     proper target for a thumb. */
+  .closing-actions > * {
+    justify-content: center;
+    min-height: 44px;
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+  @media (min-width: 26rem) {
+    .closing-actions { flex-direction: row; }
+    .closing-actions > * { flex: 1 1 0; }
+  }
+
+  /* The how-to, for browsers that cannot be prompted. Same fade and the same
+     visibility timing as the gallery: switched on the way in so it can take
+     focus at once, held to the end of the fade on the way out. */
+  .howto {
+    position: fixed;
+    inset: 0;
+    z-index: 11;
+    display: grid;
+    place-items: center;
+    padding: 1.2rem;
+    background: rgba(6, 10, 9, 0.72);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.26s ease, visibility 0s linear 0.26s;
+  }
+  .howto.on {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 0.26s ease, visibility 0s;
+  }
+  .howto-card {
+    width: min(23rem, 100%);
+    padding: 1.3rem 1.3rem 1.1rem;
+    border-radius: 18px;
+    background: var(--bg-lift);
+    border: 1px solid var(--line);
+  }
+  .howto-card h3 { font-size: 1.02rem; margin-bottom: 0.3rem; }
+  /* Why anyone would bother, before the steps for doing it. */
+  .howto-lede {
+    margin: 0 0 1rem;
+    font-size: 0.82rem;
+    line-height: 1.45;
+    color: var(--ink-dim);
+  }
+  .howto-steps {
+    list-style: none;
+    margin: 0 0 0.9rem;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+  }
+  /* The steps are written by the script, so they carry no scope of their own --
+     hence :global, anchored to the list, which does. Without it these rules
+     match nothing and the icons come out the size of the card. */
+  .howto-steps :global(li) {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    font-size: 0.86rem;
+    line-height: 1.45;
+  }
+  /* One flex item, not one per word: a flex container makes an item of every
+     text node, so an emphasised word in the middle of a sentence gets its own
+     line and the sentence comes apart. */
+  .howto-steps :global(li > span:last-child) { flex: 1; min-width: 0; }
+  .howto-steps :global(b) { font-weight: 600; }
+  /* The glyph is the thing being looked for, so it is shown at about the size
+     it appears in the browser's own bar rather than as a bullet. */
+  .howto-steps :global(.howto-icon) {
+    flex: none;
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.07);
+    color: var(--accent);
+  }
+  .howto-steps :global(.howto-icon svg) { width: 19px; height: 19px; }
+  .howto-dim {
+    margin: 0 0 1rem;
+    font-size: 0.76rem;
+    line-height: 1.45;
+    color: var(--ink-dim);
+  }
+  .howto-close { width: 100%; justify-content: center; }
+
   .closing-copy {
     position: relative;
     z-index: 1;
@@ -302,7 +444,10 @@ const longStamp = (iso: string) =>
   .closing-copy h2 { font-size: clamp(1.7rem, 7.5vw, 2.3rem); line-height: 1.12; margin: 0.45rem 0 1rem; }
   .closing-copy p { margin: 0 0 1rem; font-size: 1rem; line-height: 1.55; }
   .closing-dim { color: var(--ink-dim); font-size: 0.92rem; }
-  .closing-more { margin-top: 0.4rem; }
+  /* No margin of its own: it used to be the only thing under the paragraph and
+     wanted a little air, but it now shares a row that carries the spacing --
+     and a margin on one of two pills is what makes them look different heights.
+  */
 
   @media (orientation: landscape) and (max-height: 520px) {
     .closing-stage { align-items: flex-start; overflow-y: auto; }
@@ -344,6 +489,151 @@ const longStamp = (iso: string) =>
     close.addEventListener('click', shut);
     addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && isOpen()) shut();
+    });
+  }
+
+  // The index, reached by hand now that this is a button.
+  const more = document.getElementById('closing-more') as HTMLButtonElement | null;
+  more?.addEventListener('click', () => {
+    const to = more.dataset.href;
+    if (to) location.href = to;
+  });
+
+  // ---- Add to home screen ------------------------------------------------
+  // Two devices, two entirely different gestures. Android hands the page an
+  // event it can hold and fire on a tap, which is a one-press install. iOS
+  // never fires it: adding to the home screen is done through Safari's own
+  // share sheet, and a page is not allowed to open that -- so all this can do
+  // is say where it is and what it is called.
+  const install = document.getElementById('closing-install') as HTMLButtonElement | null;
+  const howto = document.getElementById('howto');
+  const howtoClose = document.getElementById('howto-close');
+
+  if (install && howto && howtoClose) {
+    // Already installed: there is nothing to offer, and the button would be a
+    // dead end rather than an invitation.
+    const installed =
+      matchMedia('(display-mode: standalone)').matches ||
+      (navigator as any).standalone === true;
+    install.hidden = installed;
+
+    // ---- Which browser, and therefore which button ------------------------
+    // Sniffing is usually the wrong answer, but here the question really is
+    // "what does the button look like on the thing in your hand": a share
+    // glyph, three dots across, three dots down. There is no capability to
+    // test for, and pointing at the wrong icon is worse than pointing at none.
+    const ua = navigator.userAgent;
+    const iOS =
+      /iPad|iPhone|iPod/.test(ua) ||
+      // iPadOS calls itself a Mac, and is only told apart by having a screen
+      // you can touch.
+      (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+    // Every browser on iOS is Safari underneath, but they wear their own menus,
+    // and the route to the same iOS share sheet differs in each.
+    const iOSChrome = iOS && /CriOS/.test(ua);
+    const iOSBurger = iOS && /EdgiOS|FxiOS|OPiOS/.test(ua);
+    const android = /Android/.test(ua);
+
+    const STROKE = (d: string) =>
+      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">${d}</svg>`;
+    const FILLED = (d: string) => `<svg viewBox="0 0 24 24" fill="currentColor">${d}</svg>`;
+    const GLYPH = {
+      share: STROKE('<path d="M12 15V4m0 0L8.5 7.5M12 4l3.5 3.5"/><path d="M6 12.5V19a1.5 1.5 0 001.5 1.5h9A1.5 1.5 0 0018 19v-6.5"/>'),
+      dotsAcross: FILLED('<circle cx="5.5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="18.5" cy="12" r="1.7"/>'),
+      burger: STROKE('<path d="M4 7h16M4 12h16M4 17h16"/>'),
+      dotsDown: FILLED('<circle cx="12" cy="5.5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="18.5" r="1.7"/>'),
+      scroll: STROKE('<path d="M12 4v13m0 0l-4-4m4 4l4-4"/>'),
+      add: STROKE('<rect x="4" y="4" width="16" height="16" rx="3.5"/><path d="M12 8.5v7M8.5 12h7"/>'),
+      window: STROKE('<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3 9h18"/>'),
+    };
+
+    // The last step is the same wherever you started: the iOS share sheet, with
+    // the one entry a long way down it.
+    const SCROLL_AND_ADD: [string, string] = [
+      GLYPH.add,
+      'Scroll down and choose <b>Add to Home Screen</b>.',
+    ];
+    const steps: Array<[string, string]> = iOSChrome
+      ? [
+          [GLYPH.share, 'Tap the <b>share</b> icon next to the address bar.'],
+          [GLYPH.dotsAcross, 'Tap <b>More</b>, the three dots.'],
+          SCROLL_AND_ADD,
+        ]
+      : iOSBurger
+        ? [
+            [GLYPH.burger, "Tap the <b>menu</b> in your browser's bar."],
+            [GLYPH.share, 'Choose <b>Share</b>.'],
+            SCROLL_AND_ADD,
+          ]
+        : iOS
+          ? [
+              // Safari's own route, as of the current iOS: the share sheet is
+              // behind the More button rather than in the toolbar itself.
+              [GLYPH.dotsAcross, 'Tap the <b>three dots</b> in the bar at the bottom of the screen.'],
+              [GLYPH.share, 'Choose <b>Share</b>.'],
+              SCROLL_AND_ADD,
+            ]
+          : android
+            ? [
+                [GLYPH.dotsDown, 'Tap the <b>three dots</b>, top right.'],
+                [GLYPH.add, 'Choose <b>Install</b> or <b>Add to Home screen</b>.'],
+              ]
+            : [
+                [GLYPH.window, 'Look for the <b>install</b> icon at the end of the address bar.'],
+                [GLYPH.add, 'Or open the browser menu and choose <b>Install</b>.'],
+              ];
+
+    const list = document.getElementById('howto-steps')!;
+    list.innerHTML = steps
+      .map(([icon, text]) => `<li><span class="howto-icon" aria-hidden="true">${icon}</span><span>${text}</span></li>`)
+      .join('');
+    // The fallback line is for the case where the steps above are a guess: on a
+    // desktop the menus vary far more than they do on a phone.
+    const dim = document.getElementById('howto-dim');
+    if (dim && !iOS && !android) dim.hidden = false;
+
+    const showHowto = () => {
+      howto.classList.add('on');
+      // The class alone does not settle visibility until styles recalculate,
+      // and focus cannot land on something still considered hidden.
+      void howto.offsetWidth;
+      (howtoClose as HTMLButtonElement).focus();
+    };
+    const hideHowto = () => {
+      howto.classList.remove('on');
+      install.focus();
+    };
+
+    install.addEventListener('click', async () => {
+      const prompt = (window as any).__installPrompt;
+      if (prompt) {
+        prompt.prompt();
+        try {
+          const { outcome } = await prompt.userChoice;
+          // It is spent either way -- the browser will not let the same one be
+          // shown twice -- so it is dropped, and the button goes if they took
+          // it and stays if they did not.
+          (window as any).__installPrompt = null;
+          if (outcome === 'accepted') install.hidden = true;
+        } catch {
+          (window as any).__installPrompt = null;
+        }
+        return;
+      }
+      showHowto();
+    });
+
+    howtoClose.addEventListener('click', hideHowto);
+    howto.addEventListener('click', (e) => {
+      // The backdrop, not the card.
+      if (e.target === howto) hideHowto();
+    });
+    addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && howto.classList.contains('on')) hideHowto();
+    });
+    addEventListener('ecoscapes:installed', () => {
+      install.hidden = true;
+      hideHowto();
     });
   }
 </script>

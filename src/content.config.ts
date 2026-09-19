@@ -275,6 +275,8 @@ const locations = defineCollection({
         note: z.string(),
         /** The label on the link back to the index. */
         action: z.string(),
+        /** The label on the button that offers to install the app. */
+        install: z.string().default('Add to home'),
       })
       .default({
         eyebrow: 'Keep going',
@@ -282,6 +284,7 @@ const locations = defineCollection({
         body: 'The Bear does not stop at one clearing. What you just did here — stand still, look properly, notice what has changed, say what you saw — works anywhere in the Sea-to-Sky.',
         note: 'There are posts like this one across the region, each with its own QR code and its own view. Every photograph and every story sent from them joins the same record, so the landscape gets told by the people who walk it rather than by the satellites alone.',
         action: 'Find another post',
+        install: 'Add to home',
       }),
     /** Repeat photographs from this same post, drifting behind the closing
      *  panel. Prepared by tools/make-story-wall.py, which names every file for

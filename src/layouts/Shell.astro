@@ -19,6 +19,22 @@ const { title, description = 'Scan the post. See the place, then see it change.'
     <meta name="apple-mobile-web-app-title" content="EcoScapes" />
   </head>
   <body>
+    <!-- Caught here, inline and early, because the browser offers this once and
+         early: by the time a panel's own module script runs, the event has
+         usually already been and gone. Holding onto it is what lets the last
+         panel offer the install on a tap instead of hoping the browser asks. -->
+    <script is:inline>
+      window.__installPrompt = null;
+      addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        window.__installPrompt = e;
+        dispatchEvent(new Event('ecoscapes:installable'));
+      });
+      addEventListener('appinstalled', () => {
+        window.__installPrompt = null;
+        dispatchEvent(new Event('ecoscapes:installed'));
+      });
+    </script>
     <slot />
     <script>
       // Progressive enhancement only: every view works without the worker.
@@ -116,8 +132,19 @@ const { title, description = 'Scan the post. See the place, then see it change.'
       }
       /* Shared control chrome for the buttons that float over each experience. */
       .chip {
+        /* Off, or Safari measures a <button> by its own rules -- its line-height
+           and intrinsic metrics rather than the ones set here -- and the same
+           chip comes out taller as a button than as a link sitting beside it.
+           The line-height is stated for the same reason: not left to whatever
+           each element type inherits. */
+        appearance: none; -webkit-appearance: none;
+        line-height: 1.25;
         display: inline-flex; align-items: center; gap: 0.5em;
         padding: 0.62em 1.05em; border-radius: 999px;
+        /* A chip is a button whether or not it happens to be a link, and a
+           button is not underlined. .step has always said so; this never did,
+           so the one link wearing this class carried an underline. */
+        text-decoration: none;
         border: 1px solid var(--line); background: rgba(13, 18, 16, 0.72);
         backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
         font-size: 0.82rem; font-weight: 500; cursor: pointer;
@@ -131,6 +158,10 @@ const { title, description = 'Scan the post. See the place, then see it change.'
          corner through the nav's end slot, and scoped styles do not reach
          slotted markup. */
       .step {
+        /* Same reason as .chip: these are links on some panels and buttons on
+           others, and they sit in the same row. */
+        appearance: none; -webkit-appearance: none;
+        line-height: 1.25;
         pointer-events: auto; flex: none;
         width: 46px; height: 46px;
         display: grid; place-items: center;
