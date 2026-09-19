@@ -2,14 +2,49 @@
 import { asset } from '../lib/paths';
 import PanelNav from './PanelNav.astro';
 
-interface Props { src: string; caption: string; northOffset: number; prev?: string; next?: string }
-const { src, caption, northOffset, prev, next } = Astro.props;
+interface Marker { yaw: number; pitch: number; title: string; body?: string; place: 'above' | 'below'; radius: number }
+interface Props {
+  src: string;
+  caption: string;
+  north: number;
+  startYaw: number;
+  startPitch: number;
+  declination: number;
+  rail: { title: string; body: string };
+  markers?: Marker[];
+  prev?: string;
+  next?: string;
+}
+const { src, caption, north, startYaw, startPitch, declination, rail, markers = [], prev, next } = Astro.props;
 ---
 <section class="panel" id="view" aria-label="Panorama">
   <div class="panel-stage">
     <!-- The caption no longer shows in the rail, so it is what names the viewer
          to a screen reader rather than being dropped. -->
-    <div class="psv" id="psv" role="img" aria-label={caption} data-src={asset(src)} data-north={northOffset}></div>
+    <div class="psv" id="psv" role="img" aria-label={caption} data-src={asset(src)} data-north={north} data-yaw={startYaw} data-pitch={startPitch} data-dec={declination}></div>
+
+    <!-- Named features. Positioned over the sphere from their bearings, so
+         they are aria-visible as a plain list of what can be seen from here --
+         which is the one part of this panel a screen reader can use. -->
+    {markers.length > 0 && (
+      <div class="marks" id="marks">
+        {markers.map((m) => (
+          <div class="mark" data-place={m.place} data-yaw={m.yaw} data-pitch={m.pitch} data-radius={m.radius}>
+            <span class="mark-dot" aria-hidden="true"></span>
+            <span class="mark-label">
+              <b>{m.title}</b>
+              {m.body && <em>{m.body}</em>}
+            </span>
+          </div>
+        ))}
+      </div>
+    )}
+
+    <!-- Authoring aids, shown together with the readout. The crosshair marks
+         the exact point the angles describe, so a feature is pinned by putting
+         it under the cross and copying the line. -->
+    <div class="pano-cross" id="pano-cross" hidden aria-hidden="true"></div>
+    <div class="pano-probe" id="pano-probe" hidden></div>
 
     <div class="pano-loading" id="pano-loading">
       <span class="spinner" aria-hidden="true"></span>
@@ -36,11 +71,8 @@ const { src, caption, northOffset, prev, next } = Astro.props;
   </div>
 
   <div class="panel-rail">
-    <h2>The Eagle</h2>
-    <p>
-      Observe the place around you from the perspective of the Eagle. Situate
-      yourself in this incredible landscape.
-    </p>
+    <h2>{rail.title}</h2>
+    <p>{rail.body}</p>
   </div>
 </section>
 
@@ -61,6 +93,149 @@ const { src, caption, northOffset, prev, next } = Astro.props;
     animation: spin 0.8s linear infinite;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* The marker layer covers the viewer exactly, so a projected point can be
+     set as a plain left/top inside it. */
+  .marks {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    pointer-events: none;
+    overflow: hidden;
+  }
+  /* Opacity is driven per-frame from how far off centre the feature is, so it
+     has no transition of its own -- a transition would lag the pan and smear
+     the fade. Hidden outright at zero so it cannot catch a stray pixel. */
+  .mark {
+    position: absolute;
+    left: 0;
+    top: 0;
+    /* Overwritten per frame by the script, which folds the position in front of
+       this same centring translate. */
+    transform: translate(-50%, -50%);
+    will-change: transform, opacity;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    opacity: 0;
+    visibility: hidden;
+  }
+  .mark-dot {
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 2px solid rgba(6, 10, 9, 0.85);
+    animation: ping 2.4s ease-out infinite;
+  }
+  @keyframes ping {
+    0% { box-shadow: 0 0 0 0 rgba(127, 209, 166, 0.5); }
+    70%, 100% { box-shadow: 0 0 0 13px rgba(127, 209, 166, 0); }
+  }
+  /* Hangs below the dot without moving it: the dot is the thing that is
+     actually at that bearing. */
+  .mark-label {
+    position: absolute;
+    top: 1.35rem;
+    width: max-content;
+    max-width: 14rem;
+    text-align: center;
+    padding: 0.4rem 0.65rem;
+    border-radius: 10px;
+    background: rgba(8, 13, 11, 0.82);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+  /* Above instead, by the same gap: the dot stays on the bearing either way,
+     and the label is what moves. */
+  .mark[data-place='above'] .mark-label {
+    top: auto;
+    bottom: 1.35rem;
+  }
+  .mark-label b { display: block; font-size: 0.8rem; font-weight: 600; }
+  .mark-label em {
+    display: block;
+    font-style: normal;
+    font-size: 0.72rem;
+    line-height: 1.4;
+    color: var(--ink-dim);
+    margin-top: 0.15rem;
+  }
+
+  /* Dead centre of the viewer, which is the point the readout's angles are
+     for. Two hairlines with a gap in the middle rather than a full cross, so
+     the thing being aimed at is never underneath it. */
+  .pano-cross {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 26px;
+    height: 26px;
+    transform: translate(-50%, -50%);
+    z-index: 5;
+    pointer-events: none;
+    /* Follows the alpha of the arms below, so only the hairlines are outlined
+       and not the box around them. A hairline in one colour disappears against
+       a sky or a snowfield somewhere on every sphere. */
+    filter: drop-shadow(0 0 1px rgba(6, 10, 9, 0.9));
+  }
+  .pano-cross::before,
+  .pano-cross::after {
+    content: '';
+    position: absolute;
+  }
+  /* Each arm is a line with its middle cut out, so the thing being aimed at is
+     never underneath the cross. */
+  .pano-cross::before {
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: 1px;
+    margin-top: -0.5px;
+    background: linear-gradient(
+      to right,
+      var(--accent) 0 34%,
+      transparent 34% 66%,
+      var(--accent) 66% 100%
+    );
+  }
+  .pano-cross::after {
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 1px;
+    margin-left: -0.5px;
+    background: linear-gradient(
+      to bottom,
+      var(--accent) 0 34%,
+      transparent 34% 66%,
+      var(--accent) 66% 100%
+    );
+  }
+
+  /* Authoring aid, only with ?aim. One line, tucked under the story bar and
+     dressed down to chrome: quiet enough to leave switched on while judging how
+     the panel itself reads, which is the whole point of it being small. Tapping
+     it still copies the full frontmatter blocks. */
+  .pano-probe {
+    position: absolute;
+    left: 50%;
+    top: calc(var(--safe-t) + 1.8rem);
+    transform: translateX(-50%);
+    z-index: 5;
+    font: 500 0.65rem/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+    letter-spacing: 0.02em;
+    background: rgba(8, 13, 11, 0.55);
+    border: 1px solid var(--line);
+    color: var(--ink-dim);
+    padding: 0.34em 0.7em;
+    border-radius: 999px;
+    white-space: nowrap;
+    /* Clickable: tapping it copies the values. */
+    pointer-events: auto;
+    cursor: copy;
+  }
 
   .pano-row { display: flex; align-items: center; gap: 0.4rem; flex: 1; min-width: 0; }
   .pano-hint {
@@ -103,6 +278,16 @@ const { src, caption, northOffset, prev, next } = Astro.props;
     const gyroLabel = document.getElementById('gyro-label')!;
     // The pill the row sits in, so it can go too once it holds nothing.
     const pill = row.closest('.nav-mid') as HTMLElement | null;
+    const probe = document.getElementById('pano-probe');
+
+    // Degrees off a data attribute, in radians. A missing or malformed value
+    // must fall back to zero rather than reach the viewer: NaN in a camera
+    // angle leaves the sphere in an invalid position, the `ready` event never
+    // fires, and the panel sits on its loading spinner forever.
+    const rad = (deg?: string) => {
+      const n = Number(deg);
+      return Number.isFinite(n) ? (n * Math.PI) / 180 : 0;
+    };
 
     // Photo Sphere Viewer pulls in three.js, so it is only fetched once the
     // panel is actually approaching the viewport.
@@ -118,13 +303,21 @@ const { src, caption, northOffset, prev, next } = Astro.props;
         panorama: mount.dataset.src!,
         navbar: false,
         defaultZoomLvl: 0,
+        // Where the view opens, as a bearing and an angle above the horizon.
+        // Unlike sphereCorrection.tilt, aiming the camera leaves the horizon
+        // level while panning.
+        defaultYaw: rad(mount.dataset.yaw),
+        defaultPitch: rad(mount.dataset.pitch),
         minFov: 32,
         maxFov: 95,
         moveSpeed: 1.1,
         touchmoveTwoFingers: false,
         mousewheel: false,
         loadingTxt: '',
-        sphereCorrection: { pan: (Number(mount.dataset.north) * Math.PI) / 180 },
+        // Turning the sphere so that north faces the viewer's zero is what
+        // makes the camera's own yaw a compass bearing -- which every angle
+        // downstream then is too, with no conversion anywhere.
+        sphereCorrection: { pan: rad(mount.dataset.north) },
         plugins: [
           [
             GyroscopePlugin,
@@ -152,6 +345,333 @@ const { src, caption, northOffset, prev, next } = Astro.props;
         },
         { once: true },
       );
+
+      // ---- Named features -------------------------------------------------
+      // A marker is authored as a compass bearing, and the sphere is turned so
+      // that north is the camera's zero, so a bearing IS the camera yaw to aim
+      // at -- there is nothing to convert.
+      //
+      // It opens when the centre of the view comes within its radius, measured
+      // as the real angle between the two directions rather than as yaw and
+      // pitch separately: near the horizon the two agree, but looking up a
+      // valley wall they do not, and a box in degrees would open a feature that
+      // is plainly off to one side.
+      const marks = Array.from(document.querySelectorAll<HTMLElement>('.mark'));
+      if (marks.length) {
+        const feats = marks.map((el) => ({
+          el,
+          yaw: rad(el.dataset.yaw),
+          pitch: rad(el.dataset.pitch),
+          radius: rad(el.dataset.radius) || rad('12'),
+        }));
+
+        const place = () => {
+          const c = viewer.getPosition();
+          const sinC = Math.sin(c.pitch);
+          const cosC = Math.cos(c.pitch);
+          for (const f of feats) {
+            // Angle between the two directions on the sphere. Clamped because
+            // floating point can push the cosine a hair outside [-1, 1] and
+            // acos would hand back NaN for a feature dead centre.
+            const cos =
+              sinC * Math.sin(f.pitch) +
+              cosC * Math.cos(f.pitch) * Math.cos(f.yaw - c.yaw);
+            const away = Math.acos(Math.min(1, Math.max(-1, cos)));
+            // Full strength through the middle of the zone and faded out over
+            // its last third, so a feature arrives and leaves with the pan
+            // rather than blinking on at a hard edge.
+            const t = 1 - away / f.radius;
+            const o = Math.min(1, Math.max(0, t / 0.34));
+            f.el.style.opacity = String(o);
+            f.el.style.visibility = o > 0 ? 'visible' : 'hidden';
+            if (o <= 0) continue;
+            const pt = viewer.dataHelper.sphericalCoordsToViewerCoords({ yaw: f.yaw, pitch: f.pitch });
+            // Moved with a transform rather than left/top: no layout per frame,
+            // and the label rides the compositor instead of being re-laid out
+            // under its own backdrop blur. Rounded to whole pixels because text
+            // re-rasterised on a fractional offset shimmers as it drifts.
+            // The centring translate comes second so it applies in the marker's
+            // own box, which puts the dot itself on the bearing.
+            f.el.style.transform = `translate3d(${Math.round(pt.x)}px, ${Math.round(pt.y)}px, 0) translate(-50%, -50%)`;
+          }
+        };
+
+        // `render` rather than `position-updated`: the sphere is drawn on the
+        // viewer's own animation frames, and a position event lands on a
+        // different clock -- so a marker moved from it is a frame ahead or
+        // behind the landscape it is pinned to, which reads as jitter. This
+        // fires once per painted frame, for a drag, a pinch and the gyroscope
+        // alike, so the two move as one thing.
+        viewer.addEventListener('render', place);
+        viewer.addEventListener('ready', place, { once: true });
+        // The projection is in viewer pixels, so it is only valid for the size
+        // the viewer currently is. The viewer's own event, not the window's:
+        // it also covers the panel changing size without the window doing so.
+        viewer.addEventListener('size-updated', place);
+        place();
+      }
+
+      // Authoring aid: prints the angles of the view you are looking at, in the
+      // exact form the frontmatter wants, so a view is set by panning to it and
+      // copying the lines rather than guessing numbers.
+      //
+      // Always on in dev: setting a location up is what dev is for, and the
+      // readout is one thin line of chrome now rather than a box over the view.
+      // ?aim brings it up on a built site too, for checking a framing against
+      // the real thing. Never on for a visitor.
+      //
+      // It reports the hero's framing as well as the panel's. The still is a
+      // reprojection of this same sphere through the same pinhole camera, so a
+      // view framed here is a view framed there: pan, tilt and pinch to the
+      // photograph you want, then paste the hero block -- the still is
+      // re-rendered from it on the next save.
+      //
+      // With the sphere turned so north is the camera's zero, the camera's own
+      // yaw is the bearing, and every block below is that one number.
+      //
+      // Before `north` is calibrated the scale is still honest, just offset:
+      // aim at something whose true bearing you know, and the difference
+      // between it and the Y printed here is what to add to `north`.
+      // ?config is the one switch for every authoring aid on the page; ?aim is
+      // this panel's own. Always on in dev, where setting a location up is the
+      // whole job.
+      const flags = new URLSearchParams(location.search);
+      const aiming = import.meta.env.DEV || flags.has('aim') || flags.has('config');
+      if (probe && aiming) {
+        probe.hidden = false;
+        // Same switch as the readout: the cross is only meaningful next to the
+        // numbers it marks the point of.
+        const cross = document.getElementById('pano-cross');
+        if (cross) cross.hidden = false;
+        const deg = (r: number) => (r * 180) / Math.PI;
+        // Where the view is aimed right now, as the three numbers that matter.
+        const angles = () => {
+          const { yaw, pitch } = viewer.getPosition();
+          return {
+            // Normalised so this is always the 0-360 bearing the field
+            // documents, never a negative or a second turn.
+            yaw: ((deg(yaw) % 360) + 360) % 360,
+            pitch: deg(pitch),
+            // The viewer's own vertical FOV, which is what hero.vfov means --
+            // so the hero is framed by pinching to it here. Falls back to the
+            // panel's widest if the state is not readable.
+            fov: Number((viewer as any).state?.vFov ?? 95),
+          };
+        };
+
+        // One line, small, under the story bar: enough to aim by, little enough
+        // to leave switched on while looking at how the panel actually reads.
+        const show = () => {
+          const a = angles();
+          probe.textContent = `Y: ${a.yaw.toFixed(1)}  P: ${a.pitch.toFixed(1)}  F: ${a.fov.toFixed(1)}`;
+        };
+
+        // The clipboard still gets the long form: the line is for reading, the
+        // copy is for pasting, and every block the frontmatter wants is built
+        // from the same three numbers.
+        const snippet = () => {
+          const a = angles();
+          return (
+            `pano:\n` +
+            `  startYaw: ${a.yaw.toFixed(1)}\n` +
+            `  startPitch: ${a.pitch.toFixed(1)}\n` +
+            `hero:\n` +
+            `  yaw: ${a.yaw.toFixed(1)}\n` +
+            `  pitch: ${a.pitch.toFixed(1)}\n` +
+            `  vfov: ${a.fov.toFixed(1)}\n` +
+            // A feature is authored from the centre of the view, which is the
+            // same pair of angles again -- turn to it, then paste.
+            `marker:\n` +
+            `  yaw: ${a.yaw.toFixed(1)}\n` +
+            `  pitch: ${a.pitch.toFixed(1)}`
+          );
+        };
+        viewer.addEventListener('position-updated', show);
+        // Pinching changes the framing without moving the view, so the zoom has
+        // to be listened for too or the FOV line would go stale.
+        viewer.addEventListener('zoom-updated', show);
+        show();
+
+        // Tapping the readout copies it. The framing is chosen on a phone and
+        // pasted on a laptop, so the numbers should not have to be transcribed
+        // by eye. Reverts to the values after a moment so it stays a readout.
+        probe.addEventListener('click', () => {
+          navigator.clipboard
+            ?.writeText(snippet())
+            .then(() => {
+              probe.textContent = 'copied';
+              setTimeout(show, 900);
+            })
+            .catch(() => {});
+        });
+      }
+
+      // ---- Steadying the gyroscope -----------------------------------------
+      // A phone's orientation sensor is noisy: held perfectly still it still
+      // wanders a fraction of a degree, several times a second. The gyroscope
+      // plugin hands each reading to the camera as its target on every frame,
+      // and the camera is quick enough to follow that wander faithfully -- so
+      // the view shivers under motion while being glassy under a finger, and a
+      // label pinned to the landscape is where the eye catches it.
+      //
+      // So the target is filtered before the camera chases it, with a "one
+      // euro" filter: it smooths hard while the reading is barely moving, which
+      // is when a change is noise, and opens up as the phone turns faster,
+      // which is when a change is real. A fixed amount of smoothing cannot do
+      // both -- enough to settle the shake would leave a real turn dragging
+      // behind the phone.
+      //
+      // This wraps the camera's own target setter, which is internal to the
+      // viewer, so every step of reaching it is guarded: if its shape ever
+      // changes, the wrap is simply not applied and motion behaves as it does
+      // today.
+      const dyn = (viewer as any).dynamics?.position;
+      if (dyn && typeof dyn.goto === 'function') {
+        const gyro = viewer.getPlugin(GyroscopePlugin) as any;
+        const TAU = Math.PI * 2;
+        const MIN_CUTOFF = 0.6; // Hz: how still a still phone is held to be
+        const BETA = 1.4; // how fast the filter opens up, per rad/s of turn
+        const DERIV_CUTOFF = 1; // Hz, on the speed estimate itself
+
+        const smoother = () => {
+          let x: number | null = null;
+          let dx = 0;
+          let last = 0;
+          // The weight a first-order low-pass gives the new reading at this
+          // cutoff over this gap.
+          const ease = (cutoff: number, dt: number) => {
+            const r = TAU * cutoff * dt;
+            return r / (r + 1);
+          };
+          return {
+            reset() {
+              x = null;
+              dx = 0;
+            },
+            push(value: number, now: number) {
+              if (x === null) {
+                x = value;
+                last = now;
+                return x;
+              }
+              // Clamped: a frame the phone spent in the background would
+              // otherwise arrive as a huge gap and blow the filter wide open.
+              const dt = Math.min(0.1, Math.max(0.001, (now - last) / 1000));
+              last = now;
+              dx += ease(DERIV_CUTOFF, dt) * ((value - x) / dt - dx);
+              x += ease(MIN_CUTOFF + BETA * Math.abs(dx), dt) * (value - x);
+              return x;
+            },
+          };
+        };
+
+        const yawFilter = smoother();
+        const pitchFilter = smoother();
+        // Yaw is filtered on a continuous line rather than inside 0..2pi:
+        // smoothed across the wrap point, 359 degrees and 1 degree average to
+        // 180 and throw the view to the far side of the sphere.
+        let unwrapped = 0;
+        let prevRaw: number | null = null;
+        let filtering = false;
+
+        const goto = dyn.goto.bind(dyn);
+        dyn.goto = (target: any, speedMult?: number) => {
+          // Only the gyroscope is filtered. A finger is not noisy, and the
+          // plugin swallows drags itself while motion is on, so everything else
+          // reaching here -- a drag, an animation, the opening move -- is passed
+          // through untouched.
+          const live =
+            gyro?.isEnabled?.() && target && typeof target.yaw === 'number' && typeof target.pitch === 'number';
+          if (!live) {
+            if (filtering) {
+              yawFilter.reset();
+              pitchFilter.reset();
+              prevRaw = null;
+              filtering = false;
+            }
+            return goto(target, speedMult);
+          }
+
+          filtering = true;
+          if (prevRaw === null) {
+            unwrapped = target.yaw;
+          } else {
+            // Whichever way round is shorter, so a turn past north adds a
+            // small step to the line rather than a full turn back.
+            let d = target.yaw - prevRaw;
+            d -= TAU * Math.round(d / TAU);
+            unwrapped += d;
+          }
+          prevRaw = target.yaw;
+
+          const now = performance.now();
+          const yaw = yawFilter.push(unwrapped, now);
+          const pitch = pitchFilter.push(target.pitch, now);
+          return goto({ ...target, yaw: ((yaw % TAU) + TAU) % TAU, pitch }, speedMult);
+        };
+      }
+
+      // ---- Facing the real landscape ----------------------------------------
+      // The sphere is turned so the camera's yaw is a bearing, so lining the
+      // view up with the world is just a matter of starting it at the bearing
+      // the phone is actually pointing.
+      //
+      // Done once, as motion is switched on, rather than by running the
+      // gyroscope in its absolute mode. Absolute mode reads the raw `alpha`,
+      // which is a compass heading on Android but an arbitrary origin on iOS --
+      // where the true heading arrives as `webkitCompassHeading` on the
+      // ordinary event, and nothing in the plugin looks at it. Anchoring once
+      // and tracking relatively afterwards works the same on both, and does not
+      // hand a wandering compass a say in every frame.
+      const declination = Number(mount.dataset.dec) || 0;
+      const headingOf = (e: any): number | null => {
+        // iOS: degrees clockwise from true north, already what we want.
+        const ios = e?.webkitCompassHeading;
+        if (typeof ios === 'number' && !Number.isNaN(ios)) return ios;
+        // Android's absolute orientation: alpha counts anticlockwise from
+        // magnetic north, so it is turned round and pulled onto true north.
+        if (e?.absolute && typeof e.alpha === 'number' && !Number.isNaN(e.alpha)) {
+          return (((360 - e.alpha + declination) % 360) + 360) % 360;
+        }
+        return null;
+      };
+
+      /** The phone's heading, or null if nothing usable turns up promptly. */
+      const compass = () =>
+        new Promise<number | null>((resolve) => {
+          let settled = false;
+          const finish = (v: number | null) => {
+            if (settled) return;
+            settled = true;
+            removeEventListener('deviceorientationabsolute', listen as any);
+            removeEventListener('deviceorientation', listen);
+            clearTimeout(timer);
+            resolve(v);
+          };
+          const listen = (e: Event) => {
+            const h = headingOf(e);
+            if (h !== null) finish(h);
+          };
+          // Both, because which one carries a heading is what differs between
+          // the two platforms.
+          addEventListener('deviceorientationabsolute', listen as any);
+          addEventListener('deviceorientation', listen);
+          // A phone with no compass, or one that has not settled, simply does
+          // not get the snap -- motion still works, just relative to wherever
+          // the view was, which is what it did before.
+          const timer = setTimeout(() => finish(null), 700);
+        });
+
+      /** Aim at the bearing the phone is pointing, before the gyro anchors. */
+      const faceReality = async () => {
+        const heading = await compass();
+        if (heading === null) return;
+        // While the gyroscope is off, this is an ordinary move; once it is on,
+        // the plugin intercepts rotations, which is why this has to happen
+        // first. The plugin then anchors its own offset to this position on its
+        // next frame, and the alignment holds from there.
+        viewer.rotate({ yaw: (heading * Math.PI) / 180, pitch: viewer.getPosition().pitch });
+      };
 
       // Motion control. iOS requires the permission request to happen inside a
       // user gesture, which is exactly what this click is -- there is no way to
@@ -187,6 +707,10 @@ const { src, caption, northOffset, prev, next } = Astro.props;
             return;
           }
         }
+
+        // Line the sphere up with the landscape in front of the phone before
+        // the gyroscope takes over and starts intercepting moves.
+        await faceReality();
 
         // Chrome on desktop exposes the API but never fires a reading, so give
         // it a moment to prove it works before claiming motion is on.

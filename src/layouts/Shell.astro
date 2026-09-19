@@ -22,7 +22,14 @@ const { title, description = 'Scan the post. See the place, then see it change.'
     <slot />
     <script>
       // Progressive enhancement only: every view works without the worker.
-      if ('serviceWorker' in navigator) {
+      //
+      // Never in dev. Media is cache-first, so a worker would keep serving the
+      // old copy of any asset that is regenerated -- a re-rendered hero, a new
+      // panorama -- and the change would simply not appear. Phone testing goes
+      // through an HTTPS tunnel, which is a secure context, so this cannot be
+      // left to the localhost check alone. Offline behaviour is tested against
+      // `npm run preview`.
+      if (!import.meta.env.DEV && 'serviceWorker' in navigator) {
         const base = import.meta.env.BASE_URL;
         addEventListener('load', async () => {
           try {

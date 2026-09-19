@@ -9,7 +9,8 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "hero": "node tools/hero.mjs"
   },
   "dependencies": {
     "@photo-sphere-viewer/core": "^5.15.1",
@@ -19,5 +20,9 @@
   },
   "allowScripts": {
     "esbuild": true
+  },
+  "devDependencies": {
+    "js-yaml": "^5.4.2",
+    "sharp": "^0.35.4"
   }
 }

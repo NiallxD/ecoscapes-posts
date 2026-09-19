@@ -8,6 +8,9 @@
  * Nothing here is required for the site to function -- if registration fails,
  * every view still works over the network.
  */
+// Stamped at build time from a hash of the media, by tools/sw-version.mjs --
+// changing it by hand is not needed and will be overwritten in the build. The
+// literal here is what dev and an unstamped build fall back to.
 const VERSION = 'v1';
 const SHELL = `ecoscapes-shell-${VERSION}`;
 const MEDIA = `ecoscapes-media-${VERSION}`;
@@ -128,12 +131,21 @@ self.addEventListener('fetch', (event) => {
   }
 });
 
-/** Tolerant of individual failures: one dead URL must not lose the whole set. */
+/**
+ * Tolerant of individual failures: one dead URL must not lose the whole set.
+ *
+ * Anything already held is skipped rather than re-fetched. The page now offers
+ * its whole location on every load instead of behind a button, so without this
+ * a return visit would pull several MB down again for nothing.
+ */
 async function addAllSettled(cacheName, urls) {
   const cache = await caches.open(cacheName);
-  const results = await Promise.allSettled(urls.map((u) => cache.add(u)));
+  const held = await Promise.all(urls.map((u) => cache.match(u, MATCH)));
+  const missing = urls.filter((_, i) => !held[i]);
+  if (!missing.length) return;
+  const results = await Promise.allSettled(missing.map((u) => cache.add(u)));
   const failed = results.filter((r) => r.status === 'rejected').length;
-  if (failed) throw new Error(`${failed} of ${urls.length} assets could not be cached`);
+  if (failed) throw new Error(`${failed} of ${missing.length} assets could not be cached`);
 }
 
 self.addEventListener('message', (event) => {

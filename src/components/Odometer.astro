@@ -1,0 +1,77 @@
+---
+/** A number whose digits roll rather than swap.
+ *
+ *  Each digit is a column of 0-9 behind a one-digit window, moved by a
+ *  transform: the ones that change slide, the ones that do not stay put -- so
+ *  1999 to 2000 rolls three columns and leaves nothing jumping. A year that
+ *  merely swaps its text lands as a flicker, which on a counter that changes
+ *  every few tenths of a second is most of what you see of it.
+ *
+ *  The columns are hidden from screen readers, which would otherwise read ten
+ *  digits per place; the real value sits beside them as text and is what gets
+ *  announced.
+ */
+interface Props {
+  value: number | string;
+  /** Passed through so the caller can style or find it. */
+  class?: string;
+  id?: string;
+}
+const { value, class: cls, id } = Astro.props;
+const digits = String(value).split('');
+---
+
+<span class:list={['odo', cls]} id={id} data-odo>
+  <span class="odo-text" data-odo-text>{value}</span>
+  {digits.map((d) => (
+    <span class="odo-d" aria-hidden="true" style={`--n:${Number(d)}`}>
+      <span class="odo-strip">
+        {/* Twice round. A column that has to go from 9 to 0 rolls on into the
+            second set rather than winding back up through eight digits it is
+            not showing -- the counter only ever travels one way. Once it has
+            landed, the script drops it back a set with the transition off,
+            which moves nothing that can be seen. */}
+        {Array.from({ length: 20 }, (_, n) => <b>{n % 10}</b>)}
+      </span>
+    </span>
+  ))}
+</span>
+
+<style>
+  .odo {
+    display: inline-flex;
+    font-variant-numeric: tabular-nums;
+    /* The window height is set here and used by both the digit and its strip,
+       so a caller can change the font size and the roll follows it. */
+    --odo-line: 1.15em;
+  }
+  /* Present to a screen reader, absent to everything else. */
+  .odo-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .odo-d {
+    display: block;
+    height: var(--odo-line);
+    overflow: hidden;
+  }
+  .odo-strip {
+    display: block;
+    transform: translateY(calc(var(--n, 0) * var(--odo-line) * -1));
+    /* Out fast, settling slow: the way a mechanical counter falls into place. */
+    transition: transform 0.42s cubic-bezier(0.22, 0.75, 0.2, 1);
+  }
+  .odo-strip b {
+    display: block;
+    height: var(--odo-line);
+    line-height: var(--odo-line);
+    font-weight: inherit;
+    /* Each column is one digit wide whatever digit is showing, so the number
+       does not breathe as it counts. */
+    text-align: center;
+  }
+</style>

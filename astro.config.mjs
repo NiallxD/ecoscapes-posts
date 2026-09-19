@@ -1,6 +1,9 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 
+import heroes from './tools/hero-integration.mjs';
+import swVersion from './tools/sw-version.mjs';
+
 // GitHub Pages project sites live under /<repo>/. Both are read from the env so
 // `npm run dev` stays at the root and the deploy workflow supplies the real
 // values. Everything that builds a URL goes through src/lib/paths.ts.
@@ -10,6 +13,9 @@ const site = process.env.PUBLIC_SITE_URL || 'http://localhost:4321';
 export default defineConfig({
   site,
   base,
+  // Re-renders each location's hero still from its frontmatter, on build and on
+  // save in dev. See tools/hero.mjs.
+  integrations: [heroes(), swVersion()],
   build: { format: 'directory' },
   // The gyroscope needs a secure context, which a LAN IP is not, so phone
   // testing goes through a cloudflared tunnel. Vite rejects hostnames it was

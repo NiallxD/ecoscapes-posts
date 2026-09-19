@@ -3,8 +3,8 @@
  *  panel. Photo Sphere Viewer and the scrubber both swallow horizontal drags,
  *  so a swipe is not reliably available -- the arrows are the primary control,
  *  not a decoration on top of one. */
-interface Props { prev?: string; next?: string; prompt?: boolean }
-const { prev, next, prompt = false } = Astro.props;
+interface Props { prev?: string; next?: string }
+const { prev, next } = Astro.props;
 
 // A panel with its own controls puts them in the slot, so they share the row
 // with the arrows instead of stacking above it and eating the panel twice.
@@ -26,7 +26,7 @@ const hasEnd = Astro.slots.has('end');
   )}
   {hasEnd && <slot name="end" />}
   {!hasEnd && next && (
-    <a class:list={['step', 'step-next', { prompt }]} href={next} aria-label="Next section">
+    <a class="step step-next" href={next} aria-label="Next section">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
         <path d="M9 5l7 7-7 7" />
       </svg>
@@ -68,22 +68,5 @@ const hasEnd = Astro.slots.has('end');
     -webkit-backdrop-filter: blur(12px);
   }
   /* .step itself is global chrome in the layout, so a panel's own button can
-     wear it through the end slot. What stays here is this row's flourish. */
-
-  /* First panel only: nothing has been touched yet and there is no back arrow
-     to pair with, so the one arrow has to read as the way on. */
-  .step-next.prompt {
-    border-color: var(--accent);
-    color: var(--accent);
-    animation: ring 2.6s ease-out infinite;
-  }
-  .step-next.prompt svg { animation: nudge 2.2s ease-in-out infinite; }
-  @keyframes nudge {
-    0%, 100% { transform: translateX(0); }
-    50% { transform: translateX(4px); }
-  }
-  @keyframes ring {
-    0% { box-shadow: 0 0 0 0 rgba(127, 209, 166, 0.45); }
-    70%, 100% { box-shadow: 0 0 0 15px rgba(127, 209, 166, 0); }
-  }
+     wear it through the end slot. */
 </style>

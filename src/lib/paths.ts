@@ -25,7 +25,7 @@ export const wallTiles = (wall: WallData) =>
 /** Every URL a location needs in order to work offline. */
 export const locationAssets = (loc: {
   data: {
-    hero?: string;
+    hero?: { src: string };
     pano: { src: string; card?: string };
     series: SeriesData;
     wall?: WallData;
@@ -33,7 +33,7 @@ export const locationAssets = (loc: {
 }) => {
   const { hero, pano, series, wall } = loc.data;
   const urls = [asset(pano.src)];
-  if (hero) urls.push(asset(hero));
+  if (hero) urls.push(asset(hero.src));
   if (pano.card) urls.push(asset(pano.card));
   if (series.video) {
     urls.push(asset(series.video.src));

@@ -2,8 +2,13 @@
 import { asset, wallTiles } from '../lib/paths';
 import PanelNav from './PanelNav.astro';
 
-interface Props { prev?: string; wall?: { dir: string; full?: string; ext: string; dates: string[] } }
-const { prev, wall } = Astro.props;
+interface Props {
+  prev?: string;
+  /** The panel's own words, from the location file. */
+  copy: { eyebrow: string; title: string; body: string; note: string; action: string };
+  wall?: { dir: string; full?: string; ext: string; dates: string[] };
+}
+const { prev, copy, wall } = Astro.props;
 
 // Three columns, dealt round-robin so neighbouring dates never end up stacked
 // on top of each other. Each column repeats its own tiles once: the scroll is a
@@ -45,24 +50,15 @@ const longStamp = (iso: string) =>
     )}
 
     <div class="closing-copy">
-      <p class="eyebrow">Keep going</p>
-      <h2>Take this with you</h2>
-      <p>
-        The Bear does not stop at one clearing. What you just did here — stand
-        still, look properly, notice what has changed, say what you saw — works
-        anywhere in the Sea-to-Sky.
-      </p>
-      <p class="closing-dim">
-        There are posts like this one across the region, each with its own QR
-        code and its own view. Every photograph and every story sent from them
-        joins the same record, so the landscape gets told by the people who
-        walk it rather than by the satellites alone.
-      </p>
+      <p class="eyebrow">{copy.eyebrow}</p>
+      <h2>{copy.title}</h2>
+      <p>{copy.body}</p>
+      <p class="closing-dim">{copy.note}</p>
       <a class="chip closing-more" href={asset('/')}>
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
           <path d="M12 21s7-5.6 7-11a7 7 0 10-14 0c0 5.4 7 11 7 11z" /><circle cx="12" cy="10" r="2.5" />
         </svg>
-        Find another post
+        {copy.action}
       </a>
     </div>
 
@@ -75,7 +71,7 @@ const longStamp = (iso: string) =>
             <rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5" />
             <rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5" />
           </svg>
-          <span id="wall-btn-label">Contributions</span>
+          <span id="wall-btn-label">Show contributions</span>
         </button>
       )}
     </PanelNav>
@@ -84,7 +80,7 @@ const longStamp = (iso: string) =>
   <!-- Full screen and in date order: the wall behind the copy is a texture,
        this is the record itself, big enough to actually look at. -->
   {tiles.length > 0 && (
-    <div class="gallery" id="gallery" hidden>
+    <div class="gallery" id="gallery">
       <header class="gallery-bar">
         <div>
           <p class="eyebrow">Contributions</p>
@@ -200,6 +196,29 @@ const longStamp = (iso: string) =>
     background: var(--bg);
     display: flex;
     flex-direction: column;
+    /* Closed, and faded rather than switched: this covers the whole screen,
+       and appearing in one frame reads as the page having changed underneath
+       you rather than something having opened on top of it.
+       Visibility rather than display, because it is what can be transitioned
+       while still taking the panel out of the tab order and away from a screen
+       reader -- and it steps to visible at the start of the fade in and holds
+       until the end of the fade out, which is exactly the timing wanted. */
+    opacity: 0;
+    visibility: hidden;
+    transform: scale(1.012);
+    /* Visibility is switched, never interpolated: given a duration, its
+       computed value stays `hidden` for the length of the fade in, which leaves
+       the panel unfocusable exactly while it is arriving -- so the close button
+       cannot be focused and a keyboard is left behind the overlay. Instead it
+       flips at once on the way in (0s, below) and is held back to the end of
+       the fade on the way out by a delay, so nothing vanishes mid-fade. */
+    transition: opacity 0.26s ease, transform 0.26s ease, visibility 0s linear 0.26s;
+  }
+  .gallery.on {
+    opacity: 1;
+    visibility: visible;
+    transform: none;
+    transition: opacity 0.26s ease, transform 0.26s ease, visibility 0s;
   }
   .gallery-bar {
     flex: none;
@@ -299,16 +318,24 @@ const longStamp = (iso: string) =>
   const close = document.getElementById('gallery-close');
 
   if (btn && gallery && scroll && close) {
+    const isOpen = () => gallery.classList.contains('on');
+
     const open = () => {
-      gallery.hidden = false;
-      btn.setAttribute('aria-pressed', 'true');
       // Always from the beginning: it is a sequence, and dropping someone
-      // wherever they last left off loses the point of it being in order.
+      // wherever they last left off loses the point of it being in order. Set
+      // before it is shown, so the jump to the top is never seen.
       scroll.scrollTop = 0;
+      gallery.classList.add('on');
+      btn.setAttribute('aria-pressed', 'true');
+      // Focus cannot land on something the browser still considers hidden, and
+      // the class alone does not settle that until styles are recalculated --
+      // so this reads a layout property to force that, then focuses. Waiting a
+      // frame instead is not enough: the callback can run before the recalc.
+      void gallery.offsetWidth;
       close.focus();
     };
     const shut = () => {
-      gallery.hidden = true;
+      gallery.classList.remove('on');
       btn.setAttribute('aria-pressed', 'false');
       btn.focus();
     };
@@ -316,7 +343,7 @@ const longStamp = (iso: string) =>
     btn.addEventListener('click', open);
     close.addEventListener('click', shut);
     addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && !gallery.hidden) shut();
+      if (e.key === 'Escape' && isOpen()) shut();
     });
   }
 </script>

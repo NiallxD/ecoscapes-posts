@@ -5,7 +5,6 @@ import Panorama from '../../components/Panorama.astro';
 import TimeSeries from '../../components/TimeSeries.astro';
 import Capture from '../../components/Capture.astro';
 import Closing from '../../components/Closing.astro';
-import PanelNav from '../../components/PanelNav.astro';
 import { asset, locationAssets } from '../../lib/paths';
 
 export async function getStaticPaths() {
@@ -18,7 +17,7 @@ const { data } = entry;
 const { Content } = await render(entry);
 const offlineList = JSON.stringify(locationAssets(entry));
 const installed = data.installed.toLocaleDateString('en-CA', { year: 'numeric', month: 'long' });
-const coords = `${Math.abs(data.lat).toFixed(4)}°${data.lat >= 0 ? 'N' : 'S'} ${Math.abs(data.lng).toFixed(4)}°${data.lng >= 0 ? 'E' : 'W'}`;
+const coords = `${Math.abs(data.lat).toFixed(2)}°${data.lat >= 0 ? 'N' : 'S'} ${Math.abs(data.lng).toFixed(2)}°${data.lng >= 0 ? 'E' : 'W'}`;
 ---
 
 <Shell title={`${data.title} · EcoScapes`} description={data.intro}>
@@ -27,36 +26,40 @@ const coords = `${Math.abs(data.lat).toFixed(4)}°${data.lat >= 0 ? 'N' : 'S'} $
       {data.hero && (
         <img
           class="intro-bg"
-          src={asset(data.hero)}
+          src={asset(data.hero.src)}
           alt=""
           fetchpriority="high"
           decoding="async"
         />
       )}
-      <div class="panel-stage intro-stage">
+      <div class="panel-stage intro-stage" data-assets={offlineList}>
         <div class="intro-copy">
           <p class="eyebrow">{data.place}</p>
           <h1>{data.title}</h1>
           <p class="intro-lede">{data.intro}</p>
           <div class="intro-body"><Content /></div>
-          <p class="intro-meta">{coords} · post installed {installed}</p>
-        </div>
-        <div class="intro-tools">
-          <button class="chip" id="offline" type="button" data-assets={offlineList}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-              <path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" />
-            </svg>
-            <span id="offline-label">Save for offline</span>
-          </button>
+          <p class="intro-meta">
+            <span>{coords} · Installed {installed}</span>
+            <a class="intro-next" href="#view" aria-label="Next section: panorama">
+              Next
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M9 5l7 7-7 7" />
+              </svg>
+            </a>
+          </p>
         </div>
       </div>
-      <PanelNav next="#view" prompt />
     </section>
 
     <Panorama
       src={data.pano.src}
       caption={data.pano.caption}
-      northOffset={data.pano.northOffset}
+      north={data.pano.north}
+      startYaw={data.pano.startYaw}
+      startPitch={data.pano.startPitch}
+      declination={data.pano.declination}
+      rail={data.pano.rail}
+      markers={data.pano.markers}
       prev="#here"
       next="#change"
     />
@@ -65,10 +68,11 @@ const coords = `${Math.abs(data.lat).toFixed(4)}°${data.lat >= 0 ? 'N' : 'S'} $
       prompt={data.capture.prompt}
       shareTo={data.capture.shareTo}
       title={data.title}
+      rail={data.capture.rail}
       prev="#change"
       next="#onward"
     />
-    <Closing prev="#add" wall={data.wall} />
+    <Closing prev="#add" copy={data.closing} wall={data.wall} />
   </main>
 
   <nav class="story" aria-label="Sections">
@@ -109,10 +113,6 @@ const coords = `${Math.abs(data.lat).toFixed(4)}°${data.lat >= 0 ? 'N' : 'S'} $
     );
   }
 
-  /* No .panel-rail on this panel to absorb them, so the arrow row clears the
-     home indicator and any browser toolbar itself. */
-  .intro { --nav-safe: var(--foot); }
-
   /* Dimming alone still leaves branches, glare and skyline running straight
      through the words, so the foot of the hero is blurred as well. Masked so it
      is strongest where the copy sits and gone by the middle of the frame, which
@@ -127,6 +127,16 @@ const coords = `${Math.abs(data.lat).toFixed(4)}°${data.lat >= 0 ? 'N' : 'S'} $
     -webkit-backdrop-filter: blur(18px);
     -webkit-mask-image: linear-gradient(to top, #000 0%, #000 26%, transparent 62%);
     mask-image: linear-gradient(to top, #000 0%, #000 26%, transparent 62%);
+    /* ...and the last of it is carried the whole way to the page's own colour,
+       so the foot of the photograph does not end on an edge. Whatever sits
+       below -- the home indicator, a browser's toolbar, the black the panel
+       cannot reach -- the picture arrives at it already that colour, and the
+       seam goes. Painted by this layer rather than a new one because a
+       backdrop-filter element draws its own background over the blur it makes,
+       which is exactly the order wanted: dim, blur, then fade out. The mask
+       above is at full strength across this band, so it passes through
+       untouched, and the copy sits a layer higher and stays legible. */
+    background: linear-gradient(to top, var(--bg) 0, rgba(13, 18, 16, 0) 6.5rem);
   }
 
   .intro-stage {
@@ -137,14 +147,23 @@ const coords = `${Math.abs(data.lat).toFixed(4)}°${data.lat >= 0 ? 'N' : 'S'} $
     /* Story framing: the copy sits at the foot of the image, not centred. */
     justify-content: flex-end;
     gap: 1.25rem;
-    padding: calc(var(--safe-t) + 2rem) 1.4rem calc(4.75rem + var(--foot));
+    /* Nothing floats over this panel any more -- the way onwards is the last
+       line of the copy -- so the foot only has to clear the home indicator. */
+    padding: calc(var(--safe-t) + 2rem) 1.4rem calc(1.4rem + var(--foot));
   }
   .intro-copy { max-width: 30rem; position: relative; z-index: 1; }
   .intro-copy h1 { font-size: clamp(2.1rem, 8.5vw, 3rem); line-height: 1.08; margin: 0.4rem 0 0.8rem; }
   .intro-lede { font-size: 1.02rem; line-height: 1.55; margin: 0 0 1rem; }
   .intro-body { font-size: 0.9rem; line-height: 1.6; color: var(--ink-dim); }
   .intro-body :global(p) { margin: 0 0 0.8rem; }
+  /* The last line of the post and the way out of it share a row under the
+     rule: the credit line on the left, the way onwards in the corner. Both sit
+     below the separator rather than one floating over the other. */
   .intro-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
     font-size: 0.72rem;
     color: var(--ink-dim);
     letter-spacing: 0.04em;
@@ -152,7 +171,39 @@ const coords = `${Math.abs(data.lat).toFixed(4)}°${data.lat >= 0 ? 'N' : 'S'} $
     padding-top: 0.9rem;
     border-top: 1px solid var(--line);
   }
-  .intro-tools { display: flex; flex-wrap: wrap; gap: 0.6rem; position: relative; z-index: 1; }
+
+  /* First panel only: nothing has been touched yet, so the one control on the
+     screen has to read as the way on -- hence the ring, which the arrows on
+     every later panel do without. Small enough to belong to the credit line
+     rather than to sit on top of the photograph. */
+  .intro-next {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3em;
+    padding: 0.4em 0.75em 0.4em 0.9em;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    text-decoration: none;
+    color: var(--accent);
+    background: rgba(13, 18, 16, 0.5);
+    border: 1px solid var(--accent);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    animation: ring 2.6s ease-out infinite;
+  }
+  .intro-next svg { width: 14px; height: 14px; animation: nudge 2.2s ease-in-out infinite; }
+  @keyframes nudge {
+    0%, 100% { transform: translateX(0); }
+    50% { transform: translateX(3px); }
+  }
+  @keyframes ring {
+    0% { box-shadow: 0 0 0 0 rgba(127, 209, 166, 0.45); }
+    70%, 100% { box-shadow: 0 0 0 13px rgba(127, 209, 166, 0); }
+  }
+
 
   /* Story-style progress bar: one segment per panel, filled up to where you are.
      Sits above everything, including the panorama canvas. */
@@ -179,8 +230,11 @@ const coords = `${Math.abs(data.lat).toFixed(4)}°${data.lat >= 0 ? 'N' : 'S'} $
     overflow: hidden;
     position: relative;
   }
-  /* Width is driven per-frame from the autoplay clock, so no CSS transition --
-     it would fight the animation and lag behind a scrub. */
+  /* Each segment fills across rather than appearing filled: changing panel is
+     movement through the story, and the bar is the one place that says how far
+     through it you are. The delay is set per segment by the script, so a jump
+     of several panels sweeps through them in the direction of travel instead of
+     lighting them all at once. */
   .story i::after {
     content: '';
     position: absolute;
@@ -189,6 +243,7 @@ const coords = `${Math.abs(data.lat).toFixed(4)}°${data.lat >= 0 ? 'N' : 'S'} $
     background: #fff;
     transform: scaleX(var(--p, 0));
     transform-origin: left;
+    transition: transform 0.42s ease var(--d, 0ms);
   }
   /* Edge-to-edge reads fine on a phone held upright, but stretched across a
      landscape screen the segments look like a loading bar. Cap and centre them
@@ -213,7 +268,7 @@ const coords = `${Math.abs(data.lat).toFixed(4)}°${data.lat >= 0 ? 'N' : 'S'} $
   /* Landscape: the intro is the only text-heavy panel, so let it scroll rather
      than clip when the phone is on its side. */
   @media (orientation: landscape) and (max-height: 520px) {
-    .intro-stage { justify-content: flex-start; overflow-y: auto; padding-bottom: calc(4.6rem + var(--foot)); }
+    .intro-stage { justify-content: flex-start; overflow-y: auto; padding-bottom: calc(1.4rem + var(--foot)); }
   }
 </style>
 
@@ -226,9 +281,25 @@ const coords = `${Math.abs(data.lat).toFixed(4)}°${data.lat >= 0 ? 'N' : 'S'} $
   const order = segs.map((s) => s.dataset.for!);
 
   const fill = (i: number, p: number) => segs[i].style.setProperty('--p', String(p));
+
   // Filled up to and including the panel you are on, so the bar reads as
   // progress through the story rather than as a clock part-way through a panel.
-  const showUpTo = (i: number) => segs.forEach((_, k) => fill(k, k <= i ? 1 : 0));
+  //
+  // Each segment that changes is delayed by its distance from where the bar
+  // was, so the fill runs across in the direction of travel. Only the ones
+  // between the old position and the new one are staggered; everything else
+  // moves immediately, which is to say not at all.
+  const STEP = 70; // ms between one segment starting and the next
+  let shown = -1;
+  const showUpTo = (i: number) => {
+    segs.forEach((seg, k) => {
+      const between = k > Math.min(shown, i) && k <= Math.max(shown, i);
+      const from = i > shown ? shown + 1 : shown;
+      seg.style.setProperty('--d', between ? `${Math.abs(k - from) * STEP}ms` : '0ms');
+      fill(k, k <= i ? 1 : 0);
+    });
+    shown = i;
+  };
 
   // The observer is the single source of truth for which panel we are on.
   let idx = 0;
@@ -296,34 +367,84 @@ const coords = `${Math.abs(data.lat).toFixed(4)}°${data.lat >= 0 ? 'N' : 'S'} $
     { passive: true },
   );
 
-  // "Save for offline": ask the service worker to pull this location's media into
-  // the cache while there is still signal in the car park.
-  const btn = document.getElementById('offline') as HTMLButtonElement | null;
-  const label = document.getElementById('offline-label');
-  if (btn && label) {
-    if (!('serviceWorker' in navigator)) {
-      btn.hidden = true;
-    } else {
-      const assets: string[] = JSON.parse(btn.dataset.assets!);
-      btn.addEventListener('click', async () => {
-        btn.disabled = true;
-        label.textContent = 'Saving…';
-        try {
-          const reg = await navigator.serviceWorker.ready;
-          const ch = new MessageChannel();
-          const done = new Promise<boolean>((resolve) => {
-            ch.port1.onmessage = (e) => resolve(Boolean(e.data?.ok));
-            setTimeout(() => resolve(false), 30000);
-          });
-          reg.active?.postMessage(
-            { type: 'cache-location', assets, page: location.pathname },
-            [ch.port2],
-          );
-          label.textContent = (await done) ? 'Saved for offline' : 'Could not save';
-        } catch {
-          label.textContent = 'Could not save';
-        }
+  // ---- Swipe hint ---------------------------------------------------------
+  // The arrows are the primary control, but the deck does move under a swipe on
+  // the two panels that do not swallow horizontal drags. On arrival the frame
+  // eases left far enough to show the edge of the next panel and settles back,
+  // which says "there is more this way" without adding another piece of chrome.
+  // Once per load, only from a cold start on the first panel, and abandoned the
+  // moment the reader does anything themselves.
+  const deck = document.getElementById('deck');
+  if (deck && !matchMedia('(prefers-reduced-motion: reduce)').matches && !location.hash) {
+    const AMP = 34; // px of the next panel shown
+    const OUT = 320;
+    const BACK = 520;
+    const DELAY = 4000; // long enough to have read the opening, not just seen it
+
+    let alive = true;
+    const stop = () => { alive = false; };
+    const watched = ['pointerdown', 'wheel', 'keydown'] as const;
+    watched.forEach((t) => addEventListener(t, stop, { once: true, passive: true }));
+    // A scroll before the hint runs means they have already moved; once it is
+    // running the scrolls are ours, so this one comes off first.
+    deck.addEventListener('scroll', stop, { passive: true });
+
+    const ease = (t: number) => 1 - Math.pow(1 - t, 3);
+    const slide = (from: number, to: number, ms: number) =>
+      new Promise<void>((done) => {
+        const t0 = performance.now();
+        const step = (now: number) => {
+          const t = Math.min(1, (now - t0) / ms);
+          // Explicitly instant: the deck sets scroll-behavior: smooth, which
+          // would otherwise animate every frame of this animation.
+          deck.scrollTo({ left: from + (to - from) * ease(t), behavior: 'instant' as ScrollBehavior });
+          if (t < 1 && alive) requestAnimationFrame(step);
+          else done();
+        };
+        requestAnimationFrame(step);
       });
-    }
+
+    setTimeout(async () => {
+      if (!alive || deck.scrollLeft > 1) return;
+      deck.removeEventListener('scroll', stop);
+      // Mandatory snapping fights a scroll driven frame by frame, so it is off
+      // for the length of the nudge and the CSS value comes back after.
+      deck.style.scrollSnapType = 'none';
+      await slide(0, AMP, OUT);
+      if (alive) await slide(AMP, 0, BACK);
+      deck.style.scrollSnapType = '';
+      // If they took hold part-way, the restored snap settles wherever they left it.
+    }, DELAY);
+  }
+
+  // ---- Offline ------------------------------------------------------------
+  // The whole location is pulled down on every visit rather than offered on a
+  // button. Someone reaching a post has usually walked out of coverage to get
+  // there, and the panel they need is the one they have not scrolled to yet --
+  // so waiting for them to ask is waiting until it is too late to fetch.
+  //
+  // It costs a few MB per location. That is paid for once: the worker skips
+  // anything already in the cache, so a return visit fetches nothing.
+  const stage = document.querySelector('.intro-stage') as HTMLElement | null;
+  if (stage?.dataset.assets && 'serviceWorker' in navigator) {
+    const assets: string[] = JSON.parse(stage.dataset.assets);
+    // After load and then only when the main thread is free: this is a
+    // background convenience and must never compete with the panorama, the
+    // video or the first paint for bandwidth.
+    const prefetch = async () => {
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        reg.active?.postMessage({ type: 'cache-location', assets, page: location.pathname });
+      } catch {
+        // No worker, no offline copy -- every panel still works over the
+        // network, so there is nothing to report.
+      }
+    };
+    const idle = () =>
+      'requestIdleCallback' in window
+        ? (window as any).requestIdleCallback(prefetch, { timeout: 5000 })
+        : setTimeout(prefetch, 1200);
+    if (document.readyState === 'complete') idle();
+    else addEventListener('load', idle, { once: true });
   }
 </script>
