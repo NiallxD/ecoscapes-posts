@@ -12,9 +12,13 @@ const hasControls = Astro.slots.has('default');
 // A panel whose far corner is a button of its own rather than a way onwards --
 // the last panel has nowhere to go next, but plenty to do.
 const hasEnd = Astro.slots.has('end');
+// ...and the same for the near corner: the first panel has nowhere to go back
+// to, so that corner can hold a button of its own.
+const hasStart = Astro.slots.has('start');
 ---
 <nav class="panel-nav" aria-label="Move between sections">
-  {prev && (
+  {hasStart && <slot name="start" />}
+  {!hasStart && prev && (
     <a class="step step-prev" href={prev} aria-label="Previous section">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
         <path d="M15 5l-7 7 7 7" />

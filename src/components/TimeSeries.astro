@@ -1,19 +1,25 @@
 ---
 import { asset } from '../lib/paths';
-import PanelNav from './PanelNav.astro';
 import Odometer from './Odometer.astro';
+import AnimalButton from './AnimalButton.astro';
 
 interface Props {
   caption: string;
+  /** The page's heading, top left over the picture. */
+  title?: string;
   source: string;
   dir?: string;
   ext?: string;
   years?: number[];
   video?: {
-    src: string; poster?: string; from: number; to: number;
+    src: string; poster?: string; base?: string; from: number; to: number;
     burnedIn?: boolean; duration?: number; speed?: number;
+    changes?: [number, number];
   };
-  rail: { title: string; body: string };
+  /** The Raven's line. Not shown for now -- the panel runs to the foot of the
+   *  screen without a rail under it -- but kept in the frontmatter for when it
+   *  comes back. */
+  rail?: { title: string; body: string };
   legend?: { colour: string; label: string }[];
   callouts?: {
     year: number; x: number; y: number; title: string; body?: string;
@@ -21,10 +27,14 @@ interface Props {
     markerType: 'circle' | 'box'; sizeX: number; sizeY: number;
     place: 'above' | 'below';
   }[];
+  /** The panel's own anchor: one page per playthrough, so each needs its own. */
+  id?: string;
+  /** Which playthrough this page is, out of how many. */
+  run?: { at: number; of: number };
   prev?: string;
   next?: string;
 }
-const { caption, source, dir, ext = 'webp', years, video, rail, legend = [], callouts = [], prev, next } = Astro.props;
+const { caption, title, source, dir, ext = 'webp', years, video, legend = [], callouts = [], id = 'change', run, prev, next } = Astro.props;
 const pins = video ? callouts : [];
 
 // Two ways to carry a time series. A pre-exported video is what TerrAdapt hands
@@ -32,213 +42,232 @@ const pins = video ? callouts : [];
 const frames = video ? [] : (years ?? []).map((y) => ({ year: y, src: asset(`${dir}/${y}.${ext}`) }));
 const span = video ? video.to - video.from + 1 : 0;
 const first = video ? video.from : years![0];
-const last = video ? video.to : years!.at(-1)!;
-// One stop per year in both modes, so the slider's positions, the ticks under
-// it and the frames of the clip are the same set of things. A decade gets a
-// taller mark: enough of a ruler to read the span without labelling every year.
-const tickYears = video ? Array.from({ length: span }, (_, i) => video.from + i) : (years ?? []);
-const lastTick = Math.max(1, tickYears.length - 1);
+// What sits under the clip: the satellite when there is one to fade down to,
+// otherwise the first frame.
+const under = video ? video.base ?? video.poster : undefined;
 ---
 
-<section class="panel" id="change" aria-label="Change over time">
+<!-- data-clock: the story bar fills this page's segment with the clip rather
+     than all at once, the way a story's segment runs with its video. -->
+<section
+  class="panel ts-panel"
+  id={id}
+  aria-label={run && run.of > 1 ? `Change over time, ${run.at} of ${run.of}` : 'Change over time'}
+  data-clock={video ? '' : undefined}
+  data-next={next}
+>
   <div class="panel-stage">
-    <!-- The clip is square and the panel is a phone held upright, so the
-         column runs down it: picture, what its colours mean, then whatever it
-         is pointing at. Each part keeps its own band and nothing sits on top of
-         the picture. -->
-    <div class="ts-col">
-      {video ? (
-        <div class="ts-frames" id="ts-frames" data-mode="video" data-from={video.from} data-span={span} data-dur={video.duration} data-speed={video.speed} data-passes="0">
-          <!-- The first frame, sitting under the clip. The poster is that same
-               frame, so this is already downloaded and already what the panel
-               paints before playing -- which makes it exactly what the last
-               second of the clip can dissolve into on the way round the loop. -->
-          {video.poster && (
-            <img class="ts-frame ts-under" src={asset(video.poster)} alt="" aria-hidden="true" decoding="async" />
-          )}
-          <!-- playsinline and muted are both required or iOS takes the video
-               fullscreen instead of playing it in the panel. -->
-          <video
-            id="ts-video"
-            src={asset(video.src)}
-            poster={video.poster ? asset(video.poster) : undefined}
-            class="ts-frame ts-video"
-            playsinline
-            muted
-            loop
-            preload="auto"
-            disablepictureinpicture
-            aria-label={caption}
-          ></video>
-          <!-- Always present, even with no callouts: it is the layer the
-               authoring ring is placed in, and placing the first one is exactly
-               when there are none. -->
-          <div class="pins" id="pins" aria-hidden="true">
-            <!-- Dims the picture everywhere but inside the open ring. First in
-                 the layer, so every ring and every label sits over it. -->
-            <span class="pin-spot" id="pin-spot"></span>
-            {pins.map((c) => (
-              <span
-                class="pin"
-                data-place={c.place}
-                data-x={c.x}
-                data-y={c.y}
-                data-year={c.year}
-                data-hold={c.hold}
-                data-message={c.messageHold ?? c.hold}
-                data-type={c.markerType}
-                data-sx={c.sizeX}
-                data-sy={c.sizeY}
-                data-pause={c.pause}
-                data-end-pause={c.endPause}
-                data-dim={c.dimHold ?? 0}
-              >
-                <span class="pin-ring"></span>
-                <!-- The year it is pointing at, on the ring itself: the counter
-                     in the corner says where the clip is, but this says what
-                     you are being shown, in the same glance as the thing. -->
-                <span class="pin-year"><Odometer value={c.year} /></span>
-                <span class="pin-label">
-                  {c.title && <b>{c.title}</b>}
-                  {c.body && <em>{c.body}</em>}
-                </span>
+    <!-- The picture is the page: it fills the screen, cropped at the sides on
+         a phone taller than 4:5, and everything else floats over it. -->
+    {video ? (
+      <div
+        class="ts-frames"
+        data-mode="video"
+        data-from={video.from}
+        data-span={span}
+        data-dur={video.duration}
+        data-speed={video.speed}
+        data-changes={video.changes?.join(',')}
+      >
+        <!-- The satellite, when there is one: what the land cover is faded
+             down to from the settings. -->
+        {video.base && (
+          <img class="ts-frame ts-under" src={asset(video.base)} alt="" aria-hidden="true" decoding="async" />
+        )}
+        <!-- The land cover: the clip, over its own first frame. The frame is
+             there so a page whose clip is still loading shows the landscape
+             rather than a black box -- or the satellite, since Safari drops a
+             video's poster the moment it is told to play, before it has a
+             frame to show, and for that beat the clip is transparent.
+             Faded as one layer, so where the two overlap they are one picture
+             at the chosen opacity rather than two stacked up at nearly double
+             it. -->
+        <div class="ts-cover">
+        {video.poster && (
+          <img class="ts-frame" src={asset(video.poster)} alt="" aria-hidden="true" decoding="async" />
+        )}
+        <!-- playsinline and muted are both required or iOS takes the video
+             fullscreen instead of playing it in the panel. -->
+        <video
+          src={asset(video.src)}
+          poster={video.poster ? asset(video.poster) : undefined}
+          class="ts-frame ts-video"
+          playsinline
+          muted
+          loop
+          preload={run && run.at > 1 ? 'metadata' : 'auto'}
+          disablepictureinpicture
+          aria-label={caption}
+        ></video>
+        </div>
+        <!-- Always present, even with no callouts: it is the layer the
+             authoring ring is placed in, and placing the first one is exactly
+             when there are none. -->
+        <div class="pins" aria-hidden="true">
+          <!-- Dims the picture everywhere but inside the open ring. First in
+               the layer, so every ring and every label sits over it. -->
+          <span class="pin-spot"></span>
+          {pins.map((c) => (
+            <span
+              class="pin"
+              data-place={c.place}
+              data-x={c.x}
+              data-y={c.y}
+              data-year={c.year}
+              data-hold={c.hold}
+              data-message={c.messageHold ?? c.hold}
+              data-type={c.markerType}
+              data-sx={c.sizeX}
+              data-sy={c.sizeY}
+              data-pause={c.pause}
+              data-end-pause={c.endPause}
+              data-dim={c.dimHold ?? 0}
+            >
+              <span class="pin-ring"></span>
+              <!-- The year it is pointing at, on the ring itself: the counter
+                   in the corner says where the clip is, but this says what
+                   you are being shown, in the same glance as the thing. -->
+              <span class="pin-year"><Odometer value={c.year} /></span>
+              <span class="pin-label">
+                {c.title && <b>{c.title}</b>}
+                {c.body && <em>{c.body}</em>}
               </span>
-            ))}
-            <!-- Where the last tap landed, with ?config or ?pin. -->
-            <span class="pin pin-ghost" id="pin-ghost" hidden><span class="pin-ring"></span></span>
-          </div>
-          <!-- Authoring aids, with ?config (or ?pin / ?diag on their own). -->
-          <div class="ts-loading" id="ts-loading" hidden>
-            <span class="spinner" aria-hidden="true"></span>
-          </div>
-          <div class="pin-probe" id="pin-probe" hidden></div>
-          {!video.burnedIn && (
-            <output class="ts-year" id="ts-year"><Odometer value={first} /></output>
-          )}
-        </div>
-      ) : (
-        <div class="ts-frames" id="ts-frames" data-mode="frames">
-          {frames.map((f, i) => (
-            <img
-              src={f.src}
-              alt={i === 0 ? `${caption}, ${f.year}` : ''}
-              aria-hidden={i === 0 ? undefined : 'true'}
-              class="ts-frame"
-              data-year={f.year}
-              style={`opacity:${i === frames.length - 1 ? 1 : 0}`}
-              decoding="async"
-              fetchpriority={i === frames.length - 1 ? 'high' : 'low'}
-            />
+            </span>
           ))}
+          <!-- Where the last tap landed, with ?config or ?pin. -->
+          <span class="pin pin-ghost" hidden><span class="pin-ring"></span></span>
+        </div>
+        <!-- Authoring aids, with ?config (or ?pin / ?diag on their own). -->
+        <div class="pin-probe" hidden></div>
+        <div class="pin-pick-out" hidden></div>
+      </div>
+    ) : (
+      <div class="ts-frames" data-mode="frames">
+        {frames.map((f, i) => (
+          <img
+            src={f.src}
+            alt={i === 0 ? `${caption}, ${f.year}` : ''}
+            aria-hidden={i === 0 ? undefined : 'true'}
+            class="ts-frame"
+            data-year={f.year}
+            style={`opacity:${i === 0 ? 1 : 0}`}
+            decoding="async"
+            fetchpriority={i === 0 ? 'high' : 'low'}
+          />
+        ))}
+      </div>
+    )}
+
+    <!-- Across the top, under the story bar: what this page is, and the year
+         the picture is showing, with the spinner beside it while the clip
+         waits for data. -->
+    <div class="ts-top">
+      {title && <h2 class="ts-title">{title}</h2>}
+      {video && (
+        <div class="ts-loading" hidden>
+          <span class="spinner" aria-hidden="true"></span>
         </div>
       )}
-
-      <!-- One callout per run through the clip, so the count of them is the
-           count of runs it takes to see the whole story. Said plainly, above
-           the legend, so a reader knows there is more coming rather than
-           deciding they have seen it. -->
-      {pins.length > 0 && (
-        <p class="ts-runs">
-          {pins.length > 1 && (
-            <button class="runs-step" id="runs-prev" type="button" aria-label="Previous playthrough">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
-                <path d="M15 5l-7 7 7 7" />
-              </svg>
-            </button>
-          )}
-          <span id="ts-runs">1 of {pins.length} playthrough{pins.length === 1 ? '' : 's'}</span>
-          {pins.length > 1 && (
-            <button class="runs-step" id="runs-next" type="button" aria-label="Next playthrough">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
-                <path d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
-          )}
-        </p>
+      {video && !video.burnedIn && (
+        <output class="ts-year"><Odometer value={first} /></output>
       )}
-
-      {legend.length > 0 && (
-        <ul class="ts-legend">
-          {legend.map((l) => (
-            <li><i style={`background:${l.colour}`}></i>{l.label}</li>
-          ))}
-        </ul>
-      )}
-
-      <!-- What a tap produced, under the picture rather than over it: it is
-           long, and it must never cover the ground being aimed at. -->
-      <div class="pin-pick-out" id="pin-pick-out" hidden></div>
-
     </div>
 
-    <PanelNav prev={prev} next={next}>
-      <div class="ts-scrub">
-        <button class="ts-play" id="ts-play" type="button" aria-label="Play the sequence">
-          <!-- The id is on the path, not the svg: the script swaps the `d`
-               between the play and pause glyphs. -->
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path id="ts-icon" d="M8 5v14l11-7z" />
+    <AnimalButton animal="raven" />
+
+    <!-- The page's controls, in a column in the far corner as on the
+         panorama: opacity, speed, what the colours mean, then back, then on. -->
+    <div class="ts-side" data-no-tap>
+      <!-- The land cover's opacity: a slider that opens up out of the button,
+           above it, and folds away again once it is left alone. -->
+      {video?.base && (
+        <div class="ts-fade" data-no-tap>
+          <div
+            class="ts-fade-pop"
+            id={`${id}-fade`}
+            role="slider"
+            tabindex="-1"
+            aria-orientation="vertical"
+            aria-label="Land cover opacity"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            aria-valuenow="100"
+            aria-valuetext="100%"
+          >
+            <span class="ts-fade-end" aria-hidden="true">Map</span>
+            <span class="ts-fade-track" aria-hidden="true"><i class="ts-fade-fill"></i><b class="ts-fade-knob"></b></span>
+            <span class="ts-fade-end" aria-hidden="true">Sat</span>
+          </div>
+          <button class="step ts-fade-btn" type="button" aria-label="Land cover opacity" aria-expanded="false" aria-controls={`${id}-fade`}>
+            <!-- Two layers, the top one half there. -->
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 4l8 4-8 4-8-4z" fill="currentColor" fill-opacity="0.45" />
+              <path d="M4 12l8 4 8-4M4 16l8 4 8-4" />
+            </svg>
+          </button>
+        </div>
+      )}
+      <!-- Speed, as a button that says what it is at and steps on a notch each
+           tap: the design's own pace first, then faster, then slower. -->
+      {video && (
+        <button class="step ts-speed" type="button" aria-label="Playback speed">1×</button>
+      )}
+      {legend.length > 0 && (
+        <button class="step ts-open ts-key" type="button" aria-label="What the colours mean" aria-expanded="false" aria-controls={`${id}-legend`}>
+          <!-- Three swatches: a key, not a menu. -->
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <circle cx="6.5" cy="7" r="1.6" fill="currentColor" stroke="none" /><path d="M11 7h8" />
+            <circle cx="6.5" cy="12" r="1.6" fill="currentColor" stroke="none" /><path d="M11 12h8" />
+            <circle cx="6.5" cy="17" r="1.6" fill="currentColor" stroke="none" /><path d="M11 17h8" />
           </svg>
         </button>
-        <span class="ts-end">{first}</span>
-        <div class="ts-track">
-          <div class="ts-ticks" aria-hidden="true">
-            {tickYears.map((y, i) => (
-              <i class:list={['tick', { major: y % 10 === 0 }]} style={`left:${(i / lastTick) * 100}%`}></i>
-            ))}
-          </div>
-          <input
-            type="range" id="ts-range" min="0" step="1"
-            max={lastTick}
-            value={video ? 0 : lastTick}
-            aria-label="Year"
-          />
-        </div>
-        <span class="ts-end">{last}</span>
-      </div>
-    </PanelNav>
-  </div>
+      )}
+      {prev && (
+        <a class="step" href={prev} aria-label="Previous section">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
+        </a>
+      )}
+      {next && (
+        <a class="step" href={next} aria-label="Next section">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 5l7 7-7 7" /></svg>
+        </a>
+      )}
+    </div>
 
-  <div class="panel-rail">
-    <h2>{rail.title}</h2>
-    <p>{rail.body}</p>
+    <!-- The key, pulled up over the foot of the picture on asking. The clip
+         holds while it is open: it is read, and the years should not run on
+         underneath it. -->
+    {legend.length > 0 && (
+      <div class="ts-sheet" id={`${id}-legend`} data-sheet="key" role="dialog" aria-label="What the colours mean" inert data-no-tap>
+        <div class="ts-sheet-card">
+          <div class="ts-sheet-head">
+            <p class="ts-sheet-title">{caption}</p>
+            <button class="ts-sheet-close" type="button" aria-label="Close">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+            </button>
+          </div>
+          <ul class="ts-legend">
+            {legend.map((l) => (
+              <li><i style={`background:${l.colour}`}></i>{l.label}</li>
+            ))}
+          </ul>
+          <p class="ts-sheet-source">{source}</p>
+        </div>
+      </div>
+    )}
+
   </div>
 </section>
 
 <style>
-  /* The column the panel is built from: the picture at the top where the eye
-     starts, then the key to it, then what it is pointing at. */
-  .ts-col {
+  /* No rail under this stage, so everything at the foot clears it itself. */
+  .ts-panel { --nav-safe: var(--foot); }
+
+  /* The whole stage. */
+  .ts-frames {
     position: absolute;
     inset: 0;
-    display: flex;
-    flex-direction: column;
-    /* Clears the story bar at the top and the control row at the foot. */
-    padding: calc(var(--safe-t) + 1.6rem) 0 4.4rem;
-  }
-
-  /* Square, because that is the shape the export arrives in, and pinned to the
-     top rather than centred: on a phone held upright the space below it is
-     where the words go, and a picture floating in the middle leaves a band of
-     nothing above it. */
-  .ts-frames {
-    position: relative;
-    flex: none;
-    width: 100%;
-    aspect-ratio: 1;
     background: #0a0f0d;
-  }
-  /* Landscape has no height to spare, so there the picture is sized by height
-     and the column lies down beside it. */
-  @media (orientation: landscape) and (max-height: 620px) {
-    .ts-col {
-      flex-direction: row;
-      align-items: center;
-      gap: 1rem;
-      padding: calc(var(--safe-t) + 0.6rem) 1rem 4.4rem;
-    }
-    .ts-frames { width: auto; height: 100%; }
-    .ts-legend { justify-content: flex-start; padding-top: 0; }
   }
 
   /* Absolutely positioned rather than grid-stacked: a grid row sized to content
@@ -250,87 +279,186 @@ const lastTick = Math.max(1, tickYears.length - 1);
     inset: 0;
     width: 100%;
     height: 100%;
-    /* Never cropped: the burned-in year and scale bar sit in the corners, so a
-       crop eats the furniture before it eats the map. */
-    object-fit: contain;
+    /* Fills the screen. The clip is 4:5 and a phone is taller than that, so
+       the sides go; the callouts are placed on the frame itself, and the pin
+       layer is laid over the whole frame, cropped parts and all. */
+    object-fit: cover;
     user-select: none;
     -webkit-user-drag: none;
   }
 
-  .ts-runs {
-    flex: none;
-    margin: 0;
-    padding: 0.75rem 1.15rem 0;
+  /* Under the clip, which is painted over it. */
+  .ts-under { z-index: 0; }
+  .ts-cover { position: absolute; inset: 0; z-index: 1; }
+
+  /* ---- The key ---------------------------------------------------------- */
+  .ts-sheet {
+    position: absolute;
+    inset: 0;
+    /* Over the picture and the column; the story bar is later in the page at
+       the same level, so it still sits on top. */
+    z-index: 6;
     display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.15rem;
-    text-align: center;
-    font-size: 0.68rem;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--ink-dim);
+    flex-direction: column;
+    justify-content: flex-end;
+    background: rgba(6, 10, 9, 0);
+    visibility: hidden;
+    transition: background 0.3s ease, visibility 0s linear 0.3s;
   }
-  /* Small, quiet, and a real target: the glyph is 13px but the button is 30,
-     because this sits between two things that are read rather than pressed. */
-  .runs-step {
+  .ts-sheet.open {
+    background: rgba(6, 10, 9, 0.4);
+    visibility: visible;
+    transition: background 0.3s ease, visibility 0s;
+  }
+  .ts-sheet-card {
+    padding: 0.9rem 1.2rem calc(1.2rem + var(--foot));
+    border-radius: 20px 20px 0 0;
+    /* Solid: the corner buttons sit right behind it, and through anything
+       translucent they read as ghosts of controls. */
+    background: var(--bg-lift);
+    border-top: 1px solid rgba(255, 255, 255, 0.14);
+    transform: translateY(100%);
+    transition: transform 0.34s cubic-bezier(0.3, 0.9, 0.3, 1);
+  }
+  .ts-sheet.open .ts-sheet-card { transform: none; }
+  .ts-sheet-head { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.8rem; }
+  .ts-sheet-title { flex: 1; margin: 0; font-size: 0.92rem; font-weight: 600; }
+  .ts-sheet-close {
     flex: none;
-    width: 30px;
-    height: 30px;
+    width: 34px;
+    height: 34px;
     display: grid;
     place-items: center;
     padding: 0;
     border: 0;
-    background: none;
     border-radius: 50%;
-    color: var(--ink-dim);
+    background: rgba(255, 255, 255, 0.08);
     cursor: pointer;
-    transition: color 0.18s, background 0.18s;
   }
-  .runs-step svg { width: 13px; height: 13px; }
-  .runs-step:hover { color: var(--ink); background: rgba(255, 255, 255, 0.07); }
+  .ts-sheet-close svg { width: 16px; height: 16px; }
+  .ts-sheet-source { margin: 0.9rem 0 0; font-size: 0.7rem; color: var(--ink-dim); }
 
-  /* The legend follows it directly, so it does not add a second gap. */
-  .ts-runs + .ts-legend { padding-top: 0.45rem; }
-
-  /* Under the clip, which is painted over it -- so it only shows through as the
-     clip fades for the loop. */
-  .ts-under { z-index: 0; }
-  .ts-video { position: absolute; z-index: 1; }
-
-  /* One row of swatches, wrapping when it runs out of width rather than
-     scrolling or shrinking the text. */
+  /* Two columns of swatches: a key is scanned down, not read across. */
   .ts-legend {
-    flex: none;
     list-style: none;
     margin: 0;
-    padding: 0.7rem 1.15rem 0;
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 0.3rem 0.9rem;
+    padding: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.55rem 1rem;
   }
   .ts-legend li {
     display: flex;
     align-items: center;
-    gap: 0.38em;
-    font-size: 0.72rem;
+    gap: 0.5em;
+    font-size: 0.82rem;
     line-height: 1.3;
-    color: var(--ink-dim);
   }
   .ts-legend i {
     flex: none;
-    width: 10px;
-    height: 10px;
+    width: 14px;
+    height: 14px;
     border-radius: 50%;
     /* The swatch is the export's own colour, so it is outlined rather than
-       trusted to stand out against the panel on its own. */
+       trusted to stand out against the sheet on its own. */
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
   }
 
-  /* The pin layer is sized to the painted picture, not its element box: a clip
-     that is not exactly square is letterboxed inside it, and aligning to the
-     box would drift every pin sideways. */
+  /* The column in the corner: the same place, gap and buttons as the
+     panorama's, so the two pages read as one design. */
+  .ts-side {
+    position: absolute;
+    z-index: 4;
+    right: 0.9rem;
+    bottom: calc(1rem + var(--foot));
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+  .ts-side .step svg { width: 20px; height: 20px; }
+  .ts-open[aria-expanded='true'] { border-color: var(--accent); color: var(--accent); }
+
+  /* ---- Speed and opacity ------------------------------------------------ */
+  .ts-speed {
+    font-size: 0.8rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+  /* A notch off the design's pace is a setting in force, so it is lit. */
+  .ts-speed[data-off] { border-color: var(--accent); color: var(--accent); }
+
+  .ts-fade { position: relative; }
+  .ts-fade-btn[aria-expanded='true'],
+  .ts-fade[data-off] .ts-fade-btn { border-color: var(--accent); color: var(--accent); }
+  /* The same backing as the buttons, stretched upwards out of this one. Grows
+     from its foot so it reads as the button opening rather than as something
+     arriving from elsewhere. */
+  .ts-fade-pop {
+    position: absolute;
+    left: 0;
+    bottom: calc(100% + 0.5rem);
+    width: 46px;
+    height: 190px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.55rem 0;
+    box-sizing: border-box;
+    border-radius: 23px;
+    background: rgba(13, 18, 16, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    /* A drag up and down it is the slider's, not a swipe of the deck. */
+    touch-action: none;
+    cursor: ns-resize;
+    outline: none;
+    transform-origin: bottom center;
+    transform: scaleY(0.3);
+    opacity: 0;
+    visibility: hidden;
+    transition: transform 0.24s cubic-bezier(0.3, 1.2, 0.4, 1), opacity 0.18s ease, visibility 0s linear 0.24s;
+  }
+  .ts-fade[data-open] .ts-fade-pop {
+    transform: none;
+    opacity: 1;
+    visibility: visible;
+    transition: transform 0.24s cubic-bezier(0.3, 1.2, 0.4, 1), opacity 0.18s ease, visibility 0s;
+  }
+  .ts-fade-end { font-size: 0.56rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-dim); }
+  .ts-fade-track {
+    position: relative;
+    flex: 1;
+    width: 4px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.18);
+  }
+  .ts-fade-fill {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: var(--fill, 100%);
+    border-radius: 2px;
+    background: var(--accent);
+  }
+  .ts-fade-knob {
+    position: absolute;
+    left: 50%;
+    bottom: var(--fill, 100%);
+    width: 20px;
+    height: 20px;
+    margin: 0 0 -10px -10px;
+    border-radius: 50%;
+    background: var(--ink);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+  }
+
+  /* The pin layer is sized to the painted picture, not its element box: the
+     clip is cropped to fill the screen, and aligning to the box would drift
+     every pin away from the ground it marks. */
   .pins {
     position: absolute;
     pointer-events: none;
@@ -493,12 +621,13 @@ const lastTick = Math.max(1, tickYears.length - 1);
   }
   .pin-ghost[hidden] { display: none; }
 
-  /* The snippet a tap produced. In the column under the picture, in the band
-     the callouts use -- there is nothing to read there while placing one. */
+  /* The snippet a tap produced, low on the picture and clear of the column.
+     There is nothing to read there while placing a callout. */
   .pin-pick-out {
-    flex: none;
-    align-self: center;
-    margin: 0.7rem 1.15rem 0;
+    position: absolute;
+    z-index: 5;
+    left: 0.9rem;
+    bottom: calc(1rem + var(--foot));
     padding: 0.5rem 0.7rem;
     border-radius: 9px;
     background: rgba(8, 13, 11, 0.9);
@@ -507,8 +636,12 @@ const lastTick = Math.max(1, tickYears.length - 1);
     font: 500 0.7rem/1.35 ui-monospace, SFMono-Regular, Menlo, monospace;
     white-space: pre;
     text-align: left;
-    /* Tapped to copy, like the panorama's readout. */
+    /* Tapped to copy, like the panorama's readout; and selectable, as the
+       last resort if a browser will do neither. */
     cursor: copy;
+    user-select: text;
+    -webkit-user-select: text;
+    pointer-events: auto;
   }
 
   /* The diagnostic wears the same box as the ?pin aid, just wider and lower
@@ -543,11 +676,48 @@ const lastTick = Math.max(1, tickYears.length - 1);
   /* Shown while the clip is waiting for data. Over a weak connection the first
      pass through can outrun the download, and a picture that sits still with a
      year that does not change reads as a broken page rather than a slow one. */
-  .ts-loading {
+  /* The row across the top. The title takes what the year leaves it, so the
+     year stays pinned to the right-hand corner whatever the title's length. */
+  .ts-top {
     position: absolute;
-    top: 0.6rem;
-    right: 0.6rem;
+    top: calc(var(--safe-t) + 1.9rem);
+    left: 0.9rem;
+    right: 0.9rem;
     z-index: 3;
+    display: flex;
+    align-items: flex-start;
+    /* Right-aligned when there is no title to fill the row. */
+    justify-content: flex-end;
+    gap: 0.5rem;
+    pointer-events: none;
+  }
+  /* The same pill as the year, so the two read as one row of labels. It
+     sizes to its words and gives way to the year, not the other way round. */
+  .ts-title {
+    flex: 0 1 auto;
+    min-width: 0;
+    margin: 0 auto 0 0;
+    padding: 0.28em 0.75em;
+    /* A pill on one line; a long title wraps to a second and the ends stay
+       round rather than going to a lozenge. */
+    border-radius: 1.1em;
+    background: rgba(13, 18, 16, 0.66);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    font-size: 0.9rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    line-height: 1.2;
+    /* Two lines at most, so a long one never runs down into the picture. */
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+  }
+  .ts-loading[hidden] { display: none; }
+  .ts-loading {
+    flex: none;
     width: 30px;
     height: 30px;
     display: grid;
@@ -567,15 +737,9 @@ const lastTick = Math.max(1, tickYears.length - 1);
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  /* The year the frame is showing, in the corner of the picture. It was a
-     panel with the caption above it, sized for a full-bleed video; against a
-     square picture at the top of a column that read as a title card. The
-     caption it carried is the panel's own, and the rail underneath says it. */
+  /* The year the frame is showing, in the corner under the story bar. */
   .ts-year {
-    position: absolute;
-    top: 0.6rem;
-    left: 0.6rem;
-    z-index: 3;
+    flex: none;
     padding: 0.28em 0.6em;
     border-radius: 999px;
     background: rgba(13, 18, 16, 0.66);
@@ -588,151 +752,183 @@ const lastTick = Math.max(1, tickYears.length - 1);
     line-height: 1.2;
   }
 
-  /* Rides in the arrow row rather than above it, so the foot of the panel is one
-     band of controls instead of two. */
-  .ts-scrub {
-    /* Fills the nav pill rather than shrink-wrapping its contents, so the track
-       gets every pixel between the play button and the pill's far edge. */
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-  /* A real circle inside the pill: the one thing in this row you press, so it
-     reads as a button rather than as a glyph floating next to the bar. */
-  .ts-play {
-    flex: none;
-    width: 34px;
-    height: 34px;
-    padding: 0;
-    display: grid;
-    place-items: center;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.11);
-    border: 1px solid rgba(255, 255, 255, 0.26);
-    cursor: pointer;
-    transition: border-color 0.18s, color 0.18s, background 0.18s;
-  }
-  .ts-play:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-
-  /* The span's two ends, one either side of the bar rather than stacked under
-     it: the bar then reads as running from the first year to the last. */
-  .ts-end {
-    flex: none;
-    font-size: 0.63rem;
-    line-height: 1;
-    color: var(--ink-dim);
-    font-variant-numeric: tabular-nums;
-  }
-
-  .ts-track {
-    position: relative;
-    flex: 1;
-    min-width: 0;
-    height: 24px;
-    display: flex;
-    align-items: center;
-  }
-  /* Held off each end by half the thumb: a range maps its value across the
-     track minus the thumb's width, so ticks laid across the full width would
-     drift away from the thumb towards the ends. */
-  .ts-ticks {
-    position: absolute;
-    left: 13px;
-    right: 13px;
-    top: 50%;
-    height: 0;
-    pointer-events: none;
-  }
-  .tick {
-    position: absolute;
-    top: -4px;
-    width: 1px;
-    height: 8px;
-    margin-left: -0.5px;
-    background: rgba(255, 255, 255, 0.2);
-  }
-  .tick.major { top: -6px; height: 12px; background: rgba(255, 255, 255, 0.42); }
-
-  input[type='range'] {
-    /* Over the ticks, so the thumb covers the marks it is sitting on. */
-    position: relative;
-    z-index: 1;
-    -webkit-appearance: none;
-    appearance: none;
-    width: 100%;
-    height: 24px;
-    background: transparent;
-    margin: 0;
-    cursor: pointer;
-    /* The deck around this is a horizontal scroll-snap container, so a sideways
-       drag starting on the thumb is otherwise claimed as a panel swipe and the
-       slider never sees it. This hands the gesture to the control. */
-    touch-action: none;
-  }
-  input[type='range']::-webkit-slider-runnable-track {
-    height: 3px;
-    border-radius: 3px;
-    background: var(--line);
-  }
-  input[type='range']::-moz-range-track {
-    height: 3px;
-    border-radius: 3px;
-    background: var(--line);
-  }
-  /* Deliberately larger than the visual dot: a 26px target is thumb-sized. */
-  input[type='range']::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 26px;
-    height: 26px;
-    margin-top: -11.5px;
-    border-radius: 50%;
-    background: var(--accent);
-    border: 4px solid var(--bg);
-    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.55);
-  }
-  input[type='range']::-moz-range-thumb {
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    background: var(--accent);
-    border: 4px solid var(--bg);
-  }
 </style>
 
 <script>
-  const wrap = document.getElementById('ts-frames');
-  if (wrap) {
-    const range = document.getElementById('ts-range') as HTMLInputElement;
-    const yearOut = document.getElementById('ts-year'); // absent for burned-in exports
-    const play = document.getElementById('ts-play') as HTMLButtonElement;
-    const icon = document.getElementById('ts-icon')!;
-    const PLAY = 'M8 5v14l11-7z';
-    const PAUSE = 'M6 5h4v14H6zm8 0h4v14h-4z';
+  // One page per playthrough, each its own copy of this panel, so everything
+  // below is looked up inside its page rather than by id.
+  const pages = Array.from(document.querySelectorAll<HTMLElement>('.ts-panel'));
 
-    const setIcon = (playing: boolean) => {
-      icon.setAttribute('d', playing ? PAUSE : PLAY);
-      play.setAttribute('aria-label', playing ? 'Pause the sequence' : 'Play the sequence');
+  // The reader's view settings: how much of the land cover is laid over the
+  // satellite, and how many times the clip's own pace to play it at. One set
+  // for every playthrough, since they are one series; kept for the visit, so
+  // a reload does not undo them, but a fresh visit starts from the design.
+  const TUNE = 'ts-tune';
+  const tune = { cover: 1, mult: 1 };
+  try {
+    const kept = JSON.parse(sessionStorage.getItem(TUNE) ?? '{}');
+    if (kept.cover >= 0 && kept.cover <= 1) tune.cover = kept.cover;
+    if (kept.mult > 0 && kept.mult <= 4) tune.mult = kept.mult;
+  } catch {}
+  const tuners: (() => void)[] = [];
+  const setTune = (patch: Partial<typeof tune>) => {
+    Object.assign(tune, patch);
+    try { sessionStorage.setItem(TUNE, JSON.stringify(tune)); } catch {}
+    for (const apply of tuners) apply();
+  };
+
+  for (const page of pages) {
+  const wrap = page.querySelector<HTMLElement>('.ts-frames');
+  if (wrap) {
+    const yearOut = page.querySelector('.ts-year'); // absent for burned-in exports
+
+    // ---- The sheets -------------------------------------------------------
+    // The key, pulled up by its button in the corner and closed by its own
+    // button, a tap on the picture above it, or Escape. Written for more than
+    // one; the page says when each opens and closes -- `key:open` -- so the
+    // clip can hold for it.
+    const openers = Array.from(page.querySelectorAll<HTMLButtonElement>('.ts-open'));
+    const sheets = Array.from(page.querySelectorAll<HTMLElement>('.ts-sheet'));
+    const openerOf = (sheet: HTMLElement) => openers.find((b) => b.getAttribute('aria-controls') === sheet.id);
+    const setSheet = (sheet: HTMLElement, open: boolean) => {
+      if (sheet.classList.contains('open') === open) return;
+      if (open) for (const other of sheets) if (other !== sheet) setSheet(other, false);
+      sheet.classList.toggle('open', open);
+      sheet.inert = !open;
+      openerOf(sheet)?.setAttribute('aria-expanded', String(open));
+      page.dispatchEvent(new CustomEvent(`${sheet.dataset.sheet}:${open ? 'open' : 'close'}`));
     };
+    for (const sheet of sheets) {
+      openerOf(sheet)?.addEventListener('click', () => setSheet(sheet, !sheet.classList.contains('open')));
+      sheet.querySelector('.ts-sheet-close')?.addEventListener('click', () => setSheet(sheet, false));
+      sheet.addEventListener('click', (e) => { if (e.target === sheet) setSheet(sheet, false); });
+    }
+    addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') for (const sheet of sheets) setSheet(sheet, false);
+    });
 
     if (wrap.dataset.mode === 'video') {
       // ---- Pre-exported video -------------------------------------------
-      const v = document.getElementById('ts-video') as HTMLVideoElement;
+      const v = wrap.querySelector('.ts-video') as HTMLVideoElement;
       const from = Number(wrap.dataset.from);
-      const span = Number(wrap.dataset.span); // one frame per year
-      let scrubbing = false;
+      const span = Number(wrap.dataset.span); // how many years
 
       // Playback speed. Re-applied on load as well as now: some browsers reset
       // the rate when the media is (re)loaded, and a clip that quietly returns
       // to 1x is the kind of thing that is only noticed much later.
+      // The reader's multiplier is on top of the frontmatter's pace.
       const speed = Number(wrap.dataset.speed);
       const applySpeed = () => {
-        if (speed > 0 && Number.isFinite(speed)) v.playbackRate = speed;
+        v.playbackRate = (speed > 0 && Number.isFinite(speed) ? speed : 1) * tune.mult;
       };
       applySpeed();
       v.addEventListener('loadedmetadata', applySpeed);
+
+      // A page left on its last year is wound back once it is wholly off
+      // screen, so arriving never shows the year the last visit ended on. A
+      // sliver rather than zero: the page beside the one on screen shares an
+      // edge with the viewport, which counts as intersecting at zero.
+      new IntersectionObserver(
+        (e) => {
+          if (!e[0].isIntersecting && v.currentTime) v.currentTime = 0;
+        },
+        { threshold: 0.02 },
+      ).observe(wrap);
+      // Decoded now, not when first scrolled to, so no picture paints late.
+      for (const img of wrap.querySelectorAll<HTMLImageElement>('img')) img.decode().catch(() => {});
+
+      // ---- The settings --------------------------------------------------
+      // The land cover is faded rather than the satellite, so at full it is
+      // exactly the clip as designed, and the dim, rings and words over it
+      // are untouched either way.
+      const coverLayer = wrap.querySelector<HTMLElement>('.ts-cover');
+      const speedBtn = page.querySelector<HTMLButtonElement>('.ts-speed');
+      const fade = page.querySelector<HTMLElement>('.ts-fade');
+      const fadeBtn = fade?.querySelector<HTMLButtonElement>('.ts-fade-btn');
+      const fadePop = fade?.querySelector<HTMLElement>('.ts-fade-pop');
+      const fadeTrack = fade?.querySelector<HTMLElement>('.ts-fade-track');
+      const applyTune = () => {
+        applySpeed();
+        if (speedBtn) {
+          speedBtn.textContent = `${tune.mult}×`;
+          speedBtn.setAttribute('aria-label', `Playback speed, ${tune.mult} times`);
+          speedBtn.toggleAttribute('data-off', tune.mult !== 1);
+        }
+        // Only with a satellite to fade to: without one it would fade to black.
+        if (fade && fadePop) {
+          if (coverLayer) coverLayer.style.opacity = String(tune.cover);
+          const pc = Math.round(tune.cover * 100);
+          fadePop.style.setProperty('--fill', `${pc}%`);
+          fadePop.setAttribute('aria-valuenow', String(pc));
+          fadePop.setAttribute('aria-valuetext', `${pc}%`);
+          fade.toggleAttribute('data-off', pc !== 100);
+        }
+      };
+      tuners.push(applyTune);
+      applyTune();
+
+      // Each tap steps on a notch, and round.
+      const SPEEDS = [1, 1.5, 2, 0.5];
+      speedBtn?.addEventListener('click', () => {
+        const at = SPEEDS.indexOf(tune.mult);
+        setTune({ mult: SPEEDS[(at + 1) % SPEEDS.length] });
+      });
+
+      // The opacity slider opens out of its button and folds away 1.2 seconds
+      // after it was last touched -- never while a finger is still on it.
+      if (fade && fadeBtn && fadePop && fadeTrack) {
+        const IDLE = 1200;
+        let idle: number | undefined;
+        let dragging = false;
+        const setFade = (open: boolean) => {
+          if (fade.hasAttribute('data-open') === open) return;
+          fade.toggleAttribute('data-open', open);
+          fadeBtn.setAttribute('aria-expanded', String(open));
+          fadePop.tabIndex = open ? 0 : -1;
+          clearTimeout(idle);
+          page.dispatchEvent(new CustomEvent(open ? 'tune:open' : 'tune:close'));
+        };
+        const touched = () => {
+          clearTimeout(idle);
+          if (!dragging) idle = window.setTimeout(() => setFade(false), IDLE);
+        };
+        fadeBtn.addEventListener('click', () => {
+          const open = !fade.hasAttribute('data-open');
+          setFade(open);
+          if (open) touched();
+        });
+        // Top of the track is all land cover, the foot all satellite.
+        const coverAt = (y: number) => {
+          const r = fadeTrack.getBoundingClientRect();
+          return Math.min(1, Math.max(0, (r.bottom - y) / r.height));
+        };
+        fadePop.addEventListener('pointerdown', (e) => {
+          dragging = true;
+          clearTimeout(idle);
+          fadePop.setPointerCapture(e.pointerId);
+          setTune({ cover: coverAt(e.clientY) });
+        });
+        fadePop.addEventListener('pointermove', (e) => {
+          if (dragging) setTune({ cover: coverAt(e.clientY) });
+        });
+        const letGo = () => {
+          if (!dragging) return;
+          dragging = false;
+          touched();
+        };
+        fadePop.addEventListener('pointerup', letGo);
+        fadePop.addEventListener('pointercancel', letGo);
+        fadePop.addEventListener('keydown', (e) => {
+          const step = { ArrowUp: 0.05, ArrowRight: 0.05, ArrowDown: -0.05, ArrowLeft: -0.05, Home: -1, End: 1 }[e.key];
+          if (step === undefined) return;
+          e.preventDefault();
+          setTune({ cover: Math.min(1, Math.max(0, tune.cover + step)) });
+          touched();
+        });
+        addEventListener('keydown', (e) => { if (e.key === 'Escape') setFade(false); });
+        // Folded away when the page is left, so it is not found open on return.
+        new IntersectionObserver((e) => { if (!e[0].isIntersecting) setFade(false); }, { threshold: 0.6 }).observe(wrap);
+      }
 
       // How long the clip is, by whatever the media will admit to.
       //
@@ -758,15 +954,32 @@ const lastTick = Math.max(1, tickYears.length - 1);
         return Number.isFinite(told) && told > 0 ? told : 0;
       };
 
-      // One frame per year and duration === span / fps, so the frame index is
-      // an exact floor -- no rounding drift at either end of the clip.
-      const frameAt = (t: number) => {
+      // Which year the picture is showing, as an index from the first, and
+      // where in the clip a year begins.
+      //
+      // By default every year owns an equal share of the clip. With `changes`
+      // -- the times of the first and last change, read off the export -- the
+      // changes are evenly spaced between those two instead, which is what an
+      // edit with a dissolve centred on each boundary produces: the first and
+      // last years get half a share, and an equal split would run the readout
+      // most of a year behind the picture at either end.
+      const changes = (wrap.dataset.changes ?? '').split(',').map(Number);
+      const hasChanges = changes.length === 2 && changes.every(Number.isFinite) && span > 2;
+      const step = hasChanges ? (changes[1] - changes[0]) / (span - 2) : 0;
+      const indexAt = (t: number) => {
         const d = clipLength();
         if (!d) return span - 1;
-        const i = Math.floor((t / d) * span);
+        const i = hasChanges
+          ? t < changes[0] ? 0 : Math.floor((t - changes[0]) / step + 1e-6) + 1
+          : Math.floor((t / d) * span);
         return Math.min(span - 1, Math.max(0, i));
       };
-      const yearAt = (t: number) => from + frameAt(t);
+      const startOf = (year: number) => {
+        const i = year - from;
+        if (i <= 0) return 0;
+        return hasChanges ? changes[0] + (i - 1) * step : (i / span) * clipLength();
+      };
+      const yearAt = (t: number) => from + indexAt(t);
 
       // Everywhere the year is written: the pill in the corner of the picture,
       // and the badge on any ring that is open. The badge counts with the clip
@@ -775,7 +988,7 @@ const lastTick = Math.max(1, tickYears.length - 1);
       // read in the same glance as the thing it is about.
       // Every odometer on this panel: the pill in the corner and the badge on
       // each ring. They are set together, so they cannot drift apart.
-      const odometers = Array.from(wrap.querySelectorAll<HTMLElement>('[data-odo]'));
+      const odometers = Array.from(page.querySelectorAll<HTMLElement>('[data-odo]'));
 
       // Each column is two sets of 0-9. A digit that must fall -- 9 to 0, or a
       // whole year going back to 1985 on the loop -- is sent to the same digit
@@ -804,8 +1017,15 @@ const lastTick = Math.max(1, tickYears.length - 1);
         const columns = odo.querySelectorAll<HTMLElement>('.odo-d');
         columns.forEach((col, i) => {
           const want = Number(year[i] ?? 0);
+          // Still in the second set: a year lasts about a third of a second
+          // and a roll a little longer, so a roll is often cut short by the
+          // next one -- and a cut-short transition never ends, so the drop back
+          // above never came. Done here instead, or this column would be sent
+          // from 10 back down to 1 and visibly roll backwards.
+          if (Number(col.style.getPropertyValue('--n')) >= 10) normalise(col);
           const at = Number(col.style.getPropertyValue('--n')) || 0;
           const showing = at % 10;
+          if (want === showing) return;
           // Up to it if it is above, and up and round to it if it is below.
           col.style.setProperty('--n', String(want >= showing ? want : want + 10));
         });
@@ -817,80 +1037,82 @@ const lastTick = Math.max(1, tickYears.length - 1);
         for (const odo of odometers) rollTo(odo, year);
       };
 
-      // The slider counts years, not thousandths: its stops, the ticks under it
-      // and the frames of the clip are then the same set of positions, so the
-      // thumb always sits on the mark for the year on screen.
       const sync = () => {
-        if (scrubbing || !clipLength()) return;
-        range.value = String(frameAt(v.currentTime));
+        if (!clipLength()) return;
         paintYear(String(yearAt(v.currentTime)));
       };
 
-      // Asked once, and used both by the dissolve and by the autoplay below.
-      const stillWanted = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      /** Seconds this playthrough holds on its last frame before moving on. */
+      const endPause = () => Number(allPins[0]?.dataset.endPause) || 0;
+      /** Seconds its callout stops the clip for. */
+      const calloutPause = () => Number(allPins[0]?.dataset.pause) || 0;
 
-      // Round the loop by dissolving rather than cutting.
+      // ---- Story clock ---------------------------------------------------
+      // How far through the page, for the story bar to fill its segment with.
       //
-      // The end of forty years and the start of them are two very different
-      // pictures, and the cut between them lands as a flinch. The first frame
-      // is already underneath -- it is the poster -- so the clip is faded out
-      // over the last moment of the run and the frame it is heading back to
-      // appears through it. Coming out the other side needs no fade at all: the
-      // clip is then showing that same first frame, so it is simply restored.
-      const under = wrap.querySelector('.ts-under');
-      const DISSOLVE = 0.55; // seconds of the run spent going round
-      /** Take every ring and every label down, wherever the clock happens to be. */
-      const clearMarks = () => {
-        for (const pin of allPins) pin.classList.remove('on', 'words');
-      };
-
-      /** Seconds this playthrough holds on its last frame before going round. */
-      const endPause = () => Number(allPins[activePin()]?.dataset.endPause) || 0;
-
-      const dissolve = () => {
-        // A dissolve is motion; someone who asked for less of it gets the cut.
-        // `stillWanted` is the same question the autoplay guard asks below.
-        if (!under || stillWanted) return;
-        // A run that holds at the end must arrive at that hold fully visible --
-        // fading out first would leave it holding on nothing, which is the
-        // opposite of letting the last change be seen. It dissolves after the
-        // hold instead, on the way round.
-        if (endPause() > 0) {
-          v.style.opacity = '1';
-          return;
-        }
+      // Measured in the reader's seconds, not the clip's: the page is the clip
+      // at its playback speed, plus the callout's stop, plus the hold at the
+      // end, and the segment runs across all of it at one steady pace -- as a
+      // story's bar does -- rather than stalling for the stop and then jumping.
+      // Derived from the state of the page each frame rather than counted up,
+      // so a pause simply shows where things now are.
+      let pauseFrom = 0; // when the callout's stop began, while it is on
+      let pauseSpent = 0; // seconds of it already sat through
+      let holdFrom = 0; // when the end hold began, while it is on
+      let holdStart = 0; // the fill it began from
+      const storyAt = () => {
         const d = clipLength();
-        const left = d ? d - v.currentTime : Infinity;
-        v.style.opacity = left < DISSOLVE ? String(Math.max(0, left / DISSOLVE)) : '1';
+        if (!d) return 0;
+        const rate = v.playbackRate || 1;
+        const total = d / rate + calloutPause() + endPause();
+        const stopped = pauseFrom ? Math.min(calloutPause(), (performance.now() - pauseFrom) / 1000) : 0;
+        const p = (v.currentTime / rate + pauseSpent + stopped) / total;
+        return Math.min(1, Math.max(0, p));
+      };
+      const fillAt = () => {
+        if (!holdFrom) return storyAt();
+        // The hold runs out whatever is left, so the segment is full at the
+        // moment the next page arrives -- even when a stop was cut short.
+        const k = endPause() > 0 ? Math.min(1, (performance.now() - holdFrom) / 1000 / endPause()) : 1;
+        return holdStart + (1 - holdStart) * k;
+      };
+      let told = -1;
+      let storyRaf = 0;
+      const tellProgress = () => {
+        const p = fillAt();
+        if (Math.abs(p - told) < 0.0005) return;
+        told = p;
+        page.dispatchEvent(new CustomEvent('story:progress', { bubbles: true, detail: p }));
+      };
+      const startStory = () => {
+        if (storyRaf) return;
+        const step = () => {
+          tellProgress();
+          storyRaf = requestAnimationFrame(step);
+        };
+        storyRaf = requestAnimationFrame(step);
+      };
+      const stopStory = () => {
+        if (storyRaf) cancelAnimationFrame(storyRaf);
+        storyRaf = 0;
+      };
+      /** Back to the top of the page's clock: nothing sat through yet. */
+      const resetStory = () => {
+        pauseFrom = 0;
+        pauseSpent = 0;
+        holdFrom = 0;
+        told = -1;
       };
 
-      /** Fade the clip to `to` over the dissolve, or cut if motion is unwanted. */
-      const fadeClip = (to: number) =>
-        new Promise<void>((done) => {
-          if (stillWanted || !under) {
-            v.style.opacity = String(to);
-            done();
-            return;
-          }
-          v.style.transition = `opacity ${DISSOLVE}s ease`;
-          v.style.opacity = String(to);
-          setTimeout(() => {
-            v.style.transition = '';
-            done();
-          }, DISSOLVE * 1000 + 40);
-        });
-
-      // `timeupdate` is the wrong clock to move a thumb with: browsers fire it
+      // `timeupdate` is the wrong clock to roll the year with: browsers fire it
       // on their own schedule -- a few times a second at best, and coarser on a
-      // throttled phone -- which on a clip this short left the slider looking
-      // stuck while the video plainly ran. A frame clock while playing, stopped
-      // the moment it is not needed.
+      // throttled phone -- and at three years a second that skips years. A
+      // frame clock while playing, stopped the moment it is not needed.
       let clock = 0;
       const startClock = () => {
         if (clock) return;
         const step = () => {
           sync();
-          dissolve();
           clock = requestAnimationFrame(step);
         };
         clock = requestAnimationFrame(step);
@@ -907,8 +1129,7 @@ const lastTick = Math.max(1, tickYears.length - 1);
         // that seek was only ever visible for an instant, and it cost a jump to
         // the far end of the file. Over a weak connection the wait for data at
         // the end blocks the seek back to the start and the play that follows:
-        // the clock sits at the last year, the slider sits at the far right and
-        // nothing moves. The poster is the first frame, so there is a real
+        // the clock sits at the last year and nothing moves. The poster is the first frame, so there is a real
         // picture to look at either way.
         sync();
         showCallouts(v.currentTime);
@@ -916,7 +1137,7 @@ const lastTick = Math.max(1, tickYears.length - 1);
 
       // Waiting for data, said plainly. `waiting` and `playing` are the events
       // that bracket a stall; `canplay` covers the first fill of the buffer.
-      const spinner = document.getElementById('ts-loading');
+      const spinner = page.querySelector<HTMLElement>('.ts-loading');
       const waiting = (on: boolean) => { if (spinner) spinner.hidden = !on; };
       waiting(true);
       v.addEventListener('waiting', () => waiting(true));
@@ -930,52 +1151,14 @@ const lastTick = Math.max(1, tickYears.length - 1);
       // poster with no way to know it should have started, so it is tried again
       // as soon as there is enough data to run.
       v.addEventListener('canplay', () => {
-        // Only ever resumes something already asked for: this exists to recover
-        // a play that was refused or abandoned mid-stall, not to start one.
-        if (!wantsPlay || !inView || userPaused || scrubbing || !v.paused) return;
+        // Not over a callout's stop or the end hold, which are pauses on
+        // purpose, and not over one by hand.
+        if (!inView || userPaused || !v.paused || v.ended || resumeTimer !== null) return;
         v.play().catch(() => {});
       });
-      let lastT = 0;
-      let passes = 0;
       let inView = false;
-      // Pending "they have really gone" timer; see the observer at the end.
-      let leftFor = 0;
       let userPaused = false;
-      // Whether anyone has asked for this to be playing. Nothing starts the
-      // clip but a person -- the button, or a jump to a playthrough.
-      let wantsPlay = false;
-
-      // Any seek we perform ourselves looks exactly like a loop wrap -- both
-      // jump from the end back to the start -- so a deliberate one moves the
-      // mark it would be measured against, and the wrap simply never appears.
-      //
-      // This used to be a flag, set on seeking and cleared by the wrap it was
-      // meant to excuse. It leaked: arriving at the panel seeks to the start,
-      // and when the clip is already at the start that seek moves nothing, so
-      // no wrap ever came to clear the flag -- and it sat there waiting to
-      // swallow the first real loop instead. One callout then played twice and
-      // the count stuck on its first run. Nothing to leave set now.
-      const seekQuietly = (t: number) => {
-        v.currentTime = t;
-        lastT = t;
-      };
-      // `passes` counts runs through the clip, and is what chooses the callout
-      // for this one -- so a wrap that is really one of our own seeks must not
-      // be counted, or the rotation would skip a turn.
       v.addEventListener('timeupdate', () => {
-        const wrapped = v.currentTime + 0.25 < lastT;
-        if (wrapped && scrubbing) {
-          // Dragged backwards by hand, which is not a run through anything.
-        } else if (wrapped) {
-          passes += 1;
-          wrap.dataset.passes = String(passes);
-          // Round again: every callout gets to stop the clip once more.
-          honoured.clear();
-          showRuns();
-          // Back to the first frame, which is what is on screen either way.
-          v.style.opacity = '1';
-        }
-        lastT = v.currentTime;
         sync();
         showCallouts(v.currentTime);
       });
@@ -984,124 +1167,93 @@ const lastTick = Math.max(1, tickYears.length - 1);
       v.addEventListener('canplay', sync);
       v.addEventListener('progress', sync);
       v.addEventListener('seeked', () => {
-        // Wherever a seek landed is where the next wrap is measured from --
-        // including a scrub, which must not be counted as a run either.
-        lastT = v.currentTime;
         sync();
-        // A seek that did not come from the slider still moves the clock, so the
-        // callouts are settled here rather than only on the next timeupdate.
+        // A seek moves the clock too, so the callouts are settled here rather
+        // than only on the next timeupdate.
         showCallouts(v.currentTime);
       });
-      v.addEventListener('play', () => {
-        setIcon(true);
-        // Playing and scrubbing are mutually exclusive -- a drag pauses the clip
-        // -- so this also clears the flag if a pointer was ever lost mid-drag,
-        // which would otherwise freeze the thumb for the rest of the visit.
-        scrubbing = false;
-        startClock();
-      });
-      v.addEventListener('pause', () => { setIcon(false); stopClock(); sync(); });
-      // Stopped or dragged anywhere but the last moment, the clip is itself
-      // again -- a dissolve left half-applied reads as a washed-out picture.
-      v.addEventListener('seeked', dissolve);
-      // The loop is run here rather than by the element, which is the only way
-      // to put anything between the last frame and the first. `loop` stays on
-      // the markup for the case where this script never arrives.
+      v.addEventListener('play', startClock);
+      v.addEventListener('pause', () => { stopClock(); sync(); });
+      // The end of a playthrough is handled here rather than by the element:
+      // it holds for `endPause`, then hands over to the next page. `loop`
+      // stays on the markup for the case where this script never arrives.
       v.loop = false;
-      let goingRound = false;
+      let ending = false;
       v.addEventListener('ended', async () => {
-        setIcon(false);
         stopClock();
-        if (goingRound) return;
-        goingRound = true;
+        if (ending) return;
+        ending = true;
         try {
+          // Whatever the clip ended on, still marked: the ring, the words and
+          // the dim are what the hold exists to be looked at with.
+          holdStart = storyAt();
+          holdFrom = performance.now();
           const wait = endPause();
-          if (wait > 0) {
-            // Whatever the clip ended on, in full, and still marked: the ring,
-            // the words and the dim are what the hold exists to be looked at
-            // with, so they stay for it rather than clearing as the clip stops.
-            v.style.opacity = '1';
-            await new Promise((r) => setTimeout(r, wait * 1000));
-            // Someone who took the controls during the hold is not looping.
-            if (userPaused || scrubbing || !inView) return;
-            // Now everything goes together: the marks fade, the dim lifts and
-            // the picture dissolves into the first frame, on overlapping
-            // clocks, so the panel arrives at the next run with nothing left
-            // over from this one.
-            clearMarks();
-            spotlight(null);
-            await fadeClip(0);
-          }
-          passes += 1;
-          wrap.dataset.passes = String(passes);
-          honoured.clear();
-          showRuns();
-          seekQuietly(0);
-          v.style.opacity = '1';
-          showCallouts(0);
-          if (!userPaused && inView) await v.play().catch(() => {});
+          if (wait > 0) await new Promise((r) => setTimeout(r, wait * 1000));
+          // Not while the key or the opacity slider is open: the reader is
+          // in the middle of it. The slider picks this up again as it folds.
+          if (userPaused || tuning || !inView || !holdFrom) return;
+          advance();
         } finally {
-          goingRound = false;
+          ending = false;
         }
       });
-
-      // Aimed at the middle of the year's frame rather than its leading edge, so
-      // a stop always lands inside the frame it names and never a rounding error
-      // short of it.
-      const seekTo = () => {
-        const d = clipLength();
-        if (!d) return;
-        const t = Math.min(d - 0.001, ((Number(range.value) + 0.5) / span) * d);
-        seekQuietly(t);
-        paintYear(String(yearAt(t)));
-        // Dragged to a year by hand, so every callout is owed its stop again.
-        // Without this, scrubbing back onto one that has already had its turn
-        // this time round shows the ring and the words but runs straight past
-        // them -- which is precisely the moment someone wants to stop and look,
-        // since they went looking for it.
-        honoured.clear();
-        showCallouts(t);
+      // The next playthrough, if there is one. After the last, the page
+      // stays on its final frame -- the rest of the deck is not a story
+      // that runs by itself, so the series does not carry on into it.
+      const advance = () => {
+        const next = page.dataset.next ? document.querySelector<HTMLElement>(page.dataset.next) : null;
+        if (next?.classList.contains('ts-panel')) next.scrollIntoView({ behavior: 'smooth' });
       };
-      range.addEventListener('pointerdown', () => {
-        scrubbing = true;
-        // Whatever a callout was going to do with the clip, the hand on the
-        // slider outranks it.
+
+      // The opacity slider leaves the clip running, since that is how it is
+      // judged -- but a playthrough that ends under it waits for it to fold
+      // rather than turning the page out from under the reader.
+      let tuning = false;
+      page.addEventListener('tune:open', () => { tuning = true; });
+      page.addEventListener('tune:close', () => {
+        tuning = false;
+        if (v.ended && inView && !ending) advance();
+      });
+
+      // Held while the key is open, and let go when it closes -- unless it was
+      // already standing still for a reason of its own (the end of the clip).
+      let heldForKey = false;
+      page.addEventListener('key:open', () => {
+        heldForKey = !v.ended;
+        userPaused = true;
         clearResume();
         v.pause();
       });
-      range.addEventListener('input', () => { scrubbing = true; v.pause(); seekTo(); });
-      range.addEventListener('change', () => { scrubbing = false; });
-      // On the document rather than the control: a drag that ends off the slider
-      // without having changed its value fires neither `change` nor a `pointerup`
-      // here, and the clock would then be frozen for good.
-      const endScrub = () => { scrubbing = false; };
-      addEventListener('pointerup', endScrub, { passive: true });
-      addEventListener('pointercancel', endScrub, { passive: true });
-
-      play.addEventListener('click', () => {
-        // Taking the controls ends whatever the callouts were doing with them.
-        clearResume();
-        userPaused = !v.paused; // about to pause => the user asked for it
-        wantsPlay = v.paused; // ...and the opposite of that is asking for play
-        if (v.paused) {
-          // Restart rather than resuming from the end of the clip.
-          if (clipLength() && v.currentTime >= clipLength() - 0.05) seekQuietly(0);
-          v.play().catch(() => setIcon(false));
-        } else {
-          v.pause();
-        }
+      // An animal's page covers this one: held the same way, and let go when
+      // it closes -- only if this is the page on screen.
+      let heldForAnimal = false;
+      document.addEventListener('animal:open', () => {
+        if (!inView) return;
+        heldForAnimal = true;
+        page.dispatchEvent(new CustomEvent('key:open'));
+      });
+      document.addEventListener('animal:close', () => {
+        if (!heldForAnimal) return;
+        heldForAnimal = false;
+        page.dispatchEvent(new CustomEvent('key:close'));
+      });
+      page.addEventListener('key:close', () => {
+        userPaused = false;
+        if (heldForKey && inView) v.play().catch(() => {});
+        heldForKey = false;
       });
 
       // ---- Callouts ------------------------------------------------------
-      // Positions are fractions of the FRAME, but the frame is letterboxed
-      // inside its element, so the pin layer is laid over the painted rectangle
-      // rather than the element box -- otherwise every pin drifts sideways by
-      // however wide the bars happen to be.
-      const pinLayer = document.getElementById('pins');
-      const probe = document.getElementById('pin-probe');
-      // Only the real ones: the authoring ring wears the same class so that it
-      // looks like what it is placing, and counting it as a callout gives the
-      // rotation a turn that shows nothing and the count an extra run.
+      // Positions are fractions of the FRAME, but the frame is cropped to fill
+      // its element, so the pin layer is laid over the whole painted frame --
+      // parts of it off screen -- rather than the element box. Otherwise every
+      // pin drifts by however much of the frame the crop has taken away.
+      const pinLayer = wrap.querySelector<HTMLElement>('.pins');
+      const probe = wrap.querySelector<HTMLElement>('.pin-probe');
+      // Only the real one: the authoring ring wears the same class so that it
+      // looks like what it is placing. A page carries one callout -- its
+      // playthrough -- so this is a list of one or none.
       const allPins = pinLayer
         ? Array.from(pinLayer.querySelectorAll<HTMLElement>('.pin[data-year]'))
         : [];
@@ -1110,9 +1262,10 @@ const lastTick = Math.max(1, tickYears.length - 1);
         const box = v.getBoundingClientRect();
         const ar = v.videoWidth / v.videoHeight;
         if (!ar || !isFinite(ar)) return { x: 0, y: 0, w: box.width, h: box.height };
+        // object-fit: cover -- scaled until it covers the box, then centred.
         const boxAr = box.width / box.height;
-        const w = boxAr > ar ? box.height * ar : box.width;
-        const h = boxAr > ar ? box.height : box.width / ar;
+        const w = boxAr > ar ? box.width : box.height * ar;
+        const h = boxAr > ar ? box.width / ar : box.height;
         return { x: (box.width - w) / 2, y: (box.height - h) / 2, w, h };
       };
 
@@ -1144,7 +1297,7 @@ const lastTick = Math.max(1, tickYears.length - 1);
       };
 
       const allLabels = allPins.map((pin) => pin.querySelector<HTMLElement>('.pin-label'));
-      const spot = document.getElementById('pin-spot');
+      const spot = wrap.querySelector<HTMLElement>('.pin-spot');
 
       /** Aim the dim at a pin, or let it go if there is nothing open. */
       const FEATHER = 26; // px of soft edge around the hole
@@ -1214,12 +1367,13 @@ const lastTick = Math.max(1, tickYears.length - 1);
        * not at the edges -- a callout near the right-hand side would hang half
        * its words off the picture. This measures how far it overruns and hands
        * the shortfall back as `--nudge`, so it slides in just enough while the
-       * ring stays exactly where it is.
+       * ring stays exactly where it is. Measured against what is on screen,
+       * since the frame itself runs off both sides.
        */
       const nudgeLabel = (pin: HTMLElement, label: HTMLElement | null) => {
         if (!label || !pinLayer) return;
         label.style.setProperty('--nudge', '0px');
-        const bounds = pinLayer.getBoundingClientRect();
+        const bounds = wrap.getBoundingClientRect();
         const box = label.getBoundingClientRect();
         const pad = 8;
         let shift = 0;
@@ -1231,16 +1385,16 @@ const lastTick = Math.max(1, tickYears.length - 1);
       // A callout opens on its own year and stays for `hold` seconds of
       // playback, so its window is measured in clip time rather than in years:
       // the frontmatter says how long there is to read it, not how many years
-      // it covers. One frame per year makes the start of a year exact.
+      // it covers. `startOf` knows where each year begins in the clip.
       // Two windows from the same starting year: one for the ring on the frame,
       // one for the words beside it.
       //
-      // A hold of 0 is the rest of the run rather than no time at all: the clip
-      // loops, and the next pass belongs to the next callout, so "until the end"
-      // needs no closing time of its own. Nothing is lost by spending the value
+      // A hold of 0 is the rest of the run rather than no time at all: the page
+      // ends with the clip, and the next playthrough is the next page, so
+      // "until the end" needs no closing time of its own. Nothing is lost by spending the value
       // this way -- a duration of nothing draws something nobody ever sees.
       const windowFor = (pin: HTMLElement) => {
-        const start = ((Number(pin.dataset.year) - from) / span) * clipLength();
+        const start = startOf(Number(pin.dataset.year));
         const until = (seconds: number) => (seconds > 0 ? start + seconds : Infinity);
         const hold = Number(pin.dataset.hold);
         const message = Number(pin.dataset.message);
@@ -1254,88 +1408,46 @@ const lastTick = Math.max(1, tickYears.length - 1);
       // A callout carrying `pause` stops the clip when it opens, so there is
       // time to look at what it circles before the years move on.
       //
-      // Honoured once per pass: the pause has to end by playing, which puts the
+      // Honoured once per play: the pause has to end by playing, which puts the
       // clock right back inside the same callout's window, and without this it
       // would catch again immediately and never advance. The set is cleared
-      // when the clip loops or the panel is left, so a second time round pauses
+      // when the clip restarts or the panel is left, so a second time pauses
       // again.
       const honoured = new Set<number>();
       let resumeTimer: number | null = null;
+      // The stop is banked into the story clock when it ends, however it ends.
+      const bankPause = () => {
+        if (!pauseFrom) return;
+        pauseSpent += Math.min(calloutPause(), (performance.now() - pauseFrom) / 1000);
+        pauseFrom = 0;
+      };
       const clearResume = () => {
         if (resumeTimer !== null) clearTimeout(resumeTimer);
         resumeTimer = null;
+        bankPause();
       };
       const pauseFor = (seconds: number) => {
         clearResume();
         v.pause();
+        pauseFrom = performance.now();
         resumeTimer = window.setTimeout(() => {
           resumeTimer = null;
-          // Not if they took over in the meantime -- their pause outranks ours,
-          // and a scrub means they are reading the clip by hand.
-          if (userPaused || scrubbing) return;
+          bankPause();
+          // Not if they took over in the meantime: the key being open outranks us.
+          if (userPaused) return;
           v.play().catch(() => {});
         }, seconds * 1000);
       };
-
-      // One callout per run through the clip, in the order they are written.
-      //
-      // A pass through forty years is a short thing to sit through, and three
-      // callouts firing inside it is three things competing for the same
-      // attention. Taking them one at a time means each run says one thing, and
-      // someone who stays for another sees the next -- which is also why the
-      // count resets when the panel is left: arriving always starts at the
-      // first, rather than part-way through a rotation they never saw.
-      const activePin = () => (allPins.length ? passes % allPins.length : -1);
-
-      // Which run this is, out of the number it takes to see them all. Rendered
-      // server-side as the first, and rewritten here whenever the count moves.
-      const runs = document.getElementById('ts-runs');
-      const showRuns = () => {
-        if (!runs || !allPins.length) return;
-        const n = allPins.length;
-        runs.textContent = `${activePin() + 1} of ${n} playthrough${n === 1 ? '' : 's'}`;
-      };
-
-      /**
-       * Step to another callout's run, rather than waiting for the clip to get
-       * there. The count is kept inside the number of callouts, so stepping back
-       * from the first arrives at the last -- the same way playing on from the
-       * last arrives at the first.
-       */
-      const jumpRun = (delta: number) => {
-        const n = allPins.length;
-        if (!n) return;
-        passes = (passes + delta + n) % n;
-        wrap.dataset.passes = String(passes);
-        showRuns();
-        // Every callout is owed its stop again, including the one being jumped
-        // to, which has usually just had its turn taken off it.
-        honoured.clear();
-        clearResume();
-        // The top of the clip, not the callout's own year: what is being asked
-        // for is that playthrough, and a playthrough is forty years of it. Its
-        // callout arrives in its own time, on the way past.
-        seekQuietly(0);
-        showCallouts(v.currentTime);
-        if (!userPaused) {
-          wantsPlay = true;
-          v.play().catch(() => {});
-        }
-      };
-
-      document.getElementById('runs-prev')?.addEventListener('click', () => jumpRun(-1));
-      document.getElementById('runs-next')?.addEventListener('click', () => jumpRun(1));
 
       const showCallouts = (t: number) => {
         // No duration yet means no year mapping yet; leaving them closed beats
         // flashing every callout at once while the metadata is still coming.
         if (!clipLength()) return;
-        const active = activePin();
         let lit: HTMLElement | null = null;
         for (let i = 0; i < allPins.length; i++) {
           const pin = allPins[i];
           const w = windowFor(pin);
-          const mine = i === active && t >= w.start;
+          const mine = t >= w.start;
           const ringOn = mine && t < w.ring;
           const wordsOn = mine && t < w.words;
           const wasWords = pin.classList.contains('words');
@@ -1345,29 +1457,20 @@ const lastTick = Math.max(1, tickYears.length - 1);
           // the label holds the text it is about to show.
           if (wordsOn && !wasWords) nudgeLabel(pin, allLabels[i]);
           if (ringOn) lit = pin;
-          // Only while it is genuinely playing: a scrub through a callout
-          // should not leave the clip stopped somewhere it was dragged past.
+          // Only while it is genuinely playing, so a seek that lands inside a
+          // callout does not leave the clip stopped there.
           const wait = Number(pin.dataset.pause) || 0;
-          if ((ringOn || wordsOn) && wait > 0 && !honoured.has(i) && !v.paused && !scrubbing) {
+          if ((ringOn || wordsOn) && wait > 0 && !honoured.has(i) && !v.paused) {
             honoured.add(i);
             pauseFor(wait);
           }
         }
         // The dim follows the ring rather than the words: it is there to say
         // where to look, and once the ring has gone there is nothing to look at.
-        //
-        // Except at the very end of a run that goes straight round, where it
-        // is let go early whatever the ring is doing: such a run would restart
-        // bright in the same frame it ended dimmed, and snap. A run that holds
-        // at the end has no such problem -- the hold is time to look at what
-        // the dim is pointing at, so it keeps it, and lets go afterwards along
-        // with everything else.
-        const tail = clipLength() - 0.8;
-        spotlight(t > tail && endPause() === 0 ? null : lit);
+        spotlight(lit);
       };
 
       layout();
-      showRuns();
       addEventListener('resize', layout, { passive: true });
       addEventListener('orientationchange', () => setTimeout(layout, 120));
       v.addEventListener('loadedmetadata', layout);
@@ -1388,7 +1491,7 @@ const lastTick = Math.max(1, tickYears.length - 1);
           probe.textContent =
             `dur ${v.duration?.toFixed?.(2) ?? '-'} use ${d ? d.toFixed(2) : 'NONE'} ` +
             `t ${v.currentTime.toFixed(2)} rs ${v.readyState} ` +
-            `${v.paused ? 'paused' : 'playing'} yr ${yearAt(v.currentTime)} sl ${range.value}`;
+            `${v.paused ? 'paused' : 'playing'} yr ${yearAt(v.currentTime)}`;
         };
         setInterval(tell, 250);
         tell();
@@ -1396,15 +1499,50 @@ const lastTick = Math.max(1, tickYears.length - 1);
 
       // Authoring aid: the frame becomes a coordinate picker, so a callout is
       // placed by tapping what it should point at rather than guessing numbers.
-      // The tap lands on the year that is on screen, so pause where you mean
-      // first -- the scrubber is the way to line one up exactly.
-      const ghost = document.getElementById('pin-ghost');
-      const pickOut = document.getElementById('pin-pick-out');
+      // A tap stops the clip where it is, so the snippet carries the year on
+      // screen; and the picture stops moving the deck on, since a tap on its
+      // sides would otherwise turn the page instead of placing anything.
+      const ghost = wrap.querySelector<HTMLElement>('.pin-ghost');
+      const pickOut = page.querySelector<HTMLElement>('.pin-pick-out');
       if (pickOut && (flags.has('pin') || config)) {
         pickOut.hidden = false;
         pickOut.textContent = 'tap the picture to place a callout';
+
+        // Copying, two ways. The clipboard API is only there in a secure
+        // context, and a phone on the laptop's address over plain http is not
+        // one -- so the old select-and-copy route is kept as the fallback.
+        let lastSnippet = '';
+        const copy = async (text: string) => {
+          try {
+            await navigator.clipboard.writeText(text);
+            return true;
+          } catch {
+            const area = document.createElement('textarea');
+            area.value = text;
+            area.setAttribute('readonly', '');
+            area.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+            document.body.appendChild(area);
+            area.focus();
+            area.setSelectionRange(0, text.length);
+            const ok = document.execCommand('copy');
+            area.remove();
+            return ok;
+          }
+        };
+        // Tapping the readout copies the last placement's whole block.
+        let shown = '';
+        pickOut.addEventListener('click', async () => {
+          if (!lastSnippet) return;
+          const ok = await copy(lastSnippet);
+          pickOut.textContent = ok ? 'copied' : 'could not copy';
+          setTimeout(() => (pickOut.textContent = shown), 900);
+        });
         v.style.cursor = 'crosshair';
+        wrap.setAttribute('data-no-tap', '');
         v.addEventListener('click', (ev) => {
+          userPaused = true;
+          clearResume();
+          v.pause();
           const box = v.getBoundingClientRect();
           const r = paintedRect();
           const x = (ev.clientX - box.left - r.x) / r.w;
@@ -1435,55 +1573,50 @@ const lastTick = Math.max(1, tickYears.length - 1);
             `  hold: 3\n` +
             `  messageHold: 5\n` +
             `  body: `;
-          pickOut.textContent = snippet;
-          navigator.clipboard?.writeText(snippet).catch(() => {});
+          // One line on screen, so it covers as little of the picture as the
+          // ring does; the clipboard still gets the whole block.
+          shown = `${yearAt(v.currentTime)}  x ${x.toFixed(3)}  y ${y.toFixed(3)}  · tap to copy`;
+          pickOut.textContent = shown;
+          lastSnippet = snippet;
+          copy(snippet);
         });
       }
 
-      // Muted inline video is allowed to start without a gesture, so the clip
-      // runs as soon as its panel lands -- the panel is the sequence, and
-      // making people find a play button to see it is a step too many.
+      // Arriving sets the clip back to the earliest year and plays it: each
+      // page is a story, and a story runs as soon as it is on screen. Muted
+      // inline video is allowed to start without a gesture.
       new IntersectionObserver(
         (e) => {
           inView = e[0].isIntersecting;
           if (!e[0].isIntersecting) {
             clearResume();
+            stopStory();
             spotlight(null);
             honoured.clear();
             v.pause(); // which stops the frame clock with it
             userPaused = false;
-            // Coming back should start at the first callout again -- but only
-            // after a real departure. A phone's toolbar sliding away, or the
-            // deck settling into its snap, can take the panel under the
-            // threshold and hand it straight back, and resetting on that reads
-            // as the story restarting itself every minute or so.
-            clearTimeout(leftFor);
-            leftFor = window.setTimeout(() => {
-              passes = 0;
-              wrap.dataset.passes = '0';
-              showRuns();
-            }, 2000);
             return;
           }
-          clearTimeout(leftFor);
-          // Arriving sets the clip back to the earliest year, and leaves it
-          // there. It does not start itself: a sequence that runs the moment it
-          // is reached has usually run past its first years before anyone has
-          // settled on it, and there is no getting those back except by
-          // scrubbing. The poster is the first frame, so the panel still shows
-          // the landscape rather than a black box, and the play button is the
-          // one thing on it asking to be pressed.
-          seekQuietly(0);
+          v.currentTime = 0;
+          honoured.clear();
+          resetStory();
           showCallouts(0);
+          startStory();
+          // The next playthrough is the likely next thing on screen, so it
+          // starts fetching now rather than when it is reached.
+          const next = page.dataset.next ? document.querySelector(page.dataset.next) : null;
+          const nextClip = next?.querySelector<HTMLVideoElement>('.ts-video');
+          if (nextClip && nextClip.preload !== 'auto') nextClip.preload = 'auto';
+          v.play().catch(() => {});
         },
         { threshold: 0.6 },
       ).observe(wrap);
     } else {
       // ---- Image sequence ------------------------------------------------
+      // Every frame is already in the DOM, so a change is an opacity swap with
+      // no decode stall. Runs through from the first year on arrival.
       const frames = Array.from(wrap.querySelectorAll<HTMLImageElement>('.ts-frame'));
-      // Every frame is already in the DOM, so scrubbing is an opacity swap with
-      // no decode stall.
-      let current = frames.length - 1;
+      let current = 0;
       const show = (i: number) => {
         if (i === current) return;
         frames[current].style.opacity = '0';
@@ -1494,29 +1627,20 @@ const lastTick = Math.max(1, tickYears.length - 1);
 
       let timer: number | null = null;
       const stop = () => {
-        if (timer === null) return;
-        clearInterval(timer);
+        if (timer !== null) clearInterval(timer);
         timer = null;
-        setIcon(false);
       };
       const start = () => {
-        if (current === frames.length - 1) {
-          show(0);
-          range.value = '0';
-        }
-        setIcon(true);
+        stop();
+        show(0);
         timer = window.setInterval(() => {
-          const next = current + 1;
-          if (next >= frames.length) return stop();
-          show(next);
-          range.value = String(next);
+          if (current + 1 >= frames.length) return stop();
+          show(current + 1);
         }, 620);
       };
-
-      range.addEventListener('input', () => { stop(); show(Number(range.value)); });
-      play.addEventListener('click', () => (timer === null ? start() : stop()));
       // Leaving the panel should not leave a timer running behind it.
-      new IntersectionObserver((e) => { if (!e[0].isIntersecting) stop(); }, { threshold: 0.2 }).observe(wrap);
+      new IntersectionObserver((e) => (e[0].isIntersecting ? start() : stop()), { threshold: 0.6 }).observe(wrap);
     }
+  }
   }
 </script>

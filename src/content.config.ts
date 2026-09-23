@@ -39,7 +39,12 @@ const locations = defineCollection({
        *  do with it. Defaulted to the house copy, so a location only says it
        *  when it wants to say something else. */
       rail: z
-        .object({ title: z.string(), body: z.string() })
+        .object({
+          title: z.string(),
+          body: z.string(),
+          /** The animal's picture, under public/ -- the hero of its page. */
+          image: z.string().optional(),
+        })
         .default({ title: 'The Eagle', body: 'Observe the place around you from the perspective of the Eagle. Situate yourself in this incredible landscape.' }),
       /** Wide crop for the index card; falls back to the sphere itself. */
       card: z.string().optional(),
@@ -104,6 +109,9 @@ const locations = defineCollection({
     series: z
       .object({
         caption: z.string(),
+        /** The heading across the top of each playthrough, beside the year.
+         *  A callout's own `pageTitle` replaces it on that callout's page. */
+        title: z.string().optional(),
         source: z.string(),
         /** Image-sequence form. */
         dir: z.string().optional(),
@@ -113,7 +121,12 @@ const locations = defineCollection({
          *  do with it. Defaulted to the house copy, so a location only says it
          *  when it wants to say something else. */
         rail: z
-          .object({ title: z.string(), body: z.string() })
+          .object({
+          title: z.string(),
+          body: z.string(),
+          /** The animal's picture, under public/ -- the hero of its page. */
+          image: z.string().optional(),
+        })
           .default({ title: 'The Raven', body: 'Learn through curiosity like the Raven. Explore how the landscapes has changed over the past 40 years.' }),
         /** What the colours in the export mean. Drawn as a swatch and a label
          *  per entry, in a row under the video that wraps when it runs out of
@@ -212,6 +225,8 @@ const locations = defineCollection({
                *  opens, so there is time to look at what it points at before
                *  the years move on again. 0 runs straight through. */
               pause: z.number().min(0).default(0),
+              /** This playthrough's heading, in place of the series' `title`. */
+              pageTitle: z.string().optional(),
             }),
           )
           .default([]),
@@ -220,6 +235,10 @@ const locations = defineCollection({
           .object({
             src: z.string(),
             poster: z.string().optional(),
+            /** The satellite picture from the same camera and crop, laid under
+             *  the clip. The reader fades the land cover down to it from the
+             *  panel's settings; without one, there is no fade to offer. */
+            base: z.string().optional(),
             from: z.number(),
             to: z.number(),
             /** True when the export already burns in its own year and legend,
@@ -248,6 +267,17 @@ const locations = defineCollection({
              *  say. Optional, and only wrong if the clip is re-encoded to a
              *  different length without updating it. */
             duration: z.number().gt(0).optional(),
+            /** When the picture changes to the second year and to the last, in
+             *  seconds into the clip; the changes between are taken as evenly
+             *  spaced. For a clip whose years do not each own an equal share of
+             *  it -- one edited with a dissolve centred on each change, where
+             *  the first and last years get half a share -- so the year readout
+             *  and each callout's opening follow the picture rather than the
+             *  clock. Left out, every year owns an equal share.
+             *
+             *  Read off the export by matching its frames against the yearly
+             *  stills; the change is where the match flips. */
+            changes: z.tuple([z.number().min(0), z.number().gt(0)]).optional(),
           })
           .optional(),
       })
@@ -261,7 +291,12 @@ const locations = defineCollection({
        *  do with it. Defaulted to the house copy, so a location only says it
        *  when it wants to say something else. */
       rail: z
-        .object({ title: z.string(), body: z.string() })
+        .object({
+          title: z.string(),
+          body: z.string(),
+          /** The animal's picture, under public/ -- the hero of its page. */
+          image: z.string().optional(),
+        })
         .default({ title: 'The Bear', body: 'Explore the landscape like the Bear. Share what you find and help tell the story of the changing landscape around us.' }),
     }),
     /** The last panel: what to take away from here. Not tied to a section of

@@ -1,6 +1,7 @@
 ---
 import { asset } from '../lib/paths';
 import PanelNav from './PanelNav.astro';
+import AnimalButton from './AnimalButton.astro';
 
 interface Marker { yaw: number; pitch: number; title: string; body?: string; place: 'above' | 'below'; radius: number }
 interface Props {
@@ -16,8 +17,11 @@ interface Props {
   next?: string;
 }
 const { src, caption, north, startYaw, startPitch, declination, rail, markers = [], prev, next } = Astro.props;
+// The page's opening words, laid over the view. The post opens on the place
+// itself, with what it is written across it; a swipe puts the words away.
+const hasIntro = Astro.slots.has('intro');
 ---
-<section class="panel" id="view" aria-label="Panorama">
+<section class="panel" id="view" aria-label="Panorama" data-intro={hasIntro ? 'open' : undefined}>
   <div class="panel-stage">
     <!-- The caption no longer shows in the rail, so it is what names the viewer
          to a screen reader rather than being dropped. -->
@@ -46,51 +50,125 @@ const { src, caption, north, startYaw, startPitch, declination, rail, markers = 
     <div class="pano-cross" id="pano-cross" hidden aria-hidden="true"></div>
     <div class="pano-probe" id="pano-probe" hidden></div>
 
-    <div class="pano-loading" id="pano-loading">
-      <span class="spinner" aria-hidden="true"></span>
-      <span>Loading the view…</span>
+    <!-- This panel's controls stand in a column in the far corner, over the
+         way onwards: about this place, then motion, then next. One thumb
+         reaches all three, and the view keeps the rest of the foot. -->
+    <div class="pano-side" data-no-tap>
+      {hasIntro && (
+        <button
+          class="step pano-info"
+          type="button"
+          aria-label="About this place"
+          aria-expanded="true"
+          aria-controls="pano-intro"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+            <path d="M12 11v6" /><path d="M12 7.3v.01" />
+          </svg>
+        </button>
+      )}
+      <button class="step pano-gyro" id="gyro" type="button" aria-pressed="false" aria-label="Use motion" title="Use motion" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+          <circle cx="12" cy="12" r="9" /><ellipse cx="12" cy="12" rx="9" ry="3.6" />
+        </svg>
+      </button>
     </div>
 
-    <!-- Both of this panel's controls ride in the nav pill. They share it until
-         one of them is spent: pan the view and the prompt has done its job, so
-         the motion button takes the whole row; turn motion on and neither is
-         needed any more. -->
-    <PanelNav prev={prev} next={next}>
-      <div class="pano-row" id="pano-row">
-        <p class="pano-hint" id="pano-hint">
-          Drag to look around<span class="pano-rotate"> · turn sideways for more</span>
-        </p>
-        <button class="chip" id="gyro" type="button" aria-pressed="false" hidden>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-            <circle cx="12" cy="12" r="9" /><ellipse cx="12" cy="12" rx="9" ry="3.6" />
-          </svg>
-          <span id="gyro-label">Use motion</span>
-        </button>
-      </div>
-    </PanelNav>
+    <AnimalButton animal="eagle" />
+    <PanelNav prev={prev} next={next} />
   </div>
 
-  <div class="panel-rail">
-    <h2>{rail.title}</h2>
-    <p>{rail.body}</p>
+  <!-- With the opening words over it, the view has the whole panel and the
+       rail's line travels with the words instead: it is the prompt to go and
+       look, which is exactly what the swipe then does. -->
+  {!hasIntro && (
+    <div class="panel-rail">
+      <h2>{rail.title}</h2>
+      <p>{rail.body}</p>
+    </div>
+  )}
+
+  <!-- Over the whole panel, but only the words take a touch: the view above
+       them still turns under a finger. -->
+  {hasIntro && (
+    <div class="pano-intro" id="pano-intro" role="region" aria-label="About this place">
+      <div class="pano-intro-dim" aria-hidden="true"></div>
+      <div class="pano-intro-blur" aria-hidden="true"></div>
+      <div class="pano-intro-card" data-no-tap>
+        <slot name="intro" />
+      </div>
+      <!-- In the middle of the view, where the swipe it asks for is made. A
+           button too, so a tap or a keyboard does the same thing. -->
+      <button class="pano-explore" type="button">
+        <span class="pano-explore-cue" aria-hidden="true"><i></i></span>
+        Swipe to explore
+      </button>
+    </div>
+  )}
+
+  <!-- Over everything, the story bar included, until the sphere is drawn: the
+       post then arrives whole, view and words together, instead of its chrome
+       appearing first over an empty frame. -->
+  <div class="pano-loading" id="pano-loading" role="status">
+    <span class="pano-loading-bar" aria-hidden="true"><i></i></span>
+    <span class="pano-loading-text">Loading the view…</span>
   </div>
 </section>
 
 <style>
   .psv { position: absolute; inset: 0; background: #0a0f0d; }
   .psv :global(canvas) { display: block; }
+  /* The viewer's own loader: a grey disc with its own "Loading..." that sits
+     at a z-index high enough to come through the cover below. The cover says
+     it already, with the real progress. */
+  .psv :global(.psv-loader-container) { display: none; }
 
   .pano-loading {
-    position: absolute; inset: 0; display: flex; gap: 0.7rem;
-    align-items: center; justify-content: center;
-    font-size: 0.83rem; color: var(--ink-dim); background: var(--bg);
-    transition: opacity 0.4s; pointer-events: none;
+    position: absolute;
+    inset: 0;
+    /* Above the words (6), and above the story bar, which shares 6 and would
+       otherwise win by coming later in the page. */
+    z-index: 7;
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg);
+    transition: opacity 0.7s ease, visibility 0s linear 0.7s;
   }
-  .pano-loading[hidden] { display: flex !important; opacity: 0; }
-  .spinner {
-    width: 15px; height: 15px; border-radius: 50%;
-    border: 2px solid var(--line); border-top-color: var(--accent);
-    animation: spin 0.8s linear infinite;
+  .pano-loading[hidden] { display: flex !important; opacity: 0; visibility: hidden; }
+  .pano-loading-text {
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+  /* How much of the panorama has arrived, when the viewer says; until it
+     does, a short piece runs along the track so it never looks stuck. */
+  .pano-loading-bar {
+    position: relative;
+    width: 120px;
+    height: 2px;
+    border-radius: 2px;
+    overflow: hidden;
+    background: var(--line);
+  }
+  .pano-loading-bar i {
+    position: absolute;
+    inset: 0;
+    background: var(--accent);
+    transform-origin: left;
+    transform: scaleX(var(--load, 0));
+    transition: transform 0.25s ease;
+  }
+  .pano-loading-bar:not([data-known]) i {
+    transform: translateX(-100%) scaleX(0.35);
+    animation: load-run 1.3s ease-in-out infinite;
+  }
+  @keyframes load-run {
+    from { transform: translateX(-40%) scaleX(0.35); }
+    to { transform: translateX(100%) scaleX(0.35); }
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -237,53 +315,178 @@ const { src, caption, north, startYaw, startPitch, declination, rail, markers = 
     cursor: copy;
   }
 
-  .pano-row { display: flex; align-items: center; gap: 0.4rem; flex: 1; min-width: 0; }
-  .pano-hint {
-    flex: 1;
-    min-width: 0;
-    margin: 0;
-    text-align: center;
-    font-size: 0.76rem;
-    color: var(--ink-dim);
+  /* Stacked over the next arrow, on the same right edge and with the gap the
+     arrow row keeps, so the three read as one column. */
+  .pano-side {
+    position: absolute;
+    z-index: 4;
+    right: 0.9rem;
+    bottom: calc(1rem + var(--nav-safe, 0px) + 46px + 0.6rem);
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+  .pano-side .step svg { width: 20px; height: 20px; }
+  .pano-gyro[aria-pressed='true'] { border-color: var(--accent); color: var(--accent); }
+
+  /* ---- The opening words ------------------------------------------------ */
+  .pano-intro {
+    position: absolute;
+    inset: 0;
+    /* Over the markers and the nav row; the story bar is later in the page at
+       the same level, so it still sits on top. */
+    z-index: 6;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
     pointer-events: none;
   }
-  /* Alone in the row the button centres and takes the width; sharing it, it
-     keeps to its own size so the prompt has somewhere to sit. */
-  #gyro {
-    flex: none;
-    background: none;
-    border-color: transparent;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
-  #gyro:hover:not(:disabled) { border-color: transparent; color: var(--accent); }
-  .pano-row:not([data-shared]) #gyro { flex: 1; justify-content: center; }
+  .pano-intro.is-closed { visibility: hidden; }
 
-  /* A 360 panorama in a portrait window shows a narrow slice of itself, so say
-     so -- but only where the line has room. Sharing the row with the motion
-     button it does not, and the prompt is the part that has to read. */
-  @media (orientation: landscape), (min-width: 40rem) {
-    .pano-rotate { display: none; }
+  /* Two layers rather than one with a pseudo-element, each fading on its own.
+
+     The dim: dark enough at the foot to hold the copy on its own -- there is
+     no blur under the words any more, which shifted the colours of the view
+     through it -- light through the middle so the view still reads, and a
+     touch at the very top for the story bar. */
+  .pano-intro-dim {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      to top,
+      rgba(6, 10, 9, 0.86) 0%,
+      rgba(6, 10, 9, 0.78) 24%,
+      rgba(6, 10, 9, 0.5) 46%,
+      rgba(6, 10, 9, 0.14) 70%,
+      rgba(6, 10, 9, 0) 84%,
+      rgba(6, 10, 9, 0.45) 100%
+    );
   }
-  .pano-row[data-shared] .pano-rotate { display: none; }
+  /* The foot carried to the page's own colour, so the view does not end on
+     an edge. Was a backdrop blur as well; that went, as it shifted the
+     colours of the view under it. */
+  .pano-intro-blur {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, var(--bg) 0, rgba(13, 18, 16, 0) 6.5rem);
+  }
+
+  .pano-intro-card {
+    position: relative;
+    pointer-events: auto;
+    padding: 0 1.4rem calc(1rem + var(--foot));
+    /* Sideways over the words explores the view, like anywhere else on it,
+       rather than moving the deck on. */
+    touch-action: none;
+    will-change: transform;
+  }
+
+
+  /* The stage reaches the foot of the screen, so the nav row is what has to
+     clear the home indicator. */
+  [data-intro] { --nav-safe: var(--foot); }
+
+  /* Centred in the view above the words, and dressed as a hint rather than a
+     control: no box, just a fingertip and a line of text, shadowed enough to
+     read over sky or snow. Still a button, so a tap or a keyboard does it. */
+  .pano-explore {
+    position: absolute;
+    left: 50%;
+    top: 38%;
+    transform: translate(-50%, -50%);
+    pointer-events: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem;
+    border: 0;
+    background: none;
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 0.68rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+    cursor: pointer;
+    touch-action: none;
+  }
+  /* The fingertip: a soft dot that presses, sweeps across and lifts, the way a
+     thumb does when it turns the view. */
+  .pano-explore-cue {
+    position: relative;
+    width: 56px;
+    height: 16px;
+  }
+  .pano-explore-cue i {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 14px;
+    height: 14px;
+    margin: -7px 0 0 -7px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.22), 0 1px 4px rgba(0, 0, 0, 0.5);
+    animation: fingertip 2.2s ease-in-out infinite;
+  }
+  @keyframes fingertip {
+    0% { transform: translateX(16px) scale(0.6); opacity: 0; }
+    15% { transform: translateX(16px) scale(1); opacity: 1; }
+    65% { transform: translateX(-16px) scale(1); opacity: 1; }
+    80%, 100% { transform: translateX(-16px) scale(0.6); opacity: 0; }
+  }
+
+  /* While the words are up, the nav row stands down: it is under them, and
+     would only read as noise through the blur. Hidden rather than removed, so
+     the info button can still be measured as the place the words shrink into. */
+  [data-intro] :global(.panel-nav),
+  [data-intro] :global(.animal-btn),
+  [data-intro] .pano-side {
+    transition: opacity 0.3s ease 0.28s, visibility 0s linear 0.28s;
+  }
+  [data-intro='open'] :global(.panel-nav),
+  [data-intro='open'] :global(.animal-btn),
+  [data-intro='open'] .pano-side {
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0s linear 0.2s;
+  }
+  /* The named features too: a marker's words under the intro's words are two
+     things to read in one place. Faded as a layer, since each marker's own
+     opacity belongs to the pan; back as the words shrink away. */
+  [data-intro] .marks { transition: opacity 0.35s ease 0.2s; }
+  [data-intro='open'] .marks { opacity: 0; transition: opacity 0.2s ease; }
+  /* The words land in it, so it arrives a beat after them rather than with
+     the rest of the column. */
+  [data-intro='closed'] .pano-info { animation: info-in 0.45s cubic-bezier(0.3, 1.5, 0.5, 1) 0.4s both; }
+  @keyframes info-in {
+    from { transform: scale(0.4); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+
+  /* Phone landscape is short: the words scroll rather than clip, which gives
+     up and down to the scroll; sideways still explores. */
+  @media (orientation: landscape) and (max-height: 520px) {
+    .pano-intro-card {
+      max-height: 100%;
+      overflow-y: auto;
+      padding-top: calc(var(--safe-t) + 2rem);
+      touch-action: pan-y;
+    }
+  }
 </style>
 
 <script>
   const mount = document.getElementById('psv') as HTMLElement | null;
   if (mount) {
     const loading = document.getElementById('pano-loading')!;
-    const hint = document.getElementById('pano-hint')!;
-    const row = document.getElementById('pano-row')!;
     const gyroBtn = document.getElementById('gyro') as HTMLButtonElement;
-    const gyroLabel = document.getElementById('gyro-label')!;
-    // The pill the row sits in, so it can go too once it holds nothing.
-    const pill = row.closest('.nav-mid') as HTMLElement | null;
     const probe = document.getElementById('pano-probe');
 
     // Degrees off a data attribute, in radians. A missing or malformed value
     // must fall back to zero rather than reach the viewer: NaN in a camera
     // angle leaves the sphere in an invalid position, the `ready` event never
-    // fires, and the panel sits on its loading spinner forever.
+    // fires, and the panel sits under its loading cover until the fallback lifts it.
     const rad = (deg?: string) => {
       const n = Number(deg);
       return Number.isFinite(n) ? (n * Math.PI) / 180 : 0;
@@ -334,17 +537,17 @@ const { src, caption, north, startYaw, startPitch, declination, rail, markers = 
         ],
       });
 
-      viewer.addEventListener('ready', () => { loading.hidden = true; }, { once: true });
-      // The prompt has been answered the moment the view moves, and the motion
-      // button then has the row to itself.
-      viewer.addEventListener(
-        'position-updated',
-        () => {
-          hint.hidden = true;
-          row.removeAttribute('data-shared');
-        },
-        { once: true },
-      );
+      // The cover lifts once the sphere is drawn -- or failed, since a cover
+      // that never lifts hides the words and every way onwards with it.
+      const reveal = () => { loading.hidden = true; };
+      viewer.addEventListener('ready', reveal, { once: true });
+      viewer.addEventListener('panorama-error', reveal, { once: true });
+      const bar = loading.querySelector<HTMLElement>('.pano-loading-bar');
+      viewer.addEventListener('load-progress', (e: any) => {
+        if (!bar || typeof e.progress !== 'number') return;
+        bar.dataset.known = '';
+        bar.style.setProperty('--load', String(e.progress / 100));
+      });
 
       // ---- Named features -------------------------------------------------
       // A marker is authored as a compass bearing, and the sphere is turned so
@@ -415,10 +618,9 @@ const { src, caption, north, startYaw, startPitch, declination, rail, markers = 
       // exact form the frontmatter wants, so a view is set by panning to it and
       // copying the lines rather than guessing numbers.
       //
-      // Always on in dev: setting a location up is what dev is for, and the
-      // readout is one thin line of chrome now rather than a box over the view.
-      // ?aim brings it up on a built site too, for checking a framing against
-      // the real thing. Never on for a visitor.
+      // Only on asking, in dev as on a built site: ?aim, or ?config for every
+      // aid at once. Off by default so the panel reads as a visitor sees it,
+      // which is what a phone check is usually for. Never on for a visitor.
       //
       // It reports the hero's framing as well as the panel's. The still is a
       // reprojection of this same sphere through the same pinhole camera, so a
@@ -433,10 +635,9 @@ const { src, caption, north, startYaw, startPitch, declination, rail, markers = 
       // aim at something whose true bearing you know, and the difference
       // between it and the Y printed here is what to add to `north`.
       // ?config is the one switch for every authoring aid on the page; ?aim is
-      // this panel's own. Always on in dev, where setting a location up is the
-      // whole job.
+      // this panel's own.
       const flags = new URLSearchParams(location.search);
-      const aiming = import.meta.env.DEV || flags.has('aim') || flags.has('config');
+      const aiming = flags.has('aim') || flags.has('config');
       if (probe && aiming) {
         probe.hidden = false;
         // Same switch as the readout: the cross is only meaningful next to the
@@ -680,15 +881,18 @@ const { src, caption, north, startYaw, startPitch, declination, rail, markers = 
       if (!DOE) return; // desktop without any orientation sensor
 
       gyroBtn.hidden = false;
-      if (!hint.hidden) row.setAttribute('data-shared', '');
       const gyro = viewer.getPlugin(GyroscopePlugin) as any;
       let on = false;
 
 
+      // An icon button now, so what it would have said is its name: read out,
+      // and shown on a long press or a hover.
       const setState = (enabled: boolean, label?: string) => {
         on = enabled;
         gyroBtn.setAttribute('aria-pressed', String(enabled));
-        gyroLabel.textContent = label ?? (enabled ? 'Motion on' : 'Use motion');
+        const said = label ?? (enabled ? 'Motion on' : 'Use motion');
+        gyroBtn.setAttribute('aria-label', said);
+        gyroBtn.title = said;
       };
 
       gyroBtn.addEventListener('click', async () => {
@@ -718,28 +922,159 @@ const { src, caption, north, startYaw, startPitch, declination, rail, markers = 
         const probe = (e: DeviceOrientationEvent) => { if (e.alpha !== null) fired = true; };
         addEventListener('deviceorientation', probe);
         gyro.start();
+        // Stays up, lit, as the way to turn motion off again.
         setState(true);
-        // Motion is now driving the view, so neither the prompt nor the button
-        // has anything left to say and the whole pill stands down.
-        if (pill) pill.hidden = true;
         setTimeout(() => {
           removeEventListener('deviceorientation', probe);
           if (fired) return;
           gyro.stop();
+          // Dimmed rather than removed: vanishing would look like the tap simply
+          // did nothing.
           setState(false, 'No motion sensor');
           gyroBtn.disabled = true;
-          // Bring it back to say so: vanishing silently would look like the tap
-          // simply did nothing.
-          if (pill) pill.hidden = false;
-          hint.hidden = true;
-          row.removeAttribute('data-shared');
         }, 1200);
       });
     };
+
+    // A viewer that never boots (its script failed to arrive) must not leave
+    // the cover up for good either.
+    setTimeout(() => { loading.hidden = true; }, 15000);
 
     const io = new IntersectionObserver((entries) => {
       if (entries.some((e) => e.isIntersecting)) { io.disconnect(); boot(); }
     }, { rootMargin: '200px' });
     io.observe(mount);
   }
+
+  // ---- The opening words ----------------------------------------------------
+  // The post opens on the view with its words across the foot of it. Swiping
+  // sideways to look around -- or tapping the cue in the middle -- shrinks
+  // them into the info button in the corner and leaves the view to itself;
+  // the button brings them back.
+  const section = document.getElementById('view');
+  const intro = document.getElementById('pano-intro');
+  const info = section?.querySelector<HTMLButtonElement>('.pano-info');
+  if (section && intro && info) {
+    const card = intro.querySelector<HTMLElement>('.pano-intro-card')!;
+    // Everything that fades rather than shrinks: the dim, the blur and the cue.
+    const shades = Array.from(intro.querySelectorAll<HTMLElement>('.pano-intro-dim, .pano-intro-blur, .pano-explore'));
+    const explore = intro.querySelector<HTMLButtonElement>('.pano-explore')!;
+    const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const EASE = 'cubic-bezier(0.4, 0, 0.2, 1)';
+
+    let open = true;
+    let busy = false;
+    let running: Animation[] = [];
+    const settle = () => {
+      running.forEach((a) => a.cancel());
+      running = [];
+    };
+
+    // Where the card goes to become the button: its middle onto the button's
+    // middle, at the button's width.
+    const intoButton = () => {
+      const c = card.getBoundingClientRect();
+      const b = info.getBoundingClientRect();
+      const dx = b.left + b.width / 2 - (c.left + c.width / 2);
+      const dy = b.top + b.height / 2 - (c.top + c.height / 2);
+      return `translate(${dx}px, ${dy}px) scale(${b.width / c.width})`;
+    };
+
+    const fadeShades = (from: number, to: number, ms: number) =>
+      shades.map((el) => el.animate([{ opacity: from }, { opacity: to }], { duration: ms, easing: EASE, fill: 'forwards' }));
+
+    const collapse = async () => {
+      if (!open || busy) return;
+      busy = true;
+      open = false;
+      const ms = still ? 0 : 520;
+      settle();
+      const land = intoButton();
+      // The chrome under the words comes back as they go; its transition is
+      // delayed so the button arrives as the words reach it.
+      section.dataset.intro = 'closed';
+      info.setAttribute('aria-expanded', 'false');
+      running = [
+        card.animate(
+          [
+            { transform: 'none', opacity: 1 },
+            { opacity: 0.9, offset: 0.55 },
+            { transform: land, opacity: 0 },
+          ],
+          { duration: ms, easing: EASE, fill: 'forwards' },
+        ),
+        ...fadeShades(1, 0, ms),
+      ];
+      await running[0].finished.catch(() => {});
+      intro.classList.add('is-closed');
+      card.inert = true;
+      settle();
+      busy = false;
+    };
+
+    const reopen = async () => {
+      if (open || busy) return;
+      busy = true;
+      open = true;
+      const ms = still ? 0 : 480;
+      settle();
+      intro.classList.remove('is-closed');
+      card.inert = false;
+      section.dataset.intro = 'open';
+      info.setAttribute('aria-expanded', 'true');
+      running = [
+        card.animate([{ transform: intoButton(), opacity: 0 }, { opacity: 0.9, offset: 0.45 }, { transform: 'none', opacity: 1 }], {
+          duration: ms,
+          easing: EASE,
+        }),
+        ...fadeShades(0, 1, ms),
+      ];
+      await running[0].finished.catch(() => {});
+      settle();
+      busy = false;
+    };
+
+    info.addEventListener('click', reopen);
+    addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && open) collapse();
+    });
+
+    // ---- The swipe ----------------------------------------------------------
+    // Sideways anywhere on the panel while the words are up -- over the view,
+    // over the cue, over the words themselves -- is the reader setting out to
+    // look around, so the words go. Over the view the same drag is already
+    // turning the sphere, so the exploring starts in the same movement rather
+    // than after it. Listened for on the way down, before the viewer sees it.
+    let downX = 0;
+    let downY = 0;
+    let tracking = false;
+    section.addEventListener(
+      'pointerdown',
+      (e) => {
+        if (!open || busy) return;
+        tracking = true;
+        downX = e.clientX;
+        downY = e.clientY;
+      },
+      { capture: true, passive: true },
+    );
+    addEventListener(
+      'pointermove',
+      (e) => {
+        if (!tracking) return;
+        const dx = e.clientX - downX;
+        const dy = e.clientY - downY;
+        if (Math.abs(dx) < 14 || Math.abs(dx) < Math.abs(dy)) return;
+        tracking = false;
+        collapse();
+      },
+      { passive: true },
+    );
+    const untrack = () => (tracking = false);
+    addEventListener('pointerup', untrack, { passive: true });
+    addEventListener('pointercancel', untrack, { passive: true });
+
+    explore.addEventListener('click', collapse);
+  }
+</script>  }
 </script>

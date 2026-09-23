@@ -173,6 +173,13 @@ const { title, description = 'Scan the post. See the place, then see it change.'
         transition: border-color 0.18s, background 0.18s;
       }
       .step:hover:not(:disabled) { border-color: var(--accent); }
+      /* The browser's own focus ring is a blue that belongs to nothing here,
+         and it turns up after a tap as well as a key -- on a button focused by
+         the script, or one just pressed. Off for pointers; for a keyboard, the
+         same idea in the accent. And no grey flash on a tap on iOS. */
+      .step, .chip { -webkit-tap-highlight-color: transparent; }
+      .step:focus, .chip:focus { outline: none; }
+      .step:focus-visible, .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
       .step:disabled { opacity: 0.45; cursor: default; }
       .step svg { width: 20px; height: 20px; }
       /* Whichever ends exist keep their own corner, with no placeholder element
@@ -217,11 +224,10 @@ const { title, description = 'Scan the post. See the place, then see it change.'
          The captions it carries are secondary, and both experiences are
          self-describing once they fill the screen. */
       @media (orientation: landscape) and (max-height: 520px) {
-        #view .panel-rail,
-        #change .panel-rail { display: none; }
+        #view .panel-rail { display: none; }
         /* Without the rail underneath it, the stage now reaches the foot of the
            screen, so the arrow row is what has to clear the home indicator. */
-        #view, #change { --nav-safe: var(--foot); }
+        #view { --nav-safe: var(--foot); }
       }
 
       /* Installed, the dynamic viewport stops below the status bar -- measured

@@ -1,0 +1,160 @@
+---
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { asset } from '../lib/paths';
+
+/** One animal's page: the animal full screen, and its way of looking set
+ *  across the foot the way the opening page sets the place. Opened by that
+ *  animal's pill (AnimalButton.astro) on any page, and closed back to it. */
+interface Props {
+  animal: 'eagle' | 'raven' | 'bear';
+  title: string;
+  body: string;
+  /** Under public/. The animals are the same at every post, so each has a
+   *  house picture at /media/animals/<animal>.jpg; this replaces it for one
+   *  location. Until the file is there, the page stands in a plain shade
+   *  rather than showing a broken picture. */
+  image?: string;
+}
+const { animal, title, body } = Astro.props;
+const image = Astro.props.image ?? `/media/animals/${animal}.jpg`;
+const hasImage = image ? existsSync(join(process.cwd(), 'public', image)) : false;
+---
+<div
+  class="animal"
+  id={`animal-${animal}`}
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby={`animal-${animal}-title`}
+  data-no-tap
+>
+  {hasImage ? (
+    <img class="animal-hero" src={asset(image)} alt="" loading="lazy" decoding="async" />
+  ) : (
+    <div class="animal-hero animal-hero-empty" aria-hidden="true"></div>
+  )}
+  <div class="animal-dim" aria-hidden="true"></div>
+  <div class="animal-copy">
+    <h2 id={`animal-${animal}-title`}>{title}</h2>
+    <p>{body}</p>
+  </div>
+  <button class="step animal-close" type="button" aria-label="Close">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+      <path d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  </button>
+</div>
+
+<style>
+  /* Over everything but the how-to: the whole screen, story bar and all,
+     since it is not a page of the story but a step aside from one. Faded in
+     and out with the gallery's visibility timing -- switched on at once on
+     the way in so it can take focus, held to the end of the fade going out. */
+  .animal {
+    position: fixed;
+    inset: 0;
+    z-index: 9;
+    background: var(--bg);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.28s ease, visibility 0s linear 0.28s;
+  }
+  .animal.on {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 0.28s ease, visibility 0s;
+  }
+  .animal-hero {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  /* Until there is a picture: a little of the accent in the dark, so the
+     page still reads as a place rather than as something failing to load. */
+  .animal-hero-empty {
+    background:
+      radial-gradient(120% 70% at 50% 28%, rgba(127, 209, 166, 0.16), rgba(127, 209, 166, 0) 70%),
+      var(--bg);
+  }
+  /* The opening page's dim: dark enough at the foot to hold the words, clear
+     through the top so the animal is the picture. */
+  .animal-dim {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      to top,
+      rgba(6, 10, 9, 0.86) 0%,
+      rgba(6, 10, 9, 0.78) 24%,
+      rgba(6, 10, 9, 0.5) 46%,
+      rgba(6, 10, 9, 0.14) 70%,
+      rgba(6, 10, 9, 0) 84%
+    );
+  }
+  /* Set as the opening page's words are, across the foot. Clear of the close
+     button, which has the corner beneath them. */
+  .animal-copy {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-width: 30rem;
+    margin: 0 auto;
+    padding: 0 1.4rem calc(1rem + var(--foot) + 46px + 1.2rem);
+  }
+  .animal-copy h2 { font-size: clamp(2.1rem, 8.5vw, 3rem); line-height: 1.08; margin: 0 0 0.8rem; }
+  .animal-copy p { margin: 0; font-size: 1.02rem; line-height: 1.55; }
+  .animal-close {
+    position: absolute;
+    right: 0.9rem;
+    bottom: calc(1rem + var(--foot));
+  }
+  .animal-close svg { width: 20px; height: 20px; }
+</style>
+
+<script>
+  // One script for all three pages and every pill: a pill names its animal,
+  // and the page with that name opens. Written so it only wires up once,
+  // however many of these are on the page.
+  if (!(window as any).__animals) {
+    (window as any).__animals = true;
+    let opener: HTMLElement | null = null;
+    const current = () => document.querySelector<HTMLElement>('.animal.on');
+
+    const open = (animal: string, from: HTMLElement) => {
+      const page = document.getElementById(`animal-${animal}`);
+      if (!page) return;
+      opener = from;
+      page.classList.add('on');
+      // Focus cannot land on something still considered hidden until styles
+      // are recalculated; reading a layout property forces that.
+      void page.offsetWidth;
+      page.querySelector<HTMLElement>('.animal-close')?.focus();
+      // The page underneath is told, so a clip can hold while it is covered.
+      document.dispatchEvent(new CustomEvent('animal:open'));
+    };
+    const close = () => {
+      const page = current();
+      if (!page) return;
+      page.classList.remove('on');
+      opener?.focus();
+      opener = null;
+      document.dispatchEvent(new CustomEvent('animal:close'));
+    };
+
+    document.addEventListener('click', (e) => {
+      const t = e.target as Element | null;
+      const pill = t?.closest<HTMLElement>('[data-animal]');
+      if (pill) return open(pill.dataset.animal!, pill);
+      if (t?.closest('.animal-close')) close();
+    });
+    addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && current()) {
+        // Before anything else that closes on Escape underneath it.
+        e.stopImmediatePropagation();
+        close();
+      }
+    }, { capture: true });
+  }
+</script>

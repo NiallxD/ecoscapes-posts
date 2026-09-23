@@ -20,8 +20,10 @@ pano:
   # The line under this panel.
   rail:
     title: The Eagle
+    # The hero of this animal's page (portrait, under public/).
+    image: /media/animals/eagle.jpg
     body: >-
-      The Eagle soars high and surveys the landscape. Take a moment to bbserve the place around you from the perspective of the Eagle, and situate
+      The Eagle soars high and surveys the landscape. Take a moment to observe the place around you from the perspective of the Eagle, and situate
       yourself in this incredible landscape.
   caption: A full turn from the heart of Squamish.
   # Where true north sits on the panorama's own scale. Derived from the true
@@ -98,11 +100,16 @@ pano:
       radius: 15
 series:
   caption: Landcover and land-use change, 1984–2024
+  # The heading across the top of each page of the series; any callout can
+  # give its own page a different one with `pageTitle`.
+  title: Placeholder series title
   source: TerrAdapt · Sea-to-Sky model area
   rail:
     title: The Raven
+    # The hero of this animal's page (portrait, under public/).
+    image: /media/animals/raven.jpg
     body: >-
-      Learn through curiosity like the Raven. How the landscapes has
+      Learn through curiosity like the Raven. How has the landscape
       changed over the past 40 years? What are those changes, and where?
   # The layer's own palette, sampled from the TerrAdapt legend. Not all of it:
   # the classes that are actually read on this ground, in plain words -- mesic
@@ -128,38 +135,43 @@ series:
   # Open /p/feather-park-01/?pin and click the frame to read off x/y.
   callouts:
     - year: 1993
-      x: 0.293
-      y: 0.478
+      x: 0.451
+      y: 0.647
       markerType: circle
       sizeX: 0.2
       sizeY: 0.2
       pause: 6
       hold: 0
       messageHold: 0
+      pageTitle: Industrial Development - 1993
       title: Squamish Industrial District
-      body: Notice as large areas of shrubland are developed into industrial units.
+      body: Notice as large areas of greenspace are developed into industrial & commerical units.
       endPause: 2
     - year: 1997
-      x: 0.565
-      y: 0.385
+      x: 0.512
+      y: 0.485
       markerType: circle
       sizeX: 0.2
       sizeY: 0.2
       pause: 6
       hold: 0
       messageHold: 0
+      pageTitle: Garibaldi Highlands Development - 1997
       title: Garibaldi Highlands
-      body: Watch here as forest is cleared to make way for the highlands developments.
+      body: Watch here as forest is cleared to make way for the Garibaldi Highlands residential developments.
       endPause: 2
     - year: 1987
-      x: 0.535
-      y: 0.345
+      x: 0.488
+      y: 0.464
       markerType: box
-      sizeX: 0.7
+      # A phone shows about 0.58 of the frame's width, centred; wider than
+      # that and the box runs off both sides.
+      sizeX: 0.45
       sizeY: 0.15
       place: below
-      title: Forrestry Work
-      body: Observe large areas of land changing from forest to scrubland during forestry activities.
+      pageTitle: Forestry Activities - 1987
+      title: Forestry Work
+      body: Observe large areas of forest being cut during forestry activities.
       pause: 6
       hold: 0
       messageHold: 0
@@ -167,21 +179,30 @@ series:
   video:
     src: /media/feather-park-01/series.mp4
     poster: /media/feather-park-01/series-poster.jpg
-    # Playback speed. The export is slow; this is the knob for it.
-    speed: 0.5
+    # Satellite, same camera and crop -- what the land cover fades down to.
+    base: /media/feather-park-01/series-base.jpg
+    # Playback speed. The clip is already paced in the edit, so none.
+    speed: 1
     from: 1984
     to: 2024
     # This export carries no year of its own -- it is a plain 3D view of the
     # valley -- so the panel draws the year itself from the position in the clip.
     burnedIn: false
     # From ffprobe. Only read if the browser will not report the clip's length
-    # itself -- without it, such a browser freezes the year and the slider.
-    duration: 9.083
+    # itself -- without it, such a browser freezes the year and every callout.
+    duration: 13.333
+    # When the picture turns to 1985 and to 2024, in seconds; the changes
+    # between are evenly spaced (a third of a second apart). Measured by
+    # matching the clip's frames against the yearly stills -- re-measure if the
+    # edit is re-timed.
+    changes: [0.208, 13.208]
 capture:
   prompt: Help us tell the story of this landscape. Place your phone in the holder, snap a photo, and share it with us.
   shareTo: EcoScapes
   rail:
     title: The Bear
+    # The hero of this animal's page (portrait, under public/).
+    image: /media/animals/bear.jpg
     body: >-
       The Bear is on the ground, connected to the landscape. Explore like the Bear, and share what you find to help tell the
       story of the changing landscape around us.
@@ -189,12 +210,9 @@ closing:
   eyebrow: Keep going
   title: Take this with you
   body: >-
-    The Bear does not stop at one clearing. What you just did here — stand
-    still, look properly, notice what has changed, say what you saw — works
-    anywhere in the Sea-to-Sky.
+    Just like the bears we share this place with, we urge you to continue exploring. Add this website to your home screen, and pick it back up the next time you feel you have a story to share.
   note: >-
-    There are posts like this one across the region, each with its own QR code
-    and its own view.
+    Keep an eye out for more posts in the Sea-to-Sky. Each one tells a unique and changing story of this landscape.
   action: Find another post
   # The second button, beside it.
   install: Add to home
@@ -202,8 +220,6 @@ wall:
   dir: /media/feather-park-01/wall
   full: /media/feather-park-01/wall-full
   dates:
-    - '2025-03-29'
-    - '2025-04-30'
     - '2025-05-08'
     - '2025-05-10'
     - '2025-12-09'
@@ -224,5 +240,4 @@ wall:
     - '2026-05-22'
     - '2026-06-23'
     - '2026-08-21'
-    - '2026-08-23'
 ---

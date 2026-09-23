@@ -3,6 +3,7 @@ import { getCollection, render } from 'astro:content';
 import Shell from '../../layouts/Shell.astro';
 import Panorama from '../../components/Panorama.astro';
 import TimeSeries from '../../components/TimeSeries.astro';
+import Animal from '../../components/Animal.astro';
 import Capture from '../../components/Capture.astro';
 import Closing from '../../components/Closing.astro';
 import { asset, locationAssets } from '../../lib/paths';
@@ -17,40 +18,15 @@ const { data } = entry;
 const { Content } = await render(entry);
 const offlineList = JSON.stringify(locationAssets(entry));
 const installed = data.installed.toLocaleDateString('en-CA', { year: 'numeric', month: 'long' });
+// One page per playthrough of the time series, like a run of stories: each
+// callout gets forty years of its own, and its own segment in the bar.
+const runs = data.series.video && data.series.callouts?.length ? data.series.callouts : [undefined];
+const runIds = runs.map((_, i) => (i === 0 ? 'change' : `change-${i + 1}`));
 const coords = `${Math.abs(data.lat).toFixed(2)}°${data.lat >= 0 ? 'N' : 'S'} ${Math.abs(data.lng).toFixed(2)}°${data.lng >= 0 ? 'E' : 'W'}`;
 ---
 
 <Shell title={`${data.title} · EcoScapes`} description={data.intro}>
   <main class="deck" id="deck">
-    <section class="panel intro" id="here" aria-label="This place">
-      {data.hero && (
-        <img
-          class="intro-bg"
-          src={asset(data.hero.src)}
-          alt=""
-          fetchpriority="high"
-          decoding="async"
-        />
-      )}
-      <div class="panel-stage intro-stage" data-assets={offlineList}>
-        <div class="intro-copy">
-          <p class="eyebrow">{data.place}</p>
-          <h1>{data.title}</h1>
-          <p class="intro-lede">{data.intro}</p>
-          <div class="intro-body"><Content /></div>
-          <p class="intro-meta">
-            <span>{coords} · Installed {installed}</span>
-            <a class="intro-next" href="#view" aria-label="Next section: panorama">
-              Next
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                <path d="M9 5l7 7-7 7" />
-              </svg>
-            </a>
-          </p>
-        </div>
-      </div>
-    </section>
-
     <Panorama
       src={data.pano.src}
       caption={data.pano.caption}
@@ -60,150 +36,80 @@ const coords = `${Math.abs(data.lat).toFixed(2)}°${data.lat >= 0 ? 'N' : 'S'} $
       declination={data.pano.declination}
       rail={data.pano.rail}
       markers={data.pano.markers}
-      prev="#here"
       next="#change"
-    />
-    <TimeSeries {...data.series} prev="#view" next="#add" />
+    >
+      <div class="intro-copy" slot="intro" data-assets={offlineList}>
+        <p class="eyebrow">{data.place}</p>
+        <h1>{data.title}</h1>
+        <p class="intro-lede">{data.intro}</p>
+        <div class="intro-body"><Content /></div>
+        <p class="intro-meta">{coords} · Installed {installed}</p>
+      </div>
+    </Panorama>
+    {runs.map((callout, i) => (
+      <TimeSeries
+        {...data.series}
+        title={callout?.pageTitle ?? data.series.title}
+        id={runIds[i]}
+        callouts={callout ? [callout] : []}
+        run={callout ? { at: i + 1, of: runs.length } : undefined}
+        prev={i === 0 ? '#view' : `#${runIds[i - 1]}`}
+        next={i === runs.length - 1 ? '#add' : `#${runIds[i + 1]}`}
+      />
+    ))}
     <Capture
       prompt={data.capture.prompt}
       shareTo={data.capture.shareTo}
       title={data.title}
       rail={data.capture.rail}
-      prev="#change"
+      prev={`#${runIds.at(-1)}`}
       next="#onward"
     />
     <Closing prev="#add" copy={data.closing} wall={data.wall} />
   </main>
 
+  <!-- Behind the bar, so its segments hold against a pale sky or snow. -->
+  <div class="story-scrim" aria-hidden="true"></div>
+  <!-- The lighter one, for the pages that are all picture -- the view and the
+       series -- where a solid edge closes the picture in. -->
+  <div class="story-scrim story-scrim-soft" aria-hidden="true"></div>
+  <!-- Its mirror at the foot: every page's picture comes up out of the dark
+       rather than stopping at the screen's hard bottom edge. -->
+  <div class="foot-scrim" aria-hidden="true"></div>
   <nav class="story" aria-label="Sections">
-    <a href="#here" data-for="here"><i></i><span class="sr">This place</span></a>
     <a href="#view" data-for="view"><i></i><span class="sr">Panorama</span></a>
-    <a href="#change" data-for="change"><i></i><span class="sr">Change over time</span></a>
+    {runIds.map((id, i) => (
+      <a href={`#${id}`} data-for={id}>
+        <i></i><span class="sr">Change over time{runs.length > 1 ? `, ${i + 1} of ${runs.length}` : ''}</span>
+      </a>
+    ))}
     <a href="#add" data-for="add"><i></i><span class="sr">Add your photograph</span></a>
     <a href="#onward" data-for="onward"><i></i><span class="sr">Take this with you</span></a>
   </nav>
+
+  <!-- The three ways of looking, each a page of its own opened from the pill
+       in the near corner of the pages that go with it. -->
+  <Animal animal="eagle" {...data.pano.rail} />
+  <Animal animal="raven" {...data.series.rail} />
+  <Animal animal="bear" {...data.capture.rail} />
 </Shell>
 
 <style>
-  .intro-bg {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    z-index: 0;
-  }
-  /* Scrim: enough at the foot to hold the copy, light through the middle so the
-     photograph still reads, and a touch at the very top for the progress bar.
-     Deliberately kept off full black at 0% -- the blur below carries most of
-     the legibility now, and a scrim heavy enough to do it alone crushes the
-     bottom third of the picture into a band that reads as a missing image. */
-  .intro-bg + .intro-stage::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    z-index: 0;
-    background: linear-gradient(
-      to top,
-      rgba(6, 10, 9, 0.72) 0%,
-      rgba(6, 10, 9, 0.62) 22%,
-      rgba(6, 10, 9, 0.34) 50%,
-      rgba(6, 10, 9, 0.1) 74%,
-      rgba(6, 10, 9, 0.45) 100%
-    );
-  }
-
-  /* Dimming alone still leaves branches, glare and skyline running straight
-     through the words, so the foot of the hero is blurred as well. Masked so it
-     is strongest where the copy sits and gone by the middle of the frame, which
-     keeps the photograph itself sharp. */
-  .intro-bg + .intro-stage::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    z-index: 0;
-    pointer-events: none;
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
-    -webkit-mask-image: linear-gradient(to top, #000 0%, #000 26%, transparent 62%);
-    mask-image: linear-gradient(to top, #000 0%, #000 26%, transparent 62%);
-    /* ...and the last of it is carried the whole way to the page's own colour,
-       so the foot of the photograph does not end on an edge. Whatever sits
-       below -- the home indicator, a browser's toolbar, the black the panel
-       cannot reach -- the picture arrives at it already that colour, and the
-       seam goes. Painted by this layer rather than a new one because a
-       backdrop-filter element draws its own background over the blur it makes,
-       which is exactly the order wanted: dim, blur, then fade out. The mask
-       above is at full strength across this band, so it passes through
-       untouched, and the copy sits a layer higher and stays legible. */
-    background: linear-gradient(to top, var(--bg) 0, rgba(13, 18, 16, 0) 6.5rem);
-  }
-
-  .intro-stage {
-    position: relative;
-    z-index: 1;
-    display: flex;
-    flex-direction: column;
-    /* Story framing: the copy sits at the foot of the image, not centred. */
-    justify-content: flex-end;
-    gap: 1.25rem;
-    /* Nothing floats over this panel any more -- the way onwards is the last
-       line of the copy -- so the foot only has to clear the home indicator. */
-    padding: calc(var(--safe-t) + 2rem) 1.4rem calc(1.4rem + var(--foot));
-  }
-  .intro-copy { max-width: 30rem; position: relative; z-index: 1; }
+  /* The opening words, laid over the view by the panorama. */
+  .intro-copy { max-width: 30rem; margin: 0 auto; }
   .intro-copy h1 { font-size: clamp(2.1rem, 8.5vw, 3rem); line-height: 1.08; margin: 0.4rem 0 0.8rem; }
   .intro-lede { font-size: 1.02rem; line-height: 1.55; margin: 0 0 1rem; }
   .intro-body { font-size: 0.9rem; line-height: 1.6; color: var(--ink-dim); }
   .intro-body :global(p) { margin: 0 0 0.8rem; }
-  /* The last line of the post and the way out of it share a row under the
-     rule: the credit line on the left, the way onwards in the corner. Both sit
-     below the separator rather than one floating over the other. */
+  /* The credit line, under a rule. */
   .intro-meta {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
     font-size: 0.72rem;
     color: var(--ink-dim);
     letter-spacing: 0.04em;
-    margin: 1.1rem 0 0;
-    padding-top: 0.9rem;
+    margin: 0.4rem 0 0;
+    padding-top: 0.8rem;
     border-top: 1px solid var(--line);
   }
-
-  /* First panel only: nothing has been touched yet, so the one control on the
-     screen has to read as the way on -- hence the ring, which the arrows on
-     every later panel do without. Small enough to belong to the credit line
-     rather than to sit on top of the photograph. */
-  .intro-next {
-    flex: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3em;
-    padding: 0.4em 0.75em 0.4em 0.9em;
-    border-radius: 999px;
-    font-size: 0.78rem;
-    font-weight: 500;
-    letter-spacing: 0.01em;
-    text-decoration: none;
-    color: var(--accent);
-    background: rgba(13, 18, 16, 0.5);
-    border: 1px solid var(--accent);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    animation: ring 2.6s ease-out infinite;
-  }
-  .intro-next svg { width: 14px; height: 14px; animation: nudge 2.2s ease-in-out infinite; }
-  @keyframes nudge {
-    0%, 100% { transform: translateX(0); }
-    50% { transform: translateX(3px); }
-  }
-  @keyframes ring {
-    0% { box-shadow: 0 0 0 0 rgba(127, 209, 166, 0.45); }
-    70%, 100% { box-shadow: 0 0 0 13px rgba(127, 209, 166, 0); }
-  }
-
 
   /* Story-style progress bar: one segment per panel, filled up to where you are.
      Sits above everything, including the panorama canvas. */
@@ -230,11 +136,10 @@ const coords = `${Math.abs(data.lat).toFixed(2)}°${data.lat >= 0 ? 'N' : 'S'} $
     overflow: hidden;
     position: relative;
   }
-  /* Each segment fills across rather than appearing filled: changing panel is
-     movement through the story, and the bar is the one place that says how far
-     through it you are. The delay is set per segment by the script, so a jump
-     of several panels sweeps through them in the direction of travel instead of
-     lighting them all at once. */
+  /* As a story's bar: the panels behind you are full, the ones ahead are
+     empty, and only the one you are on moves. The script sets each segment's
+     fill and how long it takes to get there -- nothing for a snap, the rest of
+     a minute for a page's own slow fill -- so no two can ever be moving. */
   .story i::after {
     content: '';
     position: absolute;
@@ -243,7 +148,70 @@ const coords = `${Math.abs(data.lat).toFixed(2)}°${data.lat >= 0 ? 'N' : 'S'} $
     background: #fff;
     transform: scaleX(var(--p, 0));
     transform-origin: left;
-    transition: transform 0.42s ease var(--d, 0ms);
+    transition: transform var(--t, 0s) linear;
+  }
+  /* A snap takes the transition away rather than making it instant: a zero
+     length does not stop a fill already running to the same place, so the
+     page you just left would carry on filling behind you. */
+  .story a[data-snap] i::after { transition: none; }
+  /* A band of shade under the bar, the same dark as the foot of the opening
+     page's words and eased off the same way, so it has no edge. The picture
+     under it is anything from snow to night sky, and a 3px white line on its
+     own disappears against half of it. */
+  .story-scrim {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: calc(var(--safe-t) + 3.2rem);
+    z-index: 5;
+    pointer-events: none;
+    /* Solid page colour at the very edge -- the colour the browser's own
+       bars are painted -- so the page runs into them with no line. */
+    background: linear-gradient(
+      rgb(13, 18, 16) 0%,
+      rgba(13, 18, 16, 0.62) 30%,
+      rgba(13, 18, 16, 0.22) 65%,
+      rgba(13, 18, 16, 0) 100%
+    );
+  }
+  /* The view and the series are the picture and nothing else, and solid edges
+     top and bottom box them in. On those the top goes back to a light shade,
+     just enough for the bar, and the foot is left clear. */
+  .story-scrim-soft {
+    background: linear-gradient(
+      rgba(6, 10, 9, 0.62) 0%,
+      rgba(6, 10, 9, 0.44) 35%,
+      rgba(6, 10, 9, 0.16) 70%,
+      rgba(6, 10, 9, 0) 100%
+    );
+    opacity: 0;
+  }
+  .story-scrim,
+  .foot-scrim { transition: opacity 0.3s ease; }
+  :global(body[data-open-edges]) .story-scrim { opacity: 0; }
+  :global(body[data-open-edges]) .story-scrim-soft { opacity: 1; }
+  :global(body[data-open-edges]) .foot-scrim { opacity: 0; }
+
+  /* Short and soft, and under each page's controls -- they are at level 4 in
+     the page, this is 3 and later, so it is over the picture and anything else
+     at 3 but never over a button. */
+  .foot-scrim {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: calc(var(--foot) + 8rem);
+    z-index: 3;
+    pointer-events: none;
+    /* Solid at the edge, as the top is. */
+    background: linear-gradient(
+      to top,
+      rgb(13, 18, 16) 0,
+      rgba(13, 18, 16, 0.6) calc(var(--foot) + 1.8rem),
+      rgba(13, 18, 16, 0.22) calc(var(--foot) + 4.4rem),
+      rgba(13, 18, 16, 0) 100%
+    );
   }
   /* Edge-to-edge reads fine on a phone held upright, but stretched across a
      landscape screen the segments look like a loading bar. Cap and centre them
@@ -265,11 +233,6 @@ const coords = `${Math.abs(data.lat).toFixed(2)}°${data.lat >= 0 ? 'N' : 'S'} $
     white-space: nowrap;
   }
 
-  /* Landscape: the intro is the only text-heavy panel, so let it scroll rather
-     than clip when the phone is on its side. */
-  @media (orientation: landscape) and (max-height: 520px) {
-    .intro-stage { justify-content: flex-start; overflow-y: auto; padding-bottom: calc(1.4rem + var(--foot)); }
-  }
 </style>
 
 <script>
@@ -280,26 +243,44 @@ const coords = `${Math.abs(data.lat).toFixed(2)}°${data.lat >= 0 ? 'N' : 'S'} $
   const segs = Array.from(document.querySelectorAll<HTMLAnchorElement>('.story a'));
   const order = segs.map((s) => s.dataset.for!);
 
-  const fill = (i: number, p: number) => segs[i].style.setProperty('--p', String(p));
+  /** Set a segment's fill, taking `secs` to get there (0 snaps). */
+  const fill = (i: number, p: number, secs = 0) => {
+    segs[i].toggleAttribute('data-snap', !secs);
+    segs[i].style.setProperty('--t', `${secs}s`);
+    segs[i].style.setProperty('--p', String(p));
+  };
 
-  // Filled up to and including the panel you are on, so the bar reads as
-  // progress through the story rather than as a clock part-way through a panel.
-  //
-  // Each segment that changes is delayed by its distance from where the bar
-  // was, so the fill runs across in the direction of travel. Only the ones
-  // between the old position and the new one are staggered; everything else
-  // moves immediately, which is to say not at all.
-  const STEP = 70; // ms between one segment starting and the next
+  // As a story's bar: everything behind full, everything ahead empty, both at
+  // once, and the page you are on started again from empty -- whichever way
+  // you arrived. A page with a clock fills its segment as it plays (see
+  // below); any other runs a slow half-minute across it, so the bar still says the
+  // page is live without hurrying anyone. Nothing turns the page at the end.
+  const SLOW = 30; // seconds to fill a page with no clock of its own
   let shown = -1;
   const showUpTo = (i: number) => {
-    segs.forEach((seg, k) => {
-      const between = k > Math.min(shown, i) && k <= Math.max(shown, i);
-      const from = i > shown ? shown + 1 : shown;
-      seg.style.setProperty('--d', between ? `${Math.abs(k - from) * STEP}ms` : '0ms');
-      fill(k, k <= i ? 1 : 0);
-    });
+    segs.forEach((_, k) => fill(k, k < i ? 1 : 0));
     shown = i;
+    // The pages that are all picture take the lighter edges; see the styles.
+    const page = document.getElementById(order[i]);
+    document.body.toggleAttribute('data-open-edges', order[i] === 'view' || !!page?.classList.contains('ts-panel'));
+    if (clocked(i)) return;
+    // Laid out at empty first, or the browser would see empty and full in the
+    // same frame and run from wherever the segment last was.
+    getComputedStyle(segs[i].querySelector('i')!, '::after').transform;
+    fill(i, 1, SLOW);
   };
+
+  // The time series pages fill their segment with the clip, as a story's
+  // segment runs with its video: the page reports how far through it is, and
+  // only the page being shown is listened to.
+  const clocked = (k: number) => document.getElementById(order[k])?.hasAttribute('data-clock') ?? false;
+  document.addEventListener('story:progress', (e) => {
+    const k = order.indexOf((e.target as HTMLElement).id);
+    if (k < 0 || k !== shown) return;
+    // Driven a frame at a time, so no transition of its own: it would trail
+    // behind the clock and make a steady fill look like it is catching up.
+    fill(k, (e as CustomEvent<number>).detail);
+  });
 
   // The observer is the single source of truth for which panel we are on.
   let idx = 0;
@@ -331,8 +312,9 @@ const coords = `${Math.abs(data.lat).toFixed(2)}°${data.lat >= 0 ? 'N' : 'S'} $
 
   const TAP_SLOP = 10; // px of travel still counted as a tap, not a drag
   const TAP_MS = 350;
-  // Anything you can operate is left alone, wherever it happens to sit.
-  const CONTROLS = 'a, button, input, label, select, textarea, [role="button"]';
+  // Anything you can operate is left alone, wherever it happens to sit -- and
+  // so is anything that is handling its own touches, like the opening words.
+  const CONTROLS = 'a, button, input, label, select, textarea, [role="button"], [data-no-tap]';
 
   let downX = 0;
   let downY = 0;
@@ -367,56 +349,6 @@ const coords = `${Math.abs(data.lat).toFixed(2)}°${data.lat >= 0 ? 'N' : 'S'} $
     { passive: true },
   );
 
-  // ---- Swipe hint ---------------------------------------------------------
-  // The arrows are the primary control, but the deck does move under a swipe on
-  // the two panels that do not swallow horizontal drags. On arrival the frame
-  // eases left far enough to show the edge of the next panel and settles back,
-  // which says "there is more this way" without adding another piece of chrome.
-  // Once per load, only from a cold start on the first panel, and abandoned the
-  // moment the reader does anything themselves.
-  const deck = document.getElementById('deck');
-  if (deck && !matchMedia('(prefers-reduced-motion: reduce)').matches && !location.hash) {
-    const AMP = 34; // px of the next panel shown
-    const OUT = 320;
-    const BACK = 520;
-    const DELAY = 4000; // long enough to have read the opening, not just seen it
-
-    let alive = true;
-    const stop = () => { alive = false; };
-    const watched = ['pointerdown', 'wheel', 'keydown'] as const;
-    watched.forEach((t) => addEventListener(t, stop, { once: true, passive: true }));
-    // A scroll before the hint runs means they have already moved; once it is
-    // running the scrolls are ours, so this one comes off first.
-    deck.addEventListener('scroll', stop, { passive: true });
-
-    const ease = (t: number) => 1 - Math.pow(1 - t, 3);
-    const slide = (from: number, to: number, ms: number) =>
-      new Promise<void>((done) => {
-        const t0 = performance.now();
-        const step = (now: number) => {
-          const t = Math.min(1, (now - t0) / ms);
-          // Explicitly instant: the deck sets scroll-behavior: smooth, which
-          // would otherwise animate every frame of this animation.
-          deck.scrollTo({ left: from + (to - from) * ease(t), behavior: 'instant' as ScrollBehavior });
-          if (t < 1 && alive) requestAnimationFrame(step);
-          else done();
-        };
-        requestAnimationFrame(step);
-      });
-
-    setTimeout(async () => {
-      if (!alive || deck.scrollLeft > 1) return;
-      deck.removeEventListener('scroll', stop);
-      // Mandatory snapping fights a scroll driven frame by frame, so it is off
-      // for the length of the nudge and the CSS value comes back after.
-      deck.style.scrollSnapType = 'none';
-      await slide(0, AMP, OUT);
-      if (alive) await slide(AMP, 0, BACK);
-      deck.style.scrollSnapType = '';
-      // If they took hold part-way, the restored snap settles wherever they left it.
-    }, DELAY);
-  }
-
   // ---- Offline ------------------------------------------------------------
   // The whole location is pulled down on every visit rather than offered on a
   // button. Someone reaching a post has usually walked out of coverage to get
@@ -425,7 +357,7 @@ const coords = `${Math.abs(data.lat).toFixed(2)}°${data.lat >= 0 ? 'N' : 'S'} $
   //
   // It costs a few MB per location. That is paid for once: the worker skips
   // anything already in the cache, so a return visit fetches nothing.
-  const stage = document.querySelector('.intro-stage') as HTMLElement | null;
+  const stage = document.querySelector<HTMLElement>('[data-assets]');
   if (stage?.dataset.assets && 'serviceWorker' in navigator) {
     const assets: string[] = JSON.parse(stage.dataset.assets);
     // After load and then only when the main thread is free: this is a

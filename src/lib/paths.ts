@@ -8,7 +8,7 @@ type SeriesData = {
   dir?: string;
   ext: string;
   years?: number[];
-  video?: { src: string; poster?: string };
+  video?: { src: string; poster?: string; base?: string };
 };
 
 type WallData = { dir: string; full?: string; ext: string; dates: string[] };
@@ -25,19 +25,18 @@ export const wallTiles = (wall: WallData) =>
 /** Every URL a location needs in order to work offline. */
 export const locationAssets = (loc: {
   data: {
-    hero?: { src: string };
     pano: { src: string; card?: string };
     series: SeriesData;
     wall?: WallData;
   };
 }) => {
-  const { hero, pano, series, wall } = loc.data;
+  const { pano, series, wall } = loc.data;
   const urls = [asset(pano.src)];
-  if (hero) urls.push(asset(hero.src));
   if (pano.card) urls.push(asset(pano.card));
   if (series.video) {
     urls.push(asset(series.video.src));
     if (series.video.poster) urls.push(asset(series.video.poster));
+    if (series.video.base) urls.push(asset(series.video.base));
   } else if (series.dir && series.years) {
     urls.push(...series.years.map((y) => asset(`${series.dir}/${y}.${series.ext}`)));
   }

@@ -1,0 +1,45 @@
+---
+/** The way of looking that goes with this page: a tall pill in the near
+ *  corner, opposite the page's own controls, with the animal's name up the
+ *  side. It opens that animal's page (see Animal.astro). */
+interface Props {
+  animal: 'eagle' | 'raven' | 'bear';
+}
+const { animal } = Astro.props;
+const name = animal[0].toUpperCase() + animal.slice(1);
+---
+<button
+  class="step animal-btn"
+  type="button"
+  data-animal={animal}
+  data-no-tap
+  aria-haspopup="dialog"
+  aria-controls={`animal-${animal}`}
+  aria-label={`The ${name}`}
+>
+  <span aria-hidden="true">{name}</span>
+</button>
+
+<style>
+  /* The Gallery pill's shape, in the other corner. --nav-safe is whatever the
+     page keeps clear at its foot, so this sits level with the bottom button
+     of the column opposite. */
+  .animal-btn {
+    position: absolute;
+    z-index: 4;
+    left: 0.9rem;
+    bottom: calc(1rem + var(--nav-safe, 0px));
+    height: auto;
+    padding: 0.95rem 0;
+    border-radius: 23px;
+  }
+  .animal-btn span {
+    writing-mode: vertical-rl;
+    /* Read bottom to top, the way a spine is. */
+    transform: rotate(180deg);
+    font-size: 0.74rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+</style>

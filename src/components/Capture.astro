@@ -1,15 +1,16 @@
 ---
-import PanelNav from './PanelNav.astro';
+import AnimalButton from './AnimalButton.astro';
 
 interface Props {
   prompt: string;
   shareTo: string;
   title: string;
-  rail: { title: string; body: string };
+  /** The Bear's line. Not shown for now -- see TimeSeries -- but kept. */
+  rail?: { title: string; body: string };
   prev?: string;
   next?: string;
 }
-const { prompt, shareTo, title, rail, prev, next } = Astro.props;
+const { prompt, shareTo, title, prev, next } = Astro.props;
 ---
 <section class="panel" id="add" aria-label="Add your photograph" data-share-to={shareTo} data-title={title} data-next={next}>
   <div class="panel-stage cap-stage">
@@ -37,8 +38,16 @@ const { prompt, shareTo, title, rail, prev, next } = Astro.props;
         <p class="cap-prompt">{prompt}</p>
       </div>
       <!-- The whole camera integration, for now: the OS camera, no permissions
-           plumbing, works on iOS and Android. The label that opens it lives in
-           the nav pill below. -->
+           plumbing, works on iOS and Android. A label for the hidden input, so
+           the button is the input as far as the phone is concerned. Big and in
+           the middle, a shutter: it is the one thing this page asks for. -->
+      <label class="cap-go" id="cap-go" for="cap-input" aria-label="Open the camera">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+          <path d="M3 8.5A2.5 2.5 0 015.5 6h2L9 4h6l1.5 2h2A2.5 2.5 0 0121 8.5v9A2.5 2.5 0 0118.5 20h-13A2.5 2.5 0 013 17.5z" />
+          <circle cx="12" cy="13" r="3.4" />
+        </svg>
+      </label>
+      {next && <p class="cap-skip-note">Not today? The arrow carries on without one.</p>}
       <input type="file" id="cap-input" accept="image/*" capture="environment" hidden />
     </div>
 
@@ -57,47 +66,36 @@ const { prompt, shareTo, title, rail, prev, next } = Astro.props;
       </div>
     </div>
 
-    <!-- What to do with the shot rides in the nav pill, like every other
-         panel's controls. It is empty until there is a shot to act on, and the
-         pill goes with it. -->
-    <PanelNav prev={prev}>
-      <label class="chip cap-go" id="cap-go" for="cap-input">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-          <path d="M3 8.5A2.5 2.5 0 015.5 6h2L9 4h6l1.5 2h2A2.5 2.5 0 0121 8.5v9A2.5 2.5 0 0118.5 20h-13A2.5 2.5 0 013 17.5z" />
-          <circle cx="12" cy="13" r="3.4" />
+    <!-- What to do with a photograph before sending it, along the foot beside
+         the column once there is one: neither is the greater offer, and the
+         caption is only ever an offer -- the arrow sends with or without it. -->
+    <div class="cap-actions" id="cap-actions" data-no-tap hidden>
+      <button class="chip cap-retake" id="cap-retake" type="button">Retake</button>
+      <button class="chip cap-caption" id="cap-caption" type="button">Add caption</button>
+    </div>
+
+    <AnimalButton animal="bear" />
+
+    <!-- The page's controls, in a column in the far corner as on the time
+         series: back, then on. The bottom one is whichever the page is asking
+         for -- carry on without a photograph, or send the one taken. -->
+    <div class="cap-side" data-no-tap>
+      {prev && (
+        <a class="step" href={prev} aria-label="Previous section">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
+        </a>
+      )}
+      {next && (
+        <a class="step" id="cap-skip" href={next} aria-label="Carry on without a photograph">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 5l7 7-7 7" /></svg>
+        </a>
+      )}
+      <button class="step cap-send" id="cap-send" type="button" aria-label={`Send your photograph to ${shareTo}`} hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true">
+          <path d="M12 19V5m0 0l-6 6m6-6l6 6" />
         </svg>
-        Open camera
-      </label>
-      <!-- The two things to do with a photograph before sending it, sharing the
-           row equally: neither is the greater offer, and the caption is only
-           ever an offer -- the arrow in the corner sends with or without it. -->
-      <div class="cap-actions" id="cap-actions" hidden>
-        <button class="chip cap-retake" id="cap-retake" type="button">Retake</button>
-        <button class="chip cap-caption" id="cap-caption" type="button">Add caption</button>
-      </div>
-      <Fragment slot="end">
-        <!-- The far corner carries whichever of these the panel is currently
-             asking for: move on without a photograph, or send the one taken. -->
-        <!-- Worded, not just pointed: every other panel's far corner is the way
-             onwards, but on this one it is the way past -- and a bare chevron
-             beside a camera button reads as "next" rather than as permission to
-             not do the thing being asked. The text is the button's name, so it
-             carries no aria-label of its own. -->
-        {next && (
-          <a class="step step-next cap-skip" id="cap-skip" href={next}>
-            Skip
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <path d="M9 5l7 7-7 7" />
-            </svg>
-          </a>
-        )}
-        <button class="step step-next cap-send" id="cap-send" type="button" aria-label={`Send your photograph to ${shareTo}`} hidden>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true">
-            <path d="M12 19V5m0 0l-6 6m6-6l6 6" />
-          </svg>
-        </button>
-      </Fragment>
-    </PanelNav>
+      </button>
+    </div>
 
     <!-- Asked for once the photograph is taken and the send button tapped: a
          line about the place, in your words, travelling with the picture. The
@@ -112,17 +110,12 @@ const { prompt, shareTo, title, rail, prev, next } = Astro.props;
       </div>
     </div>
   </div>
-
-  <div class="panel-rail">
-    <h2>{rail.title}</h2>
-    <p>{rail.body}</p>
-    <!-- Written to once you share; empty until then. -->
-    <p class="rail-note" id="cap-status"></p>
-  </div>
 </section>
 
 <style>
-  .cap-stage { display: grid; place-items: center; padding: 1.4rem 1.4rem 4.6rem; }
+  .cap-stage { display: grid; place-items: center; padding: 1.4rem 1.4rem calc(4.6rem + var(--foot)); }
+  /* No rail under this stage, so the arrow row clears the foot itself. */
+  #add { --nav-safe: var(--foot); }
   .cap-empty {
     display: flex; flex-direction: column; align-items: center; gap: 1.15rem;
     text-align: center; max-width: 24rem;
@@ -168,31 +161,38 @@ const { prompt, shareTo, title, rail, prev, next } = Astro.props;
   }
   .cap-copy h2 { font-size: 1.55rem; margin: 0.3rem 0 0.5rem; }
   .cap-prompt { margin: 0; font-size: 0.9rem; color: var(--ink-dim); line-height: 1.5; }
-  /* Both states of the pill: whichever one is showing takes the whole row. */
+  /* The shutter: a ring round a filled disc, in the accent, like the button
+     on a camera -- read as "take a picture" before the icon is. */
   .cap-go {
-    flex: 1;
-    min-width: 0;
-    justify-content: center;
-    background: none;
-    border-color: transparent;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
+    width: 76px;
+    height: 76px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #08110c;
+    box-shadow: 0 0 0 4px var(--bg), 0 0 0 6px rgba(127, 209, 166, 0.55);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.15s ease, box-shadow 0.2s ease;
   }
-  .cap-go:hover { border-color: transparent; color: var(--accent); }
+  .cap-go svg { width: 32px; height: 32px; }
+  .cap-go:hover { box-shadow: 0 0 0 4px var(--bg), 0 0 0 6px var(--accent); }
+  .cap-go:active { transform: scale(0.94); }
+  .cap-skip-note { margin: -0.2rem 0 0; font-size: 0.78rem; color: var(--ink-dim); }
 
-  /* A pill rather than the usual circle: it has a word in it. The rest of the
-     .step chrome -- the backing, the blur, the hover -- is the layout's. */
-  .cap-skip {
-    width: auto;
-    gap: 0.35rem;
-    padding: 0 0.7rem 0 0.95rem;
-    border-radius: 999px;
-    grid-auto-flow: column;
-    align-items: center;
-    font-size: 0.82rem;
-    font-weight: 500;
+  /* The column in the corner: the same place, gap and buttons as the time
+     series', so the pages read as one design. */
+  .cap-side {
+    position: absolute;
+    z-index: 4;
+    right: 0.9rem;
+    bottom: calc(1rem + var(--nav-safe, 0px));
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
   }
-  .cap-skip svg { width: 16px; height: 16px; }
+  .cap-side .step svg { width: 20px; height: 20px; }
 
   .cap-result { position: absolute; inset: 0; }
   #cap-preview { width: 100%; height: 100%; object-fit: cover; }
@@ -247,15 +247,28 @@ const { prompt, shareTo, title, rail, prev, next } = Astro.props;
     background: var(--accent);
   }
 
+  /* One long pill along the foot, level with the bottom button of the column
+     and stopping short of it. */
   .cap-actions {
-    flex: 1;
-    min-width: 0;
+    position: absolute;
+    z-index: 4;
+    /* Between the Bear's pill in the near corner and the column in the far. */
+    left: calc(0.9rem + 46px + 0.6rem);
+    right: calc(0.9rem + 46px + 0.6rem);
+    bottom: calc(1rem + var(--nav-safe, 0px));
+    height: 46px;
     display: flex;
     align-items: center;
-    justify-content: center;
     gap: 0.2rem;
+    padding: 0 0.3rem;
+    border-radius: 999px;
+    background: rgba(13, 18, 16, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
   }
-  /* Inside the nav pill, so no backing of their own. Half the row each, so the
+  .cap-actions[hidden] { display: none; }
+  /* Inside the pill, so no backing of their own. Half the row each, so the
      pair reads as one control rather than as a button with an afterthought. */
   .cap-actions .chip {
     flex: 1 1 0;
@@ -273,6 +286,7 @@ const { prompt, shareTo, title, rail, prev, next } = Astro.props;
   .cap-actions .cap-retake:hover:not(:disabled) { color: var(--danger); }
   .cap-primary { color: var(--accent); font-weight: 600; }
   .cap-send { color: var(--accent); border-color: rgba(127, 209, 166, 0.55); }
+  .cap-side [hidden] { display: none; }
 
   .cap-sheet {
     position: absolute;
@@ -328,14 +342,12 @@ const { prompt, shareTo, title, rail, prev, next } = Astro.props;
     const empty = document.getElementById('cap-empty')!;
     const result = document.getElementById('cap-result')!;
     const actions = document.getElementById('cap-actions')!;
-    const go = document.getElementById('cap-go')!;
     const send = document.getElementById('cap-send') as HTMLButtonElement;
     const skip = document.getElementById('cap-skip');
     const onward = section.dataset.next;
     const sheet = document.getElementById('cap-sheet')!;
     const note = document.getElementById('cap-note') as HTMLTextAreaElement;
     const preview = document.getElementById('cap-preview') as HTMLImageElement;
-    const status = document.getElementById('cap-status')!;
     const shareTo = section.dataset.shareTo!;
     let file: File | null = null;
     let url: string | null = null;
@@ -430,12 +442,11 @@ const { prompt, shareTo, title, rail, prev, next } = Astro.props;
       if (url) URL.revokeObjectURL(url);
       url = null; file = null; input.value = '';
       result.hidden = true; empty.hidden = false;
-      actions.hidden = true; go.hidden = false;
+      actions.hidden = true;
       send.hidden = true;
       if (skip) skip.hidden = false;
       note.value = '';
       closeSheet();
-      status.textContent = '';
       caption.textContent = 'Add caption';
     };
 
@@ -445,7 +456,7 @@ const { prompt, shareTo, title, rail, prev, next } = Astro.props;
       url = URL.createObjectURL(file);
       preview.src = url;
       empty.hidden = true; result.hidden = false;
-      actions.hidden = false; go.hidden = true;
+      actions.hidden = false;
       send.hidden = false;
       if (skip) skip.hidden = true;
     });

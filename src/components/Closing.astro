@@ -1,6 +1,6 @@
 ---
 import { asset, wallTiles } from '../lib/paths';
-import PanelNav from './PanelNav.astro';
+import AnimalButton from './AnimalButton.astro';
 
 interface Props {
   prev?: string;
@@ -26,6 +26,10 @@ const longStamp = (iso: string) =>
     month: 'long',
     day: 'numeric',
   });
+// What the player runs through: every photograph, oldest first.
+const playlist = [...tiles]
+  .sort((a, b) => a.date.localeCompare(b.date))
+  .map((t) => ({ src: asset(t.full), date: longStamp(t.date), short: stamp(t.date) }));
 ---
 <section class="panel closing" id="onward" aria-label="Take this with you">
   <div class="panel-stage closing-stage">
@@ -48,6 +52,10 @@ const longStamp = (iso: string) =>
         ))}
       </div>
     )}
+
+    <!-- The opening page turned upside down: the photographs at full
+         strength, and a dark fade from the top that the words sit in. -->
+    <div class="closing-shade" aria-hidden="true"></div>
 
     <div class="closing-copy">
       <p class="eyebrow">{copy.eyebrow}</p>
@@ -97,36 +105,94 @@ const longStamp = (iso: string) =>
       </div>
     </div>
 
-    <PanelNav prev={prev}>
+    <AnimalButton animal="bear" />
+
+    <!-- The page's controls, in a column in the far corner as on every other
+         page: the photographs, then back to the camera. Nothing onwards --
+         this is the end, and the way back is an offer to add to it. -->
+    <div class="closing-side" data-no-tap>
+      <!-- Tall, with its name up the side: the one thing on this page that is
+           not obvious from an icon alone. -->
       {tiles.length > 0 && (
-        <button class="chip wall-btn" id="wall-btn" type="button" aria-pressed="false">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+        <button class="step wall-btn" id="wall-btn" type="button" aria-pressed="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
             <rect x="3" y="3" width="7.5" height="7.5" rx="1.5" />
             <rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5" />
             <rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5" />
             <rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5" />
           </svg>
-          <span id="wall-btn-label">Show contributions</span>
+          <span class="wall-btn-label">Gallery</span>
         </button>
       )}
-    </PanelNav>
+      <!-- Back to the start of this post, the view. -->
+      <a class="step" href="#view" aria-label="Back to the start">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5L12 4l8 6.5V19a1 1 0 01-1 1h-4.5v-5.5h-5V20H5a1 1 0 01-1-1z" /></svg>
+      </a>
+      {prev && (
+        <a class="step" href={prev} aria-label="Go back and add a photograph">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+            <path d="M3 8.5A2.5 2.5 0 015.5 6h2L9 4h6l1.5 2h2A2.5 2.5 0 0121 8.5v9A2.5 2.5 0 0118.5 20h-13A2.5 2.5 0 013 17.5z" />
+            <circle cx="12" cy="13" r="3.4" />
+          </svg>
+        </a>
+      )}
+    </div>
   </div>
 
   <!-- Full screen and in date order: the wall behind the copy is a texture,
-       this is the record itself, big enough to actually look at. -->
+       this is the record itself, big enough to actually look at. Laid out as
+       a page of its own -- title pill top left under the story bar, back in
+       the corner where the arrows are -- and it takes every tap, so one on a
+       photograph cannot turn the deck behind it. -->
   {tiles.length > 0 && (
-    <div class="gallery" id="gallery">
-      <header class="gallery-bar">
-        <div>
-          <p class="eyebrow">Contributions</p>
-          <p class="gallery-count">{tiles.length} photographs from this post</p>
+    <div class="gallery" id="gallery" role="dialog" aria-modal="true" aria-label="Gallery" data-no-tap data-shots={JSON.stringify(playlist)}>
+      <p class="gallery-title" id="gallery-title"><b>Gallery</b><span> · {tiles.length}</span></p>
+      <!-- The photographs played back in order, oldest first: one view, over
+           and over, so run together they are a timelapse of the place. -->
+      <div class="player" id="player">
+        <img class="player-img" alt="" aria-hidden="true" />
+        <img class="player-img" alt="" aria-hidden="true" />
+        <!-- The date of the photograph, directly under it. -->
+        <p class="player-date" id="player-date" aria-live="polite"></p>
+        <!-- Under that: one tick per photograph, dragged along to
+             run through them by hand. -->
+        <div class="scrub" id="scrub">
+          <div
+            class="scrub-bar"
+            id="scrub-bar"
+            role="slider"
+            tabindex="0"
+            aria-label="Photograph"
+            aria-valuemin="1"
+            aria-valuemax={playlist.length}
+            aria-valuenow="1"
+          >
+            <span class="scrub-track" aria-hidden="true">
+              <i class="scrub-fill"></i>
+              {playlist.map((_, i) => (
+                <span class="scrub-tick" style={`left:${playlist.length > 1 ? (i / (playlist.length - 1)) * 100 : 0}%`}></span>
+              ))}
+              <b class="scrub-knob"></b>
+            </span>
+          </div>
+          <div class="scrub-ends" aria-hidden="true">
+            <span>{playlist[0]?.short}</span><span>{playlist.at(-1)?.short}</span>
+          </div>
         </div>
-        <button class="step gallery-close" id="gallery-close" type="button" aria-label="Close contributions">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <path d="M6 6l12 12M18 6L6 18" />
-          </svg>
+      </div>
+      <AnimalButton animal="bear" />
+      <div class="closing-side gallery-side">
+        <button class="step gallery-play" id="gallery-play" type="button" aria-label="Play the photographs in order" aria-pressed="false">
+          <svg class="icon-play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.2v13.6a.8.8 0 001.2.7l10.6-6.8a.8.8 0 000-1.4L9.2 4.5a.8.8 0 00-1.2.7z" /></svg>
+          <svg class="icon-pause" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6.5" y="5" width="3.8" height="14" rx="1" /><rect x="13.7" y="5" width="3.8" height="14" rx="1" /></svg>
         </button>
-      </header>
+        <button class="step" id="gallery-home" type="button" aria-label="Back to the start">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5L12 4l8 6.5V19a1 1 0 01-1 1h-4.5v-5.5h-5V20H5a1 1 0 01-1-1z" /></svg>
+        </button>
+        <button class="step gallery-close" id="gallery-close" type="button" aria-label="Back">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
+        </button>
+      </div>
       <div class="gallery-scroll" id="gallery-scroll">
         {tiles.map((tile, i) => (
           <figure class="shot">
@@ -149,11 +215,12 @@ const longStamp = (iso: string) =>
   /* No rail under this stage, so the arrow row clears the foot itself. */
   .closing { --nav-safe: var(--foot); }
 
+  /* The words at the top, under the story bar, on the photographs. */
   .closing-stage {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
-    padding: calc(var(--safe-t) + 3rem) 1.5rem 5.2rem;
+    padding: calc(var(--safe-t) + 3.4rem) 1.4rem 5.2rem;
   }
 
   /* ---- The wall ---------------------------------------------------------
@@ -169,11 +236,27 @@ const longStamp = (iso: string) =>
     gap: 0.5rem;
     padding: 0 0.5rem;
     overflow: hidden;
-    /* Faded at both ends so the tiles arrive and leave rather than being cut,
-       and held well back so the copy stays the thing you read. */
-    opacity: 0.4;
-    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 82%, transparent);
-    mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 82%, transparent);
+    /* Nearly full strength, as the view is on the opening page: the shade
+       below does the holding back, and only where the words are. */
+    opacity: 0.9;
+  }
+  /* The opening page's dim, run the other way: dark enough at the top to hold
+     the words on its own, easing off through the middle so the photographs
+     come through clear at the foot. */
+  .closing-shade {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    /* The foot's fade is the deck's own, shared with every page. */
+    background: linear-gradient(
+      to bottom,
+      rgb(13, 18, 16) 0%,
+      rgba(6, 10, 9, 0.9) 44%,
+      rgba(6, 10, 9, 0.6) 60%,
+      rgba(6, 10, 9, 0.16) 78%,
+      rgba(6, 10, 9, 0) 92%
+    );
   }
   .wall-col {
     flex: 1;
@@ -208,26 +291,45 @@ const longStamp = (iso: string) =>
     .wall-col { animation: none; }
   }
 
-  /* Flat inside the nav pill, like every other panel's controls. */
-  .wall-btn {
-    flex: 1;
-    min-width: 0;
-    justify-content: center;
-    background: none;
-    border-color: transparent;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
+  /* The column in the corner: the same place, gap and buttons as the other
+     pages', so they read as one design. */
+  .closing-side {
+    position: absolute;
+    z-index: 4;
+    right: 0.9rem;
+    bottom: calc(1rem + var(--nav-safe, 0px));
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
   }
-  .wall-btn:hover:not(:disabled) { border-color: transparent; color: var(--accent); }
+  .closing-side .step svg { width: 20px; height: 20px; }
+  /* A tall pill: the icon at the top, the word running up beneath it. */
+  .closing-side .wall-btn {
+    height: auto;
+    padding: 0.8rem 0 0.9rem;
+    border-radius: 23px;
+    grid-auto-flow: row;
+    gap: 0.55rem;
+    justify-items: center;
+  }
+  .wall-btn-label {
+    writing-mode: vertical-rl;
+    /* Read bottom to top, the way a spine is. */
+    transform: rotate(180deg);
+    font-size: 0.74rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
 
   /* Fixed rather than absolute: the panel clips its overflow and the deck
      scrolls sideways, so the only way to be genuinely full screen is to leave
-     both behind. Above the story bar too -- this is the whole screen's job
-     while it is open. */
+     both behind. Under the story bar and its shade, which are later in the
+     page at the same level: it is a page of the story while it is open. */
   .gallery {
     position: fixed;
     inset: 0;
-    z-index: 10;
+    z-index: 5;
     background: var(--bg);
     display: flex;
     flex-direction: column;
@@ -255,16 +357,179 @@ const longStamp = (iso: string) =>
     transform: none;
     transition: opacity 0.26s ease, transform 0.26s ease, visibility 0s;
   }
-  .gallery-bar {
-    flex: none;
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    padding: calc(var(--safe-t) + 0.9rem) 1rem 0.9rem 1.15rem;
-    border-bottom: 1px solid var(--line);
+  /* The same pill as a time series page's title, in the same place. */
+  .gallery-title {
+    position: absolute;
+    z-index: 2;
+    top: calc(var(--safe-t) + 1.9rem);
+    left: 0.9rem;
+    margin: 0;
+    padding: 0.28em 0.75em;
+    border-radius: 999px;
+    background: rgba(13, 18, 16, 0.66);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    font-size: 0.9rem;
+    line-height: 1.2;
   }
-  .gallery-count { margin: 0.25rem 0 0; font-size: 0.85rem; color: var(--ink-dim); }
-  .gallery-close { margin-left: auto; }
+  .gallery-title b { font-weight: 600; }
+  .gallery-title span { color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+  /* ---- The player ---------------------------------------------------------
+     Over the list, the whole screen, each photograph whole rather than
+     cropped: they are the same view, and cropping them differently from the
+     list would make the timelapse jump. Two images, crossfaded. */
+  .player {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: var(--bg);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0s linear 0.3s;
+  }
+  .gallery[data-playing] .player {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 0.3s ease, visibility 0s;
+  }
+  /* Full width and centred, at its own shape, edge to edge with no
+     feathering: the photograph is the record, so all of it shows. */
+  .player-img {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 100%;
+    height: auto;
+    max-height: 100%;
+    object-fit: contain;
+    transform: translateY(-50%);
+    opacity: 0;
+    transition: opacity 0.55s ease;
+  }
+  /* The incoming photograph fades in over the outgoing one, which stays
+     fully in underneath: fading both at once would let the page show
+     through halfway, a dip to dark between every pair. */
+  .player-img.top { z-index: 1; }
+  .player-img.under { transition: none; }
+  /* Just under the photograph, whatever its shape: --ph is its drawn height,
+     set by the script once it has loaded. */
+  .scrub {
+    position: absolute;
+    z-index: 2;
+    left: 1.4rem;
+    right: 1.4rem;
+    /* Under the date, which is under the photograph. */
+    top: calc(50% + var(--ph, 75vw) / 2 + 3.4rem);
+  }
+  .scrub-bar {
+    padding: 0.7rem 0;
+    /* A drag along it is the scrubber's, not a swipe of anything else. */
+    touch-action: none;
+    cursor: pointer;
+    outline: none;
+  }
+  .scrub-track {
+    position: relative;
+    display: block;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.18);
+  }
+  .scrub-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: var(--pos, 0%);
+    border-radius: 2px;
+    background: var(--accent);
+  }
+  .scrub-tick {
+    position: absolute;
+    top: 50%;
+    width: 2px;
+    height: 8px;
+    margin: -4px 0 0 -1px;
+    border-radius: 1px;
+    background: rgba(255, 255, 255, 0.28);
+  }
+  .scrub-knob {
+    position: absolute;
+    top: 50%;
+    left: var(--pos, 0%);
+    width: 18px;
+    height: 18px;
+    margin: -9px 0 0 -9px;
+    border-radius: 50%;
+    background: var(--ink);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+  }
+  .scrub-bar:focus-visible .scrub-knob { box-shadow: 0 0 0 3px var(--accent); }
+  .scrub-ends {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.7rem;
+    color: var(--ink-dim);
+    font-variant-numeric: tabular-nums;
+  }
+  /* Dragging runs through them faster than a crossfade can keep up with. */
+  .gallery[data-scrubbing] .player-img { transition-duration: 0.12s; }
+
+  /* The foot's fade is for the list scrolling under it; the slideshow has
+     its own dark bands and no edge to hide. */
+  .gallery[data-playing]::after { display: none; }
+  /* The title's pill, centred just under the photograph. A fixed width, wide
+     enough for the longest date and count, so it does not change size -- and
+     jostle -- as the photographs go by. */
+  .player-date {
+    position: absolute;
+    z-index: 2;
+    left: 50%;
+    top: calc(50% + var(--ph, 75vw) / 2 + 0.9rem);
+    width: 15.5rem;
+    margin: 0 0 0 -7.75rem;
+    padding: 0.28em 0.75em;
+    border-radius: 999px;
+    background: rgba(13, 18, 16, 0.66);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    font-size: 0.9rem;
+    line-height: 1.2;
+    text-align: center;
+    white-space: nowrap;
+  }
+  /* Written by the script, so it carries no scope of its own. */
+  .player-date :global(span) {
+    margin-left: 0.5em;
+    color: var(--ink-dim);
+    font-variant-numeric: tabular-nums;
+  }
+  .gallery-play .icon-pause,
+  .gallery-play[aria-pressed='true'] .icon-play { display: none; }
+  .gallery-play[aria-pressed='true'] .icon-pause { display: block; }
+  .gallery-play[aria-pressed='true'] { border-color: var(--accent); color: var(--accent); }
+
+  /* Fixed to the screen, not the panel: the gallery has left the panel. */
+  .gallery-side { z-index: 2; bottom: calc(1rem + var(--foot)); }
+  /* The gallery sits over the deck's own fade at the foot, so it carries its
+     own, under its close button. */
+  .gallery::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: calc(var(--foot) + 8rem);
+    z-index: 1;
+    pointer-events: none;
+    background: linear-gradient(
+      to top,
+      rgb(13, 18, 16) 0,
+      rgba(13, 18, 16, 0.6) calc(var(--foot) + 1.8rem),
+      rgba(13, 18, 16, 0.22) calc(var(--foot) + 4.4rem),
+      rgba(13, 18, 16, 0) 100%
+    );
+  }
 
   .gallery-scroll {
     flex: 1;
@@ -273,7 +538,9 @@ const longStamp = (iso: string) =>
     /* Its own scroll, with nothing handed back to the deck behind it. */
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
-    padding: 1rem 1.15rem calc(2rem + var(--safe-b));
+    /* Clear of the pill at the top and the button at the foot at either end
+       of the scroll, and under both in between. */
+    padding: calc(var(--safe-t) + 4.4rem) 1.15rem calc(5rem + var(--foot));
     display: flex;
     flex-direction: column;
     gap: 1.6rem;
@@ -285,7 +552,8 @@ const longStamp = (iso: string) =>
     height: auto;
     border-radius: 12px;
     background: var(--bg-lift);
-    aspect-ratio: 4 / 3;
+    /* The shape the aligned set was exported at, so none of it is cropped. */
+    aspect-ratio: 6081 / 3969;
     object-fit: cover;
   }
   .shot figcaption {
@@ -321,8 +589,6 @@ const longStamp = (iso: string) =>
     font-variant-numeric: tabular-nums;
   }
 
-  /* The copy sits over the wall, with its own backing so it never has to
-     compete with whatever tile happens to be passing behind it. */
   /* Two ways onwards, the same size as each other: neither is the lesser
      offer. Stacked on a phone, where side by side would squeeze both labels
      onto two lines, and side by side once there is width for it. */
@@ -430,20 +696,16 @@ const longStamp = (iso: string) =>
   }
   .howto-close { width: 100%; justify-content: center; }
 
+  /* Straight on the shade, no card, set as the opening page's words are. */
   .closing-copy {
     position: relative;
     z-index: 1;
+    width: 100%;
     max-width: 30rem;
-    padding: 1.4rem 1.3rem 1.5rem;
-    border-radius: 18px;
-    background: rgba(9, 14, 12, 0.72);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
   }
-  .closing-copy h2 { font-size: clamp(1.7rem, 7.5vw, 2.3rem); line-height: 1.12; margin: 0.45rem 0 1rem; }
-  .closing-copy p { margin: 0 0 1rem; font-size: 1rem; line-height: 1.55; }
-  .closing-dim { color: var(--ink-dim); font-size: 0.92rem; }
+  .closing-copy h2 { font-size: clamp(2.1rem, 8.5vw, 3rem); line-height: 1.08; margin: 0.4rem 0 0.8rem; }
+  .closing-copy p { margin: 0 0 1rem; font-size: 1.02rem; line-height: 1.55; }
+  .closing-dim { color: var(--ink-dim); font-size: 0.9rem; }
   /* No margin of its own: it used to be the only thing under the paragraph and
      wanted a little air, but it now shares a row that carries the spacing --
      and a margin on one of two pills is what makes them look different heights.
@@ -479,16 +741,167 @@ const longStamp = (iso: string) =>
       void gallery.offsetWidth;
       close.focus();
     };
-    const shut = () => {
+    // ---- The player ------------------------------------------------------
+    // Runs through the photographs oldest to newest, each held for a moment
+    // and crossfaded into the next. Stops on the newest; play again starts
+    // from the oldest. Paused by the same button.
+    const shots: { src: string; date: string; short: string }[] = JSON.parse(gallery.dataset.shots ?? '[]');
+    const player = document.getElementById('player')!;
+    const scrubBar = document.getElementById('scrub-bar');
+    const playBtn = document.getElementById('gallery-play') as HTMLButtonElement | null;
+    const imgs = Array.from(gallery.querySelectorAll<HTMLImageElement>('.player-img'));
+    const dateOut = document.getElementById('player-date')!;
+    const HOLD = 1400; // ms on each photograph, from when it is fully in
+    let at = -1; // which photograph is showing
+    let front = 0; // which of the two images it is in
+    let playing = false;
+    let run = 0; // bumped on every start and stop, so a stale step bows out
+    let timer: number | undefined;
+    const active = () => gallery.hasAttribute('data-playing');
+
+    const setPlaying = (on: boolean) => {
+      playing = on;
+      playBtn?.setAttribute('aria-pressed', String(on));
+      playBtn?.setAttribute('aria-label', on ? 'Pause' : 'Play the photographs in order');
+    };
+    // Loaded and decoded before it is faded in, so a slow photograph holds the
+    // last one rather than fading to nothing.
+    const show = async (i: number, mine: number) => {
+      const back = imgs[1 - front];
+      back.src = shots[i].src;
+      try { await back.decode(); } catch {}
+      if (mine !== run) return false;
+      const was = imgs[front];
+      // The old one drops under without a fade of its own; the new one fades
+      // in on top, and only once it is fully in is the old one let go.
+      was.classList.remove('top');
+      back.classList.remove('under');
+      back.classList.add('top');
+      back.style.opacity = '1';
+      window.setTimeout(() => {
+        if (was !== back && !was.classList.contains('top')) {
+          was.classList.add('under');
+          was.style.opacity = '0';
+        }
+      }, 600);
+      front = 1 - front;
+      at = i;
+      // The scrubber follows, and sits just under the photograph's drawn
+      // height -- which is its width times its shape, whatever that is.
+      const pc = shots.length > 1 ? (i / (shots.length - 1)) * 100 : 0;
+      scrubBar?.style.setProperty('--pos', `${pc}%`);
+      scrubBar?.setAttribute('aria-valuenow', String(i + 1));
+      scrubBar?.setAttribute('aria-valuetext', shots[i].date);
+      placeScrub(back);
+      dateOut.innerHTML = `${shots[i].date}<span>${i + 1} / ${shots.length}</span>`;
+      // The next one fetched while this one is looked at.
+      if (shots[i + 1]) new Image().src = shots[i + 1].src;
+      return true;
+    };
+    const placeScrub = (img: HTMLImageElement) => {
+      if (!img.naturalWidth) return;
+      const h = Math.min(player.clientHeight, (player.clientWidth * img.naturalHeight) / img.naturalWidth);
+      player.style.setProperty('--ph', `${h}px`);
+    };
+    addEventListener('resize', () => placeScrub(imgs[front]), { passive: true });
+    const step = async (mine: number) => {
+      if (mine !== run || !playing) return;
+      if (at + 1 >= shots.length) { setPlaying(false); return; }
+      if (!(await show(at + 1, mine))) return;
+      timer = window.setTimeout(() => step(mine), HOLD);
+    };
+    const play = () => {
+      clearTimeout(timer);
+      const mine = ++run;
+      // From the top when it is not already up, or has run to the end.
+      if (!active() || at >= shots.length - 1) {
+        at = -1;
+        for (const img of imgs) { img.classList.remove('top'); img.classList.add('under'); img.style.opacity = '0'; }
+        gallery.setAttribute('data-playing', '');
+      }
+      setPlaying(true);
+      step(mine);
+    };
+    const pause = () => {
+      run++;
+      clearTimeout(timer);
+      setPlaying(false);
+    };
+    const stopPlayer = () => {
+      pause();
+      gallery.removeAttribute('data-playing');
+      at = -1;
+    };
+    playBtn?.addEventListener('click', () => (playing ? pause() : play()));
+
+    // ---- The scrubber ----------------------------------------------------
+    // Takes over from the player: a touch pauses it, and dragging shows the
+    // photograph under the finger. Play carries on from wherever it is left.
+    if (scrubBar) {
+      const track = scrubBar.querySelector<HTMLElement>('.scrub-track')!;
+      let dragging = false;
+      const indexAt = (x: number) => {
+        const r = track.getBoundingClientRect();
+        const f = Math.min(1, Math.max(0, (x - r.left) / r.width));
+        return Math.round(f * (shots.length - 1));
+      };
+      const goTo = (i: number) => {
+        if (i === at) return;
+        show(i, ++run);
+      };
+      scrubBar.addEventListener('pointerdown', (e) => {
+        dragging = true;
+        pause();
+        gallery.setAttribute('data-scrubbing', '');
+        scrubBar.setPointerCapture(e.pointerId);
+        goTo(indexAt(e.clientX));
+      });
+      scrubBar.addEventListener('pointermove', (e) => {
+        if (dragging) goTo(indexAt(e.clientX));
+      });
+      const letGo = () => {
+        dragging = false;
+        gallery.removeAttribute('data-scrubbing');
+      };
+      scrubBar.addEventListener('pointerup', letGo);
+      scrubBar.addEventListener('pointercancel', letGo);
+      scrubBar.addEventListener('keydown', (e) => {
+        const to = { ArrowRight: at + 1, ArrowUp: at + 1, ArrowLeft: at - 1, ArrowDown: at - 1, Home: 0, End: shots.length - 1 }[e.key];
+        if (to === undefined) return;
+        e.preventDefault();
+        pause();
+        goTo(Math.min(shots.length - 1, Math.max(0, to)));
+      });
+    }
+
+    const shut = (refocus = true) => {
+      stopPlayer();
       gallery.classList.remove('on');
       btn.setAttribute('aria-pressed', 'false');
-      btn.focus();
+      if (refocus) btn.focus();
     };
+    // The story bar stays over the gallery and still moves the deck, so going
+    // to another page by it closes the gallery rather than leaving it laid
+    // over that page.
+    const panel = document.getElementById('onward');
+    if (panel) {
+      new IntersectionObserver((e) => {
+        if (!e[0].isIntersecting && isOpen()) shut(false);
+      }, { threshold: 0.4 }).observe(panel);
+    }
 
     btn.addEventListener('click', open);
-    close.addEventListener('click', shut);
+    // Back steps out of the player first, then out of the gallery.
+    const back = () => (active() ? stopPlayer() : shut());
+    // Home closes the gallery on the way, rather than leaving it laid over
+    // the view.
+    document.getElementById('gallery-home')?.addEventListener('click', () => {
+      shut(false);
+      document.getElementById('view')?.scrollIntoView({ behavior: 'smooth' });
+    });
+    close.addEventListener('click', back);
     addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && isOpen()) shut();
+      if (e.key === 'Escape' && isOpen()) back();
     });
   }
 
