@@ -5,8 +5,6 @@ interface Props {
   prompt: string;
   shareTo: string;
   title: string;
-  /** The Bear's line. Not shown for now -- see TimeSeries -- but kept. */
-  rail?: { title: string; body: string };
   prev?: string;
   next?: string;
 }
@@ -74,7 +72,7 @@ const { prompt, shareTo, title, prev, next } = Astro.props;
       <button class="chip cap-caption" id="cap-caption" type="button">Add caption</button>
     </div>
 
-    <AnimalButton animal="bear" />
+    <AnimalButton animal="raven" />
 
     <!-- The page's controls, in a column in the far corner as on the time
          series: back, then on. The bottom one is whichever the page is asking
@@ -252,7 +250,7 @@ const { prompt, shareTo, title, prev, next } = Astro.props;
   .cap-actions {
     position: absolute;
     z-index: 4;
-    /* Between the Bear's pill in the near corner and the column in the far. */
+    /* Between the Raven's pill in the near corner and the column in the far. */
     left: calc(0.9rem + 46px + 0.6rem);
     right: calc(0.9rem + 46px + 0.6rem);
     bottom: calc(1rem + var(--nav-safe, 0px));

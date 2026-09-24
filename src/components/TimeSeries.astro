@@ -12,7 +12,7 @@ interface Props {
   ext?: string;
   years?: number[];
   video?: {
-    src: string; poster?: string; base?: string; from: number; to: number;
+    src: string; hevc?: string; poster?: string; base?: string; overlay?: string; from: number; to: number;
     burnedIn?: boolean; duration?: number; speed?: number;
     changes?: [number, number];
   };
@@ -24,7 +24,7 @@ interface Props {
   callouts?: {
     year: number; x: number; y: number; title: string; body?: string;
     hold: number; messageHold?: number; dimHold?: number; pause: number; endPause: number;
-    markerType: 'circle' | 'box'; sizeX: number; sizeY: number;
+    markerType: 'circle' | 'box' | 'none'; sizeX: number; sizeY: number;
     place: 'above' | 'below';
   }[];
   /** The panel's own anchor: one page per playthrough, so each needs its own. */
@@ -74,6 +74,11 @@ const under = video ? video.base ?? video.poster : undefined;
         {video.base && (
           <img class="ts-frame ts-under" src={asset(video.base)} alt="" aria-hidden="true" decoding="async" />
         )}
+        <!-- Over the satellite, under the land cover: a layer the clip already
+             carries, so it is still there with the land cover faded out. -->
+        {video.base && video.overlay && (
+          <img class="ts-frame ts-under" src={asset(video.overlay)} alt="" aria-hidden="true" decoding="async" />
+        )}
         <!-- The land cover: the clip, over its own first frame. The frame is
              there so a page whose clip is still loading shows the landscape
              rather than a black box -- or the satellite, since Safari drops a
@@ -89,16 +94,20 @@ const under = video ? video.base ?? video.poster : undefined;
         <!-- playsinline and muted are both required or iOS takes the video
              fullscreen instead of playing it in the panel. -->
         <video
-          src={asset(video.src)}
           poster={video.poster ? asset(video.poster) : undefined}
           class="ts-frame ts-video"
           playsinline
           muted
           loop
-          preload={run && run.at > 1 ? 'metadata' : 'auto'}
+          preload="none"
+          data-preload={run && run.at > 1 ? 'metadata' : 'auto'}
           disablepictureinpicture
           aria-label={caption}
-        ></video>
+        >
+          <!-- HEVC first: the browser takes the first it can play. -->
+          {video.hevc && <source src={asset(video.hevc)} type='video/mp4; codecs="hvc1"' />}
+          <source src={asset(video.src)} type="video/mp4" />
+        </video>
         </div>
         <!-- Always present, even with no callouts: it is the layer the
              authoring ring is placed in, and placing the first one is exactly
@@ -529,6 +538,10 @@ const under = video ? video.base ?? video.poster : undefined;
      raster reads as a UI element sitting on the picture rather than as
      something marked on it. Scaled off the shorter side so a long thin
      rectangle does not end up with corners bigger than its own height. */
+  /* None: the words alone -- no ring, and no year badge on a ring that is
+     not there. */
+  .pin[data-type='none'] .pin-ring,
+  .pin[data-type='none'] .pin-year { display: none; }
   .pin[data-type='box'] .pin-ring {
     border-radius: calc(min(var(--w, 40px), var(--h, 40px)) * 0.16);
   }
@@ -1303,6 +1316,8 @@ const under = video ? video.base ?? video.poster : undefined;
       const FEATHER = 26; // px of soft edge around the hole
       const aimSpot = (pin: HTMLElement | null) => {
         if (!spot) return;
+        // Nothing marked, so nothing to pick out: no dim.
+        if (pin?.dataset.type === 'none') pin = null;
         const layer = pinLayer?.getBoundingClientRect();
         if (pin && layer) {
           // The hole, in the picture's own pixels.

@@ -127,7 +127,7 @@ const locations = defineCollection({
           /** The animal's picture, under public/ -- the hero of its page. */
           image: z.string().optional(),
         })
-          .default({ title: 'The Raven', body: 'Learn through curiosity like the Raven. Explore how the landscapes has changed over the past 40 years.' }),
+          .default({ title: 'The Raven', body: 'The Raven moves freely through time and space, and teaches through the stories it tells. Travel through forty years of change like the Raven, then become it: photograph this place and tell us its story.' }),
         /** What the colours in the export mean. Drawn as a swatch and a label
          *  per entry, in a row under the video that wraps when it runs out of
          *  width. The export usually burns in its own legend at a size nobody
@@ -193,8 +193,10 @@ const locations = defineCollection({
               place: z.enum(['above', 'below']).default('below'),
               /** The shape drawn on the frame. A box is a rectangle with its
                *  corners taken off -- for a cutblock, a subdivision, anything
-               *  whose edges are straight and worth showing as straight. */
-              markerType: z.enum(['circle', 'box']).default('circle'),
+               *  whose edges are straight and worth showing as straight. None
+               *  draws nothing and dims nothing: the words alone, placed at x/y
+               *  -- for saying something about the whole picture. */
+              markerType: z.enum(['circle', 'box', 'none']).default('circle'),
               /** How wide and how tall it is drawn, each as a fraction of the
                *  frame's WIDTH -- both of them, so that equal values are equal
                *  on screen: a circle or a square, whatever shape the frame is.
@@ -233,12 +235,24 @@ const locations = defineCollection({
         /** Video form. `from`/`to` map clip position onto the year readout. */
         video: z
           .object({
+            /** H.264: plays everywhere. */
             src: z.string(),
+            /** The same clip in HEVC, offered first. It is far smaller at full
+             *  quality -- what matters where reception is poor -- and every
+             *  browser that can play it takes it, the rest take `src`. Made
+             *  with tools/encode-walkthrough.sh. */
+            hevc: z.string().optional(),
             poster: z.string().optional(),
             /** The satellite picture from the same camera and crop, laid under
              *  the clip. The reader fades the land cover down to it from the
              *  panel's settings; without one, there is no fade to offer. */
             base: z.string().optional(),
+            /** Laid over the satellite and under the clip -- a layer that is
+             *  already in the clip (the wildlife corridors, say), picture
+             *  only, transparent elsewhere, from the same camera and crop. So
+             *  it stays in view as the land cover is faded down to the
+             *  satellite. Only with a `base`. */
+            overlay: z.string().optional(),
             from: z.number(),
             to: z.number(),
             /** True when the export already burns in its own year and legend,
@@ -287,17 +301,6 @@ const locations = defineCollection({
     capture: z.object({
       prompt: z.string(),
       shareTo: z.string(),
-      /** The line under the panel: whose way of looking this is, and what to
-       *  do with it. Defaulted to the house copy, so a location only says it
-       *  when it wants to say something else. */
-      rail: z
-        .object({
-          title: z.string(),
-          body: z.string(),
-          /** The animal's picture, under public/ -- the hero of its page. */
-          image: z.string().optional(),
-        })
-        .default({ title: 'The Bear', body: 'Explore the landscape like the Bear. Share what you find and help tell the story of the changing landscape around us.' }),
     }),
     /** The last panel: what to take away from here. Not tied to a section of
      *  the post, because it is about the ones you have not visited yet. */
@@ -308,7 +311,7 @@ const locations = defineCollection({
         body: z.string(),
         /** The quieter second paragraph. */
         note: z.string(),
-        /** The label on the link back to the index. */
+        /** The label on the button that opens the map. */
         action: z.string(),
         /** The label on the button that offers to install the app. */
         install: z.string().default('Add to home'),
@@ -316,9 +319,9 @@ const locations = defineCollection({
       .default({
         eyebrow: 'Keep going',
         title: 'Take this with you',
-        body: 'The Bear does not stop at one clearing. What you just did here — stand still, look properly, notice what has changed, say what you saw — works anywhere in the Sea-to-Sky.',
+        body: 'What you just did here — stand still, look properly, notice what has changed, tell its story — works anywhere in the Sea-to-Sky.',
         note: 'There are posts like this one across the region, each with its own QR code and its own view. Every photograph and every story sent from them joins the same record, so the landscape gets told by the people who walk it rather than by the satellites alone.',
-        action: 'Find another post',
+        action: 'Explore the map',
         install: 'Add to home',
       }),
     /** Repeat photographs from this same post, drifting behind the closing
@@ -340,4 +343,85 @@ const locations = defineCollection({
   }),
 });
 
-export const collections = { locations };
+/** The Bear's map of the corridor (src/pages/map.astro): one file, so the
+ *  layers and every callout are edited in one place. */
+const lngLat = z.tuple([z.number().min(-180).max(180), z.number().min(-90).max(90)]);
+const map = defineCollection({
+  loader: glob({ pattern: '**/*.md', base: './src/content/map' }),
+  schema: z.object({
+    title: z.string(),
+    /** South-west and north-east corners of the view the map opens on. */
+    bounds: z.tuple([lngLat, lngLat]),
+    /** The map's area: the box the basemap was cut to
+     *  (tools/extract-basemap.sh). The map draws its edge along this and
+     *  pans a little way past it. */
+    limit: z.tuple([lngLat, lngLat]),
+    /** Degrees east of true north that a magnetic compass reads here. Only
+     *  used where the phone reports a magnetic heading (Android) rather than a
+     *  true one (iOS) -- for the cone showing which way you face. */
+    declination: z.number().default(16),
+    /** The Bear's page, opened from the pill as on the story pages. */
+    bear: z.object({
+      title: z.string(),
+      body: z.string(),
+      image: z.string().optional(),
+    }),
+    /** Map-portal layers, each a PMTiles file from tools/prepare-layer.sh,
+     *  listed in the order they stack (the last is on top). */
+    layers: z
+      .array(
+        z.object({
+          id: z.string().regex(/^[a-z0-9-]+$/),
+          name: z.string(),
+          /** Under public/. */
+          src: z.string(),
+          /** Who the data is from, shown under the layer's name. */
+          source: z.string().optional(),
+          opacity: z.number().min(0).max(1).default(0.8),
+          /** Shown when the map opens. */
+          on: z.boolean().default(false),
+          /** Nearest keeps classes crisp when the map is zoomed past the
+           *  data's own pixels; linear suits continuous surfaces. */
+          resampling: z.enum(['nearest', 'linear']).default('nearest'),
+          legend: z.array(z.object({ colour: z.string(), label: z.string() })).optional(),
+          /** One plain line in the map's legend saying what the layer is,
+           *  shown while it is on. */
+          about: z.string().optional(),
+          /** For when you are standing in this layer -- any painted pixel
+           *  under you. A tag by your dot on the map says `label`; tapped, it
+           *  opens a card headed "You're in <what>" -- joined with "and" when
+           *  you are in more than one -- over a pill per layer and its `body`.
+           *  Leave it out and the layer is never asked. */
+          here: z
+            .object({
+              label: z.string(),
+              /** The layer as a phrase, article and all: "a habitat core". */
+              what: z.string(),
+              body: z.string(),
+              /** "Things to look for": short things a person standing there
+               *  could actually notice. A bullet each. */
+              look: z.array(z.string()).optional(),
+            })
+            .optional(),
+        }),
+      )
+      .default([]),
+    /** Things to notice on the ground, each a pin. */
+    callouts: z
+      .array(
+        z.object({
+          title: z.string(),
+          lat: z.number(),
+          lng: z.number(),
+          body: z.string(),
+          /** Under public/. */
+          image: z.string().optional(),
+          /** A layer id: the pin only shows while that layer is on. */
+          layer: z.string().optional(),
+        }),
+      )
+      .default([]),
+  }),
+});
+
+export const collections = { locations, map };

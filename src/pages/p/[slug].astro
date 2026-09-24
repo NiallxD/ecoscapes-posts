@@ -61,7 +61,6 @@ const coords = `${Math.abs(data.lat).toFixed(2)}°${data.lat >= 0 ? 'N' : 'S'} $
       prompt={data.capture.prompt}
       shareTo={data.capture.shareTo}
       title={data.title}
-      rail={data.capture.rail}
       prev={`#${runIds.at(-1)}`}
       next="#onward"
     />
@@ -87,11 +86,12 @@ const coords = `${Math.abs(data.lat).toFixed(2)}°${data.lat >= 0 ? 'N' : 'S'} $
     <a href="#onward" data-for="onward"><i></i><span class="sr">Take this with you</span></a>
   </nav>
 
-  <!-- The three ways of looking, each a page of its own opened from the pill
-       in the near corner of the pages that go with it. -->
+  <!-- The ways of looking, each a page of its own opened from the pill in the
+       near corner of the pages that go with it. The Raven carries on from the
+       series to the end: having travelled forty years here, you become it and
+       tell the story. The Bear is the map's (src/pages/map.astro). -->
   <Animal animal="eagle" {...data.pano.rail} />
   <Animal animal="raven" {...data.series.rail} />
-  <Animal animal="bear" {...data.capture.rail} />
 </Shell>
 
 <style>
@@ -357,14 +357,59 @@ const coords = `${Math.abs(data.lat).toFixed(2)}°${data.lat >= 0 ? 'N' : 'S'} $
   //
   // It costs a few MB per location. That is paid for once: the worker skips
   // anything already in the cache, so a return visit fetches nothing.
+  // The clips ask for nothing until the panorama has its picture; then the
+  // first is loaded whole, so it is ready when it is swiped to. Only ever
+  // upward from nothing: a clip the series has already asked more of (the
+  // next playthrough, set to auto when the one before comes into view) keeps
+  // what it was given.
+  const preloadClips = () =>
+    document.querySelectorAll<HTMLVideoElement>('video[data-preload]').forEach((v) => {
+      if (v.preload === 'none') v.preload = v.dataset.preload as 'auto' | 'metadata';
+    });
+  if ((window as any).__panoSettled) preloadClips();
+  else document.addEventListener('pano:settled', preloadClips, { once: true });
+
   const stage = document.querySelector<HTMLElement>('[data-assets]');
   if (stage?.dataset.assets && 'serviceWorker' in navigator) {
-    const assets: string[] = JSON.parse(stage.dataset.assets);
-    // After load and then only when the main thread is free: this is a
-    // background convenience and must never compete with the panorama, the
-    // video or the first paint for bandwidth.
+    const all: string[] = JSON.parse(stage.dataset.assets);
+    const path = (u: string) => new URL(u, location.href).pathname;
+
+    /** Of a clip's two encodes, the one this browser actually plays -- known
+     *  for certain only once it has loaded or failed one, since a browser can
+     *  say it might play HEVC and then not manage it. Waits for that, up to a
+     *  point, then falls back to asking. */
+    const chosen = (v: HTMLVideoElement) =>
+      new Promise<string | null>((resolve) => {
+        const sources = [...v.querySelectorAll('source')];
+        const settle = () => {
+          clearTimeout(timer);
+          v.removeEventListener('loadedmetadata', settle);
+          if (v.currentSrc && !v.error) return resolve(path(v.currentSrc));
+          const guess = sources.find((s) => v.canPlayType(s.type) === 'probably') ?? sources.find((s) => v.canPlayType(s.type) !== '');
+          resolve(guess ? path(guess.src) : null);
+        };
+        if (v.readyState >= 1) return settle();
+        v.addEventListener('loadedmetadata', settle);
+        const timer = setTimeout(settle, 20000);
+      });
+
+    // After the panorama has its picture, and then only when the main thread
+    // is free: a background convenience that must never compete with the
+    // panorama or the first paint for bandwidth. The worker shares one
+    // download between this and the clip's own playback, so nothing is
+    // fetched twice.
     const prefetch = async () => {
       try {
+        const unplayed = new Set<string>();
+        await Promise.all(
+          [...document.querySelectorAll<HTMLVideoElement>('video')].map(async (v) => {
+            const sources = [...v.querySelectorAll('source')].map((s) => path(s.src));
+            if (sources.length < 2) return;
+            const pick = await chosen(v);
+            for (const s of sources) if (s !== pick) unplayed.add(s);
+          }),
+        );
+        const assets = all.filter((u) => !unplayed.has(path(u)));
         const reg = await navigator.serviceWorker.ready;
         reg.active?.postMessage({ type: 'cache-location', assets, page: location.pathname });
       } catch {
@@ -376,7 +421,7 @@ const coords = `${Math.abs(data.lat).toFixed(2)}°${data.lat >= 0 ? 'N' : 'S'} $
       'requestIdleCallback' in window
         ? (window as any).requestIdleCallback(prefetch, { timeout: 5000 })
         : setTimeout(prefetch, 1200);
-    if (document.readyState === 'complete') idle();
-    else addEventListener('load', idle, { once: true });
+    if ((window as any).__panoSettled) idle();
+    else document.addEventListener('pano:settled', idle, { once: true });
   }
 </script>

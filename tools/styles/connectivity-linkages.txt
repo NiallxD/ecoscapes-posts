@@ -1,0 +1,15 @@
+# Connectivity Linkages, classed as the EcoScapes Felt map classes it: four
+# Jenks natural breaks over 0-1 (Felt's own stats for this raster), in its
+# lavender-to-plum ramp. Each class is a flat step -- the same colour at both
+# ends of its range -- so gdaldem color-relief classes rather than blends.
+# Used by: tools/prepare-layer.sh <tif> connectivity-linkages near tools/styles/connectivity-linkages.txt
+# value  R   G   B   A
+nv       0   0   0   0
+0        215 210 228 255
+0.4076   215 210 228 255
+0.40761  177 170 199 255
+0.6391   177 170 199 255
+0.63911  143 133 169 255
+0.813    143 133 169 255
+0.81301  111 101 137 255
+1.0001   111 101 137 255

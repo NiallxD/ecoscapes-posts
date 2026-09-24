@@ -22,3 +22,6 @@ pnpm-debug.log*
 
 # jetbrains setting folder
 .idea/
+
+# TerrAdapt login kept by tools/capture-terradapt.mjs --login
+tools/.terradapt-auth.json

@@ -477,6 +477,18 @@ const hasIntro = Astro.slots.has('intro');
 </style>
 
 <script>
+  import { headingOf as compassHeading, requestCompass } from '../lib/compass';
+
+  // Everything else on the page -- the clip, the offline copy of the post --
+  // waits for this: the panorama is the first thing seen and was losing the
+  // race for bandwidth, sometimes past its 15-second limit. Once, whether the
+  // sphere drew, failed or timed out.
+  const settled = () => {
+    if ((window as any).__panoSettled) return;
+    (window as any).__panoSettled = true;
+    document.dispatchEvent(new CustomEvent('pano:settled'));
+  };
+
   const mount = document.getElementById('psv') as HTMLElement | null;
   if (mount) {
     const loading = document.getElementById('pano-loading')!;
@@ -539,7 +551,7 @@ const hasIntro = Astro.slots.has('intro');
 
       // The cover lifts once the sphere is drawn -- or failed, since a cover
       // that never lifts hides the words and every way onwards with it.
-      const reveal = () => { loading.hidden = true; };
+      const reveal = () => { loading.hidden = true; settled(); };
       viewer.addEventListener('ready', reveal, { once: true });
       viewer.addEventListener('panorama-error', reveal, { once: true });
       const bar = loading.querySelector<HTMLElement>('.pano-loading-bar');
@@ -825,17 +837,8 @@ const hasIntro = Astro.slots.has('intro');
       // and tracking relatively afterwards works the same on both, and does not
       // hand a wandering compass a say in every frame.
       const declination = Number(mount.dataset.dec) || 0;
-      const headingOf = (e: any): number | null => {
-        // iOS: degrees clockwise from true north, already what we want.
-        const ios = e?.webkitCompassHeading;
-        if (typeof ios === 'number' && !Number.isNaN(ios)) return ios;
-        // Android's absolute orientation: alpha counts anticlockwise from
-        // magnetic north, so it is turned round and pulled onto true north.
-        if (e?.absolute && typeof e.alpha === 'number' && !Number.isNaN(e.alpha)) {
-          return (((360 - e.alpha + declination) % 360) + 360) % 360;
-        }
-        return null;
-      };
+      // Shared with the map (src/lib/compass.ts).
+      const headingOf = (e: any) => compassHeading(e, declination);
 
       /** The phone's heading, or null if nothing usable turns up promptly. */
       const compass = () =>
@@ -898,18 +901,10 @@ const hasIntro = Astro.slots.has('intro');
       gyroBtn.addEventListener('click', async () => {
         if (on) { gyro.stop(); setState(false); return; }
 
-        if (typeof DOE.requestPermission === 'function') {
-          try {
-            if ((await DOE.requestPermission()) !== 'granted') {
-              setState(false, 'Motion blocked');
-              gyroBtn.disabled = true;
-              return;
-            }
-          } catch {
-            setState(false, 'Motion blocked');
-            gyroBtn.disabled = true;
-            return;
-          }
+        if (!(await requestCompass())) {
+          setState(false, 'Motion blocked');
+          gyroBtn.disabled = true;
+          return;
         }
 
         // Line the sphere up with the landscape in front of the phone before
@@ -938,10 +933,16 @@ const hasIntro = Astro.slots.has('intro');
 
     // A viewer that never boots (its script failed to arrive) must not leave
     // the cover up for good either.
-    setTimeout(() => { loading.hidden = true; }, 15000);
+    setTimeout(() => { loading.hidden = true; settled(); }, 15000);
 
+    let firstLook = true;
     const io = new IntersectionObserver((entries) => {
-      if (entries.some((e) => e.isIntersecting)) { io.disconnect(); boot(); }
+      if (entries.some((e) => e.isIntersecting)) { io.disconnect(); boot(); return; }
+      // Opened somewhere else -- a reload that kept its place, a link to a
+      // later panel: the sphere is not what is being waited for, so the rest
+      // of the page (the clips, the offline copy) need not wait for it.
+      if (firstLook) settled();
+      firstLook = false;
     }, { rootMargin: '200px' });
     io.observe(mount);
   }

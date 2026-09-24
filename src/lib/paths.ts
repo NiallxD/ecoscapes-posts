@@ -8,7 +8,7 @@ type SeriesData = {
   dir?: string;
   ext: string;
   years?: number[];
-  video?: { src: string; poster?: string; base?: string };
+  video?: { src: string; hevc?: string; poster?: string; base?: string; overlay?: string };
 };
 
 type WallData = { dir: string; full?: string; ext: string; dates: string[] };
@@ -34,9 +34,13 @@ export const locationAssets = (loc: {
   const urls = [asset(pano.src)];
   if (pano.card) urls.push(asset(pano.card));
   if (series.video) {
+    // Both encodes are listed; the page drops whichever its browser will not
+    // play before asking for the offline copy, so only one is ever fetched.
     urls.push(asset(series.video.src));
+    if (series.video.hevc) urls.push(asset(series.video.hevc));
     if (series.video.poster) urls.push(asset(series.video.poster));
     if (series.video.base) urls.push(asset(series.video.base));
+    if (series.video.overlay) urls.push(asset(series.video.overlay));
   } else if (series.dir && series.years) {
     urls.push(...series.years.map((y) => asset(`${series.dir}/${y}.${series.ext}`)));
   }

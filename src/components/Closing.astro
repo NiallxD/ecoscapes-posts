@@ -68,7 +68,7 @@ const playlist = [...tiles]
              rules -- the engine's, not this sheet's -- and two pills side by
              side at different heights is the one thing this row must not do.
              The address it goes to still lives in the markup. -->
-        <button class="chip closing-more" id="closing-more" type="button" data-href={asset('/')}>
+        <button class="chip closing-more" id="closing-more" type="button" data-href={asset('/map/')}>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
             <path d="M12 21s7-5.6 7-11a7 7 0 10-14 0c0 5.4 7 11 7 11z" /><circle cx="12" cy="10" r="2.5" />
           </svg>
@@ -105,7 +105,7 @@ const playlist = [...tiles]
       </div>
     </div>
 
-    <AnimalButton animal="bear" />
+    <AnimalButton animal="raven" />
 
     <!-- The page's controls, in a column in the far corner as on every other
          page: the photographs, then back to the camera. Nothing onwards --
@@ -180,14 +180,11 @@ const playlist = [...tiles]
           </div>
         </div>
       </div>
-      <AnimalButton animal="bear" />
+      <AnimalButton animal="raven" />
       <div class="closing-side gallery-side">
         <button class="step gallery-play" id="gallery-play" type="button" aria-label="Play the photographs in order" aria-pressed="false">
           <svg class="icon-play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.2v13.6a.8.8 0 001.2.7l10.6-6.8a.8.8 0 000-1.4L9.2 4.5a.8.8 0 00-1.2.7z" /></svg>
           <svg class="icon-pause" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6.5" y="5" width="3.8" height="14" rx="1" /><rect x="13.7" y="5" width="3.8" height="14" rx="1" /></svg>
-        </button>
-        <button class="step" id="gallery-home" type="button" aria-label="Back to the start">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5L12 4l8 6.5V19a1 1 0 01-1 1h-4.5v-5.5h-5V20H5a1 1 0 01-1-1z" /></svg>
         </button>
         <button class="step gallery-close" id="gallery-close" type="button" aria-label="Back">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
@@ -196,8 +193,12 @@ const playlist = [...tiles]
       <div class="gallery-scroll" id="gallery-scroll">
         {tiles.map((tile, i) => (
           <figure class="shot">
+            <!-- The address waits in data-src until the gallery is first
+                 opened: hidden by visibility, it is still laid out, and the
+                 browser counted every photograph as near enough to fetch --
+                 on page load, alongside the panorama. -->
             <img
-              src={asset(tile.full)}
+              data-src={asset(tile.full)}
               alt={`This view on ${longStamp(tile.date)}`}
               loading={i < 2 ? 'eager' : 'lazy'}
               decoding="async"
@@ -728,6 +729,10 @@ const playlist = [...tiles]
     const isOpen = () => gallery.classList.contains('on');
 
     const open = () => {
+      gallery.querySelectorAll<HTMLImageElement>('img[data-src]').forEach((img) => {
+        img.src = img.dataset.src!;
+        img.removeAttribute('data-src');
+      });
       // Always from the beginning: it is a sequence, and dropping someone
       // wherever they last left off loses the point of it being in order. Set
       // before it is shown, so the jump to the top is never seen.
@@ -893,19 +898,13 @@ const playlist = [...tiles]
     btn.addEventListener('click', open);
     // Back steps out of the player first, then out of the gallery.
     const back = () => (active() ? stopPlayer() : shut());
-    // Home closes the gallery on the way, rather than leaving it laid over
-    // the view.
-    document.getElementById('gallery-home')?.addEventListener('click', () => {
-      shut(false);
-      document.getElementById('view')?.scrollIntoView({ behavior: 'smooth' });
-    });
     close.addEventListener('click', back);
     addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && isOpen()) back();
     });
   }
 
-  // The index, reached by hand now that this is a button.
+  // The map of the corridor, reached by hand now that this is a button.
   const more = document.getElementById('closing-more') as HTMLButtonElement | null;
   more?.addEventListener('click', () => {
     const to = more.dataset.href;

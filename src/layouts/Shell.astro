@@ -45,6 +45,13 @@ const { title, description = 'Scan the post. See the place, then see it change.'
       // through an HTTPS tunnel, which is a secure context, so this cannot be
       // left to the localhost check alone. Offline behaviour is tested against
       // `npm run preview`.
+      // And in dev, clear out any worker a built copy left on this address --
+      // `npm run preview` on the same port, say. It would go on serving its
+      // cached media over the files being edited.
+      if (import.meta.env.DEV && 'serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then((regs) => regs.forEach((r) => r.unregister()));
+        caches?.keys().then((keys) => keys.forEach((k) => caches.delete(k)));
+      }
       if (!import.meta.env.DEV && 'serviceWorker' in navigator) {
         const base = import.meta.env.BASE_URL;
         addEventListener('load', async () => {

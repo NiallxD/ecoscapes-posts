@@ -49,26 +49,34 @@ export default function swVersion() {
           return;
         }
 
-        const files = (await walk(path.join(outDir, 'media'))).sort();
-        const hash = createHash('sha256');
-        for (const file of files) {
-          // The path as well as the bytes, so a rename alone still counts.
-          hash.update(path.relative(outDir, file));
-          hash.update(await readFile(file));
-        }
-        const version = `v${hash.digest('hex').slice(0, 12)}`;
+        /** A hash of every file under a directory: paths as well as bytes, so
+         *  a rename alone still counts. */
+        const digest = async (sub) => {
+          const files = (await walk(path.join(outDir, sub))).sort();
+          const hash = createHash('sha256');
+          for (const file of files) {
+            hash.update(path.relative(outDir, file));
+            hash.update(await readFile(file));
+          }
+          return { files, hex: hash.digest('hex').slice(0, 12) };
+        };
+        const media = await digest('media');
+        // The map's tiles on their own: a new basemap should not cost anyone
+        // their cached photographs and clips, nor a new clip their map.
+        const tiles = await digest('tiles');
+        const version = `v${media.hex}`;
+        const files = media.files;
 
-        const stamped = source.replace(
-          /const VERSION = '[^']*';/,
-          `const VERSION = '${version}';`,
-        );
+        const stamped = source
+          .replace(/const VERSION = '[^']*';/, `const VERSION = '${version}';`)
+          .replace(/const TILES_VERSION = '[^']*';/, `const TILES_VERSION = 't${tiles.hex}';`);
         if (stamped === source) {
           logger.warn('could not find VERSION in sw.js; cache version not stamped');
           return;
         }
 
         await writeFile(swFile, stamped);
-        logger.info(`cache version ${version} (${files.length} media files)`);
+        logger.info(`cache version ${version} (${files.length} media files), tiles t${tiles.hex} (${tiles.files.length} files)`);
       },
     },
   };
