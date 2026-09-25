@@ -1,0 +1,1161 @@
+---
+import { getEntry } from 'astro:content';
+import 'maplibre-gl/dist/maplibre-gl.css';
+import Shell from '../layouts/Shell.astro';
+import { asset } from '../lib/paths';
+import layersData from '../data/dst-layers.json';
+
+/** Planning support: the RRN demo's weighted, fuzzy scoring, on this
+ *  region's own layers. Where /map/ shows each layer as it is, this page asks
+ *  what matters and how much, and colours the whole area by how well each
+ *  place fits. Every layer is a file of real values (tools/prepare-value-
+ *  layer.py) scored on the GPU as the sliders move -- no server. A demo: the
+ *  presets are examples, not anyone's recommendation. */
+const entry = await getEntry('ecoscapes', 'sea-to-sky');
+if (!entry) throw new Error('src/content/ecoscapes/sea-to-sky.md is missing');
+const { data } = entry;
+
+const config = {
+  bounds: data.bounds,
+  limit: data.limit,
+  basemap: asset(data.basemap),
+  glyphs: asset('/tiles/fonts/{fontstack}/{range}.pbf'),
+  layers: layersData.map((l) => ({ ...l, src: asset(l.src) })),
+};
+---
+<Shell title="EcoScapes planning support" description="Choose what matters and how much, and see where across the Sea-to-Sky fits best.">
+  <main class="dst-page">
+    <div class="map" id="map" data-config={JSON.stringify(config)}></div>
+
+    <section class="dst-panel" id="panel" aria-labelledby="panel-title">
+      <header class="panel-head">
+        <div>
+          <p class="eyebrow">Planning support · demo</p>
+          <h1 id="panel-title">What matters here?</h1>
+        </div>
+        <button class="fold" id="fold" type="button" aria-expanded="true" aria-controls="panel-body" aria-label="Fold the panel">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+        </button>
+      </header>
+      <div class="panel-body" id="panel-body">
+        <p class="lede">Pick the layers that matter, say what counts as good, and weigh them. The map lights up where a place fits best. Tap the map to see why.</p>
+
+        <div class="block">
+          <h2>Start from an example</h2>
+          <div class="chips" id="presets"></div>
+          <p class="op-note" id="preset-note"></p>
+        </div>
+
+        <div class="block">
+          <h2>Show</h2>
+          <div class="seg seg-2" id="mode" role="radiogroup" aria-label="One score or two">
+            <button type="button" role="radio" data-mode="one">One score</button>
+            <button type="button" role="radio" data-mode="two">Two scores</button>
+          </div>
+          <p class="op-note" id="mode-note"></p>
+        </div>
+
+        <div class="block">
+          <h2>Combine them by</h2>
+          <div class="seg" id="op" role="radiogroup" aria-label="How the layers combine">
+            <button type="button" role="radio" data-op="mean">Weigh up</button>
+            <button type="button" role="radio" data-op="and">All must pass</button>
+            <button type="button" role="radio" data-op="or">Any one</button>
+          </div>
+          <p class="op-note" id="op-note"></p>
+        </div>
+
+        <div class="block">
+          <h2>Layers</h2>
+          <div id="criteria"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- The result in numbers, and the key to the map's colours: the spread
+         of scores is drawn in the map's own ramp, so it is both. -->
+    <aside class="key" aria-labelledby="key-title">
+      <div class="key-head">
+        <h2 id="key-title">How much fits</h2>
+        <div class="seg seg-sm seg-2" id="scope" role="radiogroup" aria-label="Count across">
+          <button type="button" role="radio" data-scope="region" aria-checked="true">Whole area</button>
+          <button type="button" role="radio" data-scope="view" aria-checked="false">This view</button>
+        </div>
+      </div>
+      <div class="key-one">
+        <p class="big"><b id="pct">–</b><span id="km"></span></p>
+        <div class="spread" id="spread" aria-hidden="true"></div>
+        <div class="key-ends"><span>Poor fit</span><span>Best fit</span></div>
+        <label class="key-op"><span>Counts as a good fit from <output id="cut-out">70</output></span>
+          <input id="cut" type="range" min="5" max="95" step="5" value="70" /></label>
+        <label class="key-check"><input id="only" type="checkbox" /> Only show places above it</label>
+      </div>
+      <!-- Two scores: the nine-cell key, which is also the numbers -- each
+           cell's area on hover, and a click shows that cell alone. -->
+      <div class="key-two">
+        <p class="big"><b id="bi-pct">–</b><span id="bi-km"></span></p>
+        <div class="bi">
+          <span class="bi-y" id="bi-y"></span>
+          <div class="bi-grid" id="bi-grid" role="group" aria-label="The nine combinations"></div>
+          <span class="bi-x" id="bi-x"></span>
+        </div>
+        <p class="bi-hint">Hover a square for its area. Click to show it alone.</p>
+        <div class="bi-brk" id="bi-brk"></div>
+      </div>
+      <label class="key-op">Strength <input id="opacity" type="range" min="0.2" max="1" step="0.05" value="0.85" /></label>
+      <p class="key-foot" id="key-foot"></p>
+    </aside>
+
+    <div class="map-side">
+      <a class="step" href={asset('/map/')} aria-label="Back to the map">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 3.5l8.5 4.5-8.5 4.5L3.5 8z" /><path d="M3.5 12l8.5 4.5 8.5-4.5" /><path d="M3.5 16l8.5 4.5 8.5-4.5" />
+        </svg>
+      </a>
+    </div>
+
+    <p class="toast" id="toast" role="status" aria-live="polite" hidden></p>
+  </main>
+</Shell>
+
+<style>
+  .dst-page { position: relative; height: 100dvh; overflow: hidden; }
+  .map { position: absolute; inset: 0; background: var(--bg); }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+  /* ---- The panel ---------------------------------------------------------
+     A phone: the lower half of the screen, foldable to its title. A wider
+     screen: a card down the left. */
+  .dst-panel {
+    position: absolute;
+    z-index: 6;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-height: 56dvh;
+    display: flex;
+    flex-direction: column;
+    border-radius: 20px 20px 0 0;
+    border-top: 1px solid var(--line);
+    background: rgba(13, 18, 16, 0.96);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+  @media (min-width: 48rem) {
+    .dst-panel {
+      left: 1rem;
+      right: auto;
+      top: calc(var(--safe-t) + 1rem);
+      bottom: auto;
+      width: 25rem;
+      max-height: calc(100dvh - 2rem);
+      border-radius: 18px;
+      border: 1px solid var(--line);
+    }
+  }
+  .panel-head { display: flex; align-items: flex-start; gap: 0.8rem; padding: 1rem 1.1rem 0.6rem; }
+  .panel-head > div { flex: 1; min-width: 0; }
+  .eyebrow { margin: 0; font-size: 0.66rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
+  h1 { font-size: 1.2rem; line-height: 1.2; margin: 0.25rem 0 0; }
+  .fold {
+    flex: none;
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+    background: var(--bg-lift);
+    color: var(--ink);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .fold svg { width: 16px; height: 16px; transition: transform 0.18s; }
+  .fold[aria-expanded='false'] svg { transform: rotate(180deg); }
+  .panel-body {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0 1.1rem calc(1.2rem + var(--foot));
+  }
+  .panel-body[hidden] { display: none; }
+  @media (min-width: 48rem) { .panel-body { padding-bottom: 1.2rem; } }
+  .lede { margin: 0 0 0.9rem; font-size: 0.88rem; line-height: 1.5; color: var(--ink-dim); }
+  .block { border-top: 1px solid var(--line); padding: 0.8rem 0; }
+  .block h2 {
+    margin: 0 0 0.55rem;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+
+  .chips :global(button), .seg button {
+    appearance: none;
+    -webkit-appearance: none;
+    font: inherit;
+    font-size: 0.82rem;
+    line-height: 1.2;
+    white-space: nowrap;
+    color: var(--ink);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* Examples: an even grid of equal buttons, however many there are. */
+  .chips { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; }
+  .chips :global(button) {
+    padding: 0.55rem 0.75rem;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: var(--bg-lift);
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .chips :global(button:hover) { border-color: #3a4843; }
+  .chips :global(button[aria-pressed='true']) { border-color: var(--accent); color: var(--accent); }
+  /* How they combine: one control in three parts, the chosen part lifted. */
+  .seg {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    padding: 3px;
+    border-radius: 11px;
+    border: 1px solid var(--line);
+    background: rgba(0, 0, 0, 0.25);
+  }
+  .seg-2 { grid-template-columns: 1fr 1fr; }
+  .seg button { padding: 0.5rem 0.4rem; border: 0; border-radius: 8px; background: none; color: var(--ink-dim); }
+  .seg button:hover { color: var(--ink); }
+  .seg button[aria-checked='true'] { background: var(--bg-lift); color: var(--accent); box-shadow: 0 0 0 1px var(--line); }
+  .op-note { margin: 0.5rem 0 0; font-size: 0.76rem; line-height: 1.45; color: var(--ink-dim); }
+  button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* One criterion: its name, the spread of its values with the two
+     thresholds on it, and its weight. */
+  /* Two scores: the layers in two sections, one per axis, each named. */
+  #criteria :global(.axis) { margin-top: 0.4rem; }
+  #criteria :global(.axis + .axis) { margin-top: 1rem; padding-top: 0.8rem; border-top: 1px dashed var(--line); }
+  #criteria :global(.axis-head) { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; }
+  #criteria :global(.axis-head i) { width: 12px; height: 12px; border-radius: 3px; flex: none; }
+  #criteria :global(.axis-name) {
+    flex: 1;
+    min-width: 0;
+    padding: 0.3rem 0.45rem;
+    border-radius: 7px;
+    border: 1px solid transparent;
+    background: none;
+    color: var(--ink);
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+  }
+  #criteria :global(.axis-name:hover), #criteria :global(.axis-name:focus) { border-color: var(--line); background: var(--bg-lift); outline: none; }
+  #criteria :global(.axis-sub) { font-size: 0.7rem; color: var(--ink-dim); white-space: nowrap; }
+  #criteria :global(.add select) {
+    width: 100%;
+    margin-top: 0.3rem;
+    padding: 0.55rem 0.7rem;
+    border-radius: 10px;
+    border: 1px dashed var(--line);
+    background: none;
+    color: var(--ink);
+    font: inherit;
+    font-size: 0.85rem;
+  }
+  #criteria :global(.empty) { margin: 0; font-size: 0.85rem; line-height: 1.5; color: var(--ink-dim); }
+  #criteria :global(.crit) { padding: 0.75rem 0; border-top: 1px solid var(--line); }
+  #criteria :global(.crit:first-child) { border-top: 0; padding-top: 0.1rem; }
+  #criteria :global(.crit-head) { display: flex; align-items: center; gap: 0.4rem; }
+  #criteria :global(.crit-head b) { flex: 1; min-width: 0; font-size: 0.92rem; font-weight: 600; }
+  #criteria :global(.icon) {
+    width: 30px;
+    height: 30px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+    background: none;
+    color: var(--ink-dim);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #criteria :global(.icon svg) { width: 14px; height: 14px; }
+  #criteria :global(.dir) { margin: 0.15rem 0 0.35rem; font-size: 0.76rem; color: var(--ink-dim); }
+  #criteria :global(svg.hist) { display: block; width: 100%; height: 44px; }
+  #criteria :global(.thresh) { display: grid; grid-template-columns: 1fr 1fr; gap: 0.2rem 0.8rem; margin-top: 0.3rem; }
+  #criteria :global(.thresh label), #criteria :global(.weight) {
+    display: grid;
+    gap: 0.15rem;
+    font-size: 0.72rem;
+    color: var(--ink-dim);
+  }
+  #criteria :global(.thresh output), #criteria :global(.weight output) { color: var(--ink); font-variant-numeric: tabular-nums; }
+  #criteria :global(input[type='range']) { width: 100%; margin: 0; accent-color: var(--accent); }
+  #criteria :global(.weight) { margin-top: 0.5rem; }
+  .op-and #criteria :global(.weight), .op-or #criteria :global(.weight) { display: none; }
+
+
+  /* ---- The key: bottom right on a wide screen; on a phone, above the panel. */
+  .key {
+    position: absolute;
+    z-index: 4;
+    right: 0.9rem;
+    bottom: calc(1rem + var(--foot));
+    width: 19rem;
+    padding: 0.8rem 0.95rem 0.75rem;
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    background: rgba(13, 18, 16, 0.9);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+  @media (max-width: 47.99rem) {
+    .key { top: calc(var(--safe-t) + 0.8rem); bottom: auto; left: 0.9rem; right: auto; width: 11rem; }
+  }
+  .key-head { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; }
+  .key h2 { margin: 0; white-space: nowrap; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-dim); }
+  .seg-sm { padding: 2px; border-radius: 9px; }
+  .seg-sm button { padding: 0.28rem 0.55rem; font-size: 0.72rem; border-radius: 7px; }
+  .big { display: flex; align-items: baseline; gap: 0.55rem; margin: 0.6rem 0 0.5rem; }
+  .big b { font-size: 1.9rem; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; }
+  .big span { font-size: 0.8rem; line-height: 1.35; color: var(--ink-dim); }
+  .spread :global(svg) { display: block; width: 100%; height: 56px; }
+  .key.loading .big, .key.loading .spread { opacity: 0.45; transition: opacity 0.2s; }
+  .key-check { display: flex; align-items: center; gap: 0.45rem; margin-top: 0.45rem; font-size: 0.74rem; color: var(--ink-dim); cursor: pointer; }
+  .key-check input { margin: 0; accent-color: var(--accent); }
+  .key-op output { color: var(--ink); font-variant-numeric: tabular-nums; }
+  /* One key or the other, by mode. */
+  .key-two { display: none; }
+  .mode-two .key-one { display: none; }
+  .mode-two .key-two { display: block; }
+  /* The nine cells: second axis up, first across, high/high top right. */
+  .bi { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; gap: 0.35rem 0.5rem; align-items: center; }
+  .bi-y { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 0.72rem; color: var(--ink-dim); white-space: nowrap; }
+  .bi-x { grid-column: 2; font-size: 0.72rem; color: var(--ink-dim); }
+  .bi-y :global(i), .bi-x :global(i) { font-style: normal; font-weight: 600; }
+  .bi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; }
+  .bi-grid :global(button) {
+    appearance: none;
+    aspect-ratio: 1.6;
+    border: 0;
+    border-radius: 4px;
+    cursor: pointer;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+    transition: transform 0.12s, opacity 0.12s;
+  }
+  .bi-grid :global(button:hover) { transform: scale(1.06); }
+  .bi-grid.isolating :global(button:not([aria-pressed='true'])) { opacity: 0.3; }
+  .bi-grid :global(button[aria-pressed='true']) { box-shadow: 0 0 0 2px var(--ink); }
+  .bi-hint { margin: 0.4rem 0 0; font-size: 0.7rem; color: var(--ink-dim); }
+  .bi-brk { display: grid; gap: 0.5rem; margin-top: 0.6rem; }
+  .bi-brk :global(.brk) { display: grid; grid-template-columns: 1fr 1fr; gap: 0.1rem 0.7rem; font-size: 0.7rem; color: var(--ink-dim); }
+  .bi-brk :global(.brk b) { grid-column: 1 / -1; font-weight: 600; color: var(--ink); }
+  .bi-brk :global(.brk output) { color: var(--ink); font-variant-numeric: tabular-nums; }
+  .bi-brk :global(input) { width: 100%; margin: 0; accent-color: var(--accent); }
+  .key-foot { margin: 0.55rem 0 0; font-size: 0.7rem; line-height: 1.4; color: var(--ink-dim); }
+  .key-ends { display: flex; justify-content: space-between; margin-top: 0.25rem; font-size: 0.7rem; color: var(--ink-dim); }
+  .key-op { display: grid; gap: 0.15rem; margin-top: 0.45rem; font-size: 0.7rem; color: var(--ink-dim); }
+  .key-op input { width: 100%; margin: 0; accent-color: var(--accent); }
+
+  /* Below MapLibre's attribution button, in the same corner. */
+  .map-side { position: absolute; z-index: 4; right: 0.9rem; top: calc(var(--safe-t) + 3rem); }
+
+  .toast {
+    position: absolute;
+    z-index: 7;
+    top: calc(var(--safe-t) + 0.9rem);
+    left: 1rem;
+    right: 1rem;
+    max-width: 24rem;
+    margin: 0 auto;
+    padding: 0.7rem 1rem;
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    background: rgba(13, 18, 16, 0.9);
+    font-size: 0.85rem;
+    text-align: center;
+  }
+
+  /* Why a place scored what it did: MapLibre's popup, in the site's colours. */
+  .map :global(.maplibregl-popup-content) {
+    padding: 0.75rem 0.9rem;
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    background: rgba(13, 18, 16, 0.96);
+    color: var(--ink);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+    min-width: 15rem;
+  }
+  .map :global(.maplibregl-popup-tip) { border-top-color: rgba(13, 18, 16, 0.96); border-bottom-color: rgba(13, 18, 16, 0.96); }
+  .map :global(.maplibregl-popup-close-button) { color: var(--ink-dim); font-size: 1.1rem; padding: 0 0.4rem; }
+  .map :global(.why-total) { display: flex; align-items: baseline; gap: 0.5rem; margin-bottom: 0.45rem; }
+  .map :global(.why-total b) { font-size: 1.4rem; font-variant-numeric: tabular-nums; }
+  .map :global(.why-sw) { width: 22px; height: 22px; border-radius: 5px; flex: none; align-self: center; }
+  .map :global(.why-total span b) { font-size: 0.85rem; }
+  .map :global(.why-dot) { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 0.4rem; }
+  .map :global(.why-total span) { font-size: 0.75rem; color: var(--ink-dim); }
+  .map :global(.why) { width: 100%; border-collapse: collapse; font-size: 0.74rem; }
+  .map :global(.why td) { padding: 0.2rem 0; border-top: 1px solid var(--line); vertical-align: top; }
+  .map :global(.why td + td) { text-align: right; padding-left: 0.6rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .map :global(.why .dim) { color: var(--ink-dim); }
+  .map :global(.why-bar) { display: block; height: 3px; margin-top: 3px; border-radius: 2px; background: var(--line); }
+  .map :global(.why-bar i) { display: block; height: 100%; border-radius: 2px; background: #e99e1f; }
+
+  .map :global(.maplibregl-ctrl-attrib) { background: rgba(13, 18, 16, 0.7); color: var(--ink-dim); font-size: 0.68rem; }
+  .map :global(.maplibregl-ctrl-attrib a) { color: var(--ink-dim); }
+  .map :global(.maplibregl-ctrl-attrib-button) { filter: invert(1); background-color: transparent; }
+  .map :global(.maplibregl-ctrl-top-right) { top: var(--safe-t); }
+  @media (min-width: 48rem) { .map :global(.maplibregl-ctrl-bottom-right) { bottom: 7rem; } }
+</style>
+
+<script>
+  import * as maplibregl from 'maplibre-gl';
+  import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
+  import { Protocol } from 'pmtiles';
+  import { studyStyle } from '../lib/study-style';
+  import { ScoreLayer, MAX_CRITERIA, scoreOf, thresholdByte, type Criterion, type Op } from '../lib/dst/score-layer';
+  import type { Grid, StatsRequest, StatsResponse, Tally } from '../lib/dst/stats-worker';
+
+  type LngLat = [number, number];
+  type Layer = {
+    id: string;
+    name: string;
+    /** Where it sits in the add-a-layer menu. */
+    group: string;
+    src: string;
+    lo: number;
+    hi: number;
+    unit: string;
+    /** Values that are classes, with a name each: thresholds step between
+     *  them rather than sliding. */
+    classes?: { value: number; label: string }[];
+    /** Which way is usually "good" for this layer, for a new criterion. */
+    higher: 'better' | 'worse';
+    about: string;
+    hist: number[];
+    /** Its area sample: full-detail values on a grid every layer shares. */
+    sampleSrc: string;
+    sample: Grid;
+  };
+  type Config = { bounds: [LngLat, LngLat]; limit: [LngLat, LngLat]; basemap: string; glyphs: string; layers: Layer[] };
+
+  const el = document.getElementById('map')!;
+  const config: Config = JSON.parse(el.dataset.config!);
+  const byId = new Map(config.layers.map((l) => [l.id, l]));
+  // Menu groups in catalogue order.
+  const groups = [...new Set(config.layers.map((l) => l.group))];
+  const abs = (p: string) => location.origin + p;
+  const esc = (s: string) =>
+    s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+
+  // ---- The model -----------------------------------------------------------
+  // All of it, in one place: what the map, the panel and the explanation read.
+  type Item = { id: string; weight: number; good: number; bad: number; axis: 0 | 1 };
+  let items: Item[] = [];
+  let op: Op = 'mean';
+  // Two scores (bivariate): each layer feeds one of two axes, each axis is
+  // named by whoever is using it, and breaks into low / middle / high.
+  type Mode = 'one' | 'two';
+  let mode: Mode = 'one';
+  const AXIS_NAMES: [string, string] = ['Value', 'Pressure'];
+  let axisNames: [string, string] = [...AXIS_NAMES];
+  let breaks: [[number, number], [number, number]] = [[0.35, 0.65], [0.35, 0.65]];
+  /** The one cell shown alone, or -1 for all. */
+  let only = -1;
+  // Row-major from low/low: row = second axis (up), column = first (across).
+  // Blue across, orange up, cream where both are high. Checked with the
+  // palette validator on this basemap over all 36 pairs: normal vision ΔE
+  // 15.8, protan/deutan 12.1. Low/low is dim on purpose: nothing of note.
+  const PALETTE = ['#343c39', '#38618d', '#3584e8', '#8c593c', '#998d90', '#9dc1e5', '#e8722f', '#f8b787', '#fff8d6'];
+  const AXIS_COLOURS = [PALETTE[2], PALETTE[6]];
+
+  /** A value near the given share of a layer's pixels, from its histogram:
+   *  where a new criterion's thresholds start, so the map shows a spread
+   *  rather than all-best or all-worst. */
+  const quantile = (l: Layer, q: number) => {
+    const total = l.hist.reduce((a, b) => a + b, 0);
+    let run = 0;
+    for (let i = 0; i < l.hist.length; i++) {
+      run += l.hist[i];
+      if (run >= q * total) return l.lo + ((i + 0.5) / l.hist.length) * (l.hi - l.lo);
+    }
+    return l.hi;
+  };
+  const snap = (l: Layer, v: number) =>
+    l.classes ? l.classes.reduce((a, c) => (Math.abs(c.value - v) < Math.abs(a.value - v) ? c : a)).value : v;
+  const fresh = (id: string, weight = 1, higher?: 'better' | 'worse', axis: 0 | 1 = 0, q?: [number, number]): Item => {
+    const l = byId.get(id)!;
+    const up = (higher ?? l.higher) === 'better';
+    // From a quarter of the way up the spread to near its top: the ordinary
+    // scores poorly, and only the stand-out places are brightest. An example
+    // can start elsewhere (`q`, shares of the layer's area).
+    const [qa, qb] = q ?? (up ? [0.25, 0.95] : [0.05, 0.75]);
+    const a = snap(l, l.classes ? l.classes[0].value : quantile(l, qa));
+    const b = snap(l, l.classes ? l.classes.at(-1)!.value : quantile(l, qb));
+    return { id, weight, bad: up ? a : b, good: up ? b : a, axis };
+  };
+
+  // Examples, to show what the tool is for. Plainly examples: nobody's
+  // recommendation, and the panel says so.
+  type Preset = {
+    name: string;
+    about: string;
+    op: Op;
+    /** Two scores, with these axis names. */
+    axes?: [string, string];
+    items: [string, number, ('better' | 'worse')?, (0 | 1)?, [number, number]?][];
+  };
+  const PRESETS: Preset[] = [
+    {
+      name: 'Wildlife strongholds',
+      about:
+        'Where habitat is already at its best: land that suits many native species, lets animals move through it and could recover from a fire or a clearcut, with little human impact.',
+      op: 'mean',
+      items: [
+        ['habitat-suitability', 3],
+        ['habitat-permeability', 2],
+        ['ecosystem-resilience', 2],
+        ['cumulative-impacts', 1],
+      ],
+    },
+    {
+      name: 'Under pressure',
+      about:
+        'Where nature is under most strain: the heaviest human impact, a footprint that has grown over forty years, built-up land, and where a fire could burn hottest.',
+      op: 'mean',
+      items: [
+        ['cumulative-impacts', 3, 'better'],
+        ['human-footprint-change', 2, 'better'],
+        ['built-up-density', 1, 'better'],
+        ['wildfire-hazard', 1, 'better'],
+      ],
+    },
+    {
+      name: 'Room to roam',
+      about:
+        'Where the wide-ranging carnivores (grizzly, wolverine, lynx and fisher) can live, and the linkages that let them move between those places.',
+      op: 'mean',
+      items: [
+        ['habitat-grizzly-bear', 2],
+        ['habitat-wolverine', 2],
+        ['habitat-canada-lynx', 1],
+        ['habitat-pacific-fisher', 1],
+        ['connectivity-linkages', 2],
+      ],
+    },
+    {
+      name: 'Quiet and intact',
+      about:
+        'Good habitat, away from trails and little touched by people. All three must pass, so a place lights up only if it does well on every one.',
+      op: 'and',
+      items: [
+        ['distance-to-trails', 1],
+        ['cumulative-impacts', 1],
+        ['habitat-suitability', 1],
+      ],
+    },
+    {
+      name: 'Value × pressure',
+      about:
+        'Two scores: how valuable the land is for nature, set against how much pressure it is under. The top-right square, high on both, is where they meet.',
+      op: 'mean',
+      axes: ['Value', 'Pressure'],
+      items: [
+        ['habitat-suitability', 2, undefined, 0],
+        ['ecosystem-resilience', 1, undefined, 0],
+        ['habitat-permeability', 1, undefined, 0],
+        // Pressure counts from well below the extremes: at the defaults only
+        // the most built-up 5% would score, and nothing valuable is there.
+        ['cumulative-impacts', 2, 'better', 1, [0.5, 0.85]],
+        ['human-footprint-change', 1, 'better', 1, [0.5, 0.85]],
+        ['wildfire-hazard', 1, 'better', 1],
+      ],
+    },
+    {
+      name: 'Habitat × climate',
+      about:
+        'Two scores: good habitat today, set against places sheltered from a warming climate. The top-right square is where the two coincide.',
+      op: 'mean',
+      axes: ['Habitat now', 'Climate shelter'],
+      items: [
+        ['habitat-suitability', 1, undefined, 0],
+        ['climate-macrorefugia', 1, undefined, 1],
+        ['climate-microrefugia', 1, undefined, 1],
+      ],
+    },
+  ];
+  let preset: string | null = null;
+
+  // ---- The map -------------------------------------------------------------
+  maplibregl.setWorkerUrl(workerUrl);
+  maplibregl.addProtocol('pmtiles', new Protocol().tile);
+  const [[w, s], [e, n]] = config.limit;
+  const map = new maplibregl.Map({
+    container: el,
+    bounds: config.bounds,
+    maxBounds: [[w - 0.1, s - 0.06], [e + 0.1, n + 0.06]],
+    // On a phone the panel covers the lower half: the area is framed in the
+    // part of the map left showing.
+    fitBoundsOptions: {
+      padding: matchMedia('(min-width: 48rem)').matches
+        ? { top: 20, bottom: 20, right: 20, left: 24 * 16 + 20 }
+        : { top: 20, left: 20, right: 20, bottom: innerHeight * 0.56 + 10 },
+    },
+    maxZoom: 15,
+    attributionControl: false,
+    dragRotate: false,
+    pitchWithRotate: false,
+    style: studyStyle({ basemap: abs(config.basemap), glyphs: abs(config.glyphs), limit: config.limit }),
+  });
+  map.touchZoomRotate.disableRotation();
+  map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: 'TerrAdapt-Cascadia, Nature Squamish' }), 'top-right');
+  map.once('load', () => el.querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show'));
+
+  const score = new ScoreLayer('score');
+  map.on('load', () => {
+    // Over the land, under the roads and the towns: still a map to find your
+    // way by.
+    const firstRoad = map.getStyle().layers.find((l) => l.id.startsWith('roads_tunnels'))?.id;
+    try {
+      map.addLayer(score, firstRoad);
+    } catch {
+      say('This needs a browser with WebGL 2.');
+    }
+    push();
+  });
+
+  const toast = document.getElementById('toast')!;
+  let toastTimer = 0;
+  function say(text: string) {
+    toast.textContent = text;
+    toast.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = window.setTimeout(() => (toast.hidden = true), 4200);
+  }
+
+  const criteria = (): Criterion[] =>
+    items.map((i) => ({ layer: byId.get(i.id)!, weight: i.weight, good: i.good, bad: i.bad, axis: i.axis }));
+  /** The model to the map: uniforms only, so on the next frame. */
+  function push() {
+    score.setModel(criteria(), op);
+    score.setBivariate(mode === 'two' ? { breaks, palette: PALETTE, only } : null);
+    recount();
+  }
+
+  // ---- The panel -----------------------------------------------------------
+  const page = el.parentElement!;
+  const list = document.getElementById('criteria')!;
+  const modeEl = document.getElementById('mode')!;
+  const MODE_NOTES: Record<Mode, string> = {
+    one: 'Every layer feeds one score, from poor fit to best fit.',
+    two: 'Sort the layers into two groups and see where they coincide: each place gets a score for each group, and a colour for the pair.',
+  };
+  const presetsEl = document.getElementById('presets')!;
+  const opEl = document.getElementById('op')!;
+  const OP_NOTES: Record<Op, string> = {
+    mean: 'Each layer counts as much as its weight says: a weak layer can be made up for by strong ones.',
+    and: 'A place scores only as well as its weakest layer. Weights are set aside.',
+    or: 'A place scores as well as its strongest layer. Weights are set aside.',
+  };
+
+  const fmt = (l: Layer, v: number) => {
+    if (l.classes) return l.classes.find((c) => c.value === snap(l, v))?.label ?? String(v);
+    const span = l.hi - l.lo;
+    const d = span >= 100 ? 0 : span >= 10 ? 1 : 2;
+    // No "-0" from a value a hair under zero.
+    return `${(Math.abs(v) < 0.5 * 10 ** -d ? 0 : v).toFixed(d)}${l.unit ? ` ${l.unit}` : ''}`;
+  };
+
+  /** A layer's values as a histogram, the part that scores between the two
+   *  thresholds shaded from poor to best. */
+  function histSvg(l: Layer, it: Item) {
+    const W = 300, H = 44, n = l.hist.length;
+    // Square-root scale, so a layer dominated by one value (much of the area
+    // at zero impact, say) still shows the rest of its spread.
+    const max = Math.sqrt(Math.max(...l.hist)) || 1;
+    const x = (v: number) => ((v - l.lo) / (l.hi - l.lo || 1)) * W;
+    const bars = l.hist
+      .map((c, i) => {
+        const h = (Math.sqrt(c) / max) * (H - 4);
+        const mid = l.lo + ((i + 0.5) / n) * (l.hi - l.lo);
+        const sc = scoreOf({ layer: l, weight: 1, good: it.good, bad: it.bad }, mid);
+        return `<rect x="${((i / n) * W).toFixed(1)}" y="${(H - h).toFixed(1)}" width="${(W / n - 1).toFixed(1)}" height="${h.toFixed(1)}" rx="1" fill="${rampCss(sc)}"/>`;
+      })
+      .join('');
+    const mark = (v: number, c: string) => `<line x1="${x(v)}" x2="${x(v)}" y1="0" y2="${H}" stroke="${c}" stroke-width="2"/>`;
+    return `<svg class="hist" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${bars}${mark(it.bad, '#9aa79f')}${mark(it.good, '#ffdd80')}</svg>`;
+  }
+  const STOPS = [[45, 35, 24], [111, 71, 18], [180, 110, 15], [233, 158, 31], [255, 221, 128]];
+  function rampCss(t: number) {
+    const s = Math.min(1, Math.max(0, t)) * 4;
+    const i = Math.min(3, Math.floor(s));
+    const f = s - i;
+    const c = STOPS[i].map((a, k) => Math.round(a + (STOPS[i + 1][k] - a) * f));
+    return `rgb(${c.join(',')})`;
+  }
+
+  function sliderAttrs(l: Layer) {
+    if (l.classes) {
+      const v = l.classes.map((c) => c.value);
+      return `min="${Math.min(...v)}" max="${Math.max(...v)}" step="1"`;
+    }
+    return `min="${l.lo}" max="${l.hi}" step="${(l.hi - l.lo) / 254}"`;
+  }
+
+  function critHtml(it: Item, i: number) {
+    const l = byId.get(it.id)!;
+    const better = it.good >= it.bad ? 'High values score best' : 'Low values score best';
+    return `<div class="crit" data-i="${i}">
+      <div class="crit-head">
+        <b>${esc(l.name)}</b>
+        ${
+          mode === 'two'
+            ? `<button class="icon" type="button" data-act="axis" aria-label="Move to ${esc(axisNames[1 - it.axis])}" title="Move to ${esc(axisNames[1 - it.axis])}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h14l-4-4M20 16H6l4 4"/></svg>
+        </button>`
+            : ''
+        }
+        <button class="icon" type="button" data-act="flip" aria-label="Swap which end is good" title="Swap which end is good">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v16M4 7l3-3 3 3M17 20V4M14 17l3 3 3-3"/></svg>
+        </button>
+        <button class="icon" type="button" data-act="remove" aria-label="Remove ${esc(l.name)}" title="Remove">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+      <p class="dir"><span class="way">${better}.</span> ${esc(l.about)}</p>
+      <div class="hist-wrap">${histSvg(l, it)}</div>
+      <div class="thresh">
+        <label>Poor at <output data-out="bad">${esc(fmt(l, it.bad))}</output>
+          <input type="range" data-k="bad" ${sliderAttrs(l)} value="${it.bad}"></label>
+        <label>Best at <output data-out="good">${esc(fmt(l, it.good))}</output>
+          <input type="range" data-k="good" ${sliderAttrs(l)} value="${it.good}"></label>
+      </div>
+      <label class="weight">How much it matters <output data-out="weight">×${it.weight}</output>
+        <input type="range" data-k="weight" min="0.5" max="5" step="0.5" value="${it.weight}"></label>
+    </div>`;
+  }
+
+  /** The add-a-layer menu, for one axis in two-score mode. */
+  function addHtml(axis: 0 | 1) {
+    const used = new Set(items.map((i) => i.id));
+    const full = items.length >= MAX_CRITERIA;
+    return `<label class="add"><span class="sr">Add a layer</span><select data-axis="${axis}"${full ? ' disabled' : ''}>
+      <option value="">${full ? `Up to ${MAX_CRITERIA} layers at once` : mode === 'two' ? `+ Add to ${esc(axisNames[axis])}` : '+ Add a layer'}</option>
+      ${groups
+        .map((g) => {
+          const opts = config.layers.filter((l) => l.group === g && !used.has(l.id));
+          return opts.length
+            ? `<optgroup label="${esc(g)}">${opts.map((l) => `<option value="${esc(l.id)}">${esc(l.name)}</option>`).join('')}</optgroup>`
+            : '';
+        })
+        .join('')}
+    </select></label>`;
+  }
+
+  function render() {
+    const cards = (axis?: 0 | 1) =>
+      items
+        .map((it, i) => (axis === undefined || it.axis === axis ? critHtml(it, i) : ''))
+        .join('');
+    if (mode === 'two') {
+      list.innerHTML = ([0, 1] as const)
+        .map(
+          (a) => `<div class="axis">
+            <div class="axis-head"><i style="background:${AXIS_COLOURS[a]}"></i>
+              <input class="axis-name" data-axis="${a}" value="${esc(axisNames[a])}" aria-label="Name of the ${a ? 'second' : 'first'} score" maxlength="24">
+              <span class="axis-sub">${a ? 'up the key' : 'across the key'}</span></div>
+            ${cards(a) || `<p class="empty">No layers in this score yet.</p>`}
+            ${addHtml(a)}
+          </div>`,
+        )
+        .join('');
+    } else {
+      list.innerHTML =
+        (items.length ? cards() : `<p class="empty">No layers yet. Start from an example, or add one below.</p>`) + addHtml(0);
+    }
+    for (const b of modeEl.querySelectorAll<HTMLButtonElement>('button'))
+      b.setAttribute('aria-checked', String(b.dataset.mode === mode));
+    document.getElementById('mode-note')!.textContent = MODE_NOTES[mode];
+    page.classList.toggle('mode-two', mode === 'two');
+    document.getElementById('key-title')!.textContent = mode === 'two' ? 'Where they meet' : 'How much fits';
+    for (const b of opEl.querySelectorAll<HTMLButtonElement>('button'))
+      b.setAttribute('aria-checked', String(b.dataset.op === op));
+    document.getElementById('op-note')!.textContent =
+      OP_NOTES[op] + (mode === 'two' ? ' Each of the two scores is combined this way.' : '');
+    page.classList.toggle('op-and', op === 'and');
+    page.classList.toggle('op-or', op === 'or');
+    for (const b of presetsEl.querySelectorAll<HTMLButtonElement>('button'))
+      b.setAttribute('aria-pressed', String(b.dataset.name === preset));
+    const chosen = PRESETS.find((p) => p.name === preset);
+    document.getElementById('preset-note')!.textContent = chosen
+      ? `${chosen.about} An example of what the tool can do, not a recommendation.`
+      : items.length
+        ? 'Your own mix. Pick an example to start again.'
+        : '';
+    renderKeyTwo();
+  }
+
+  presetsEl.innerHTML = PRESETS.filter((p) => p.items.every(([id]) => byId.has(id)))
+    .map((p) => `<button type="button" data-name="${esc(p.name)}" title="${esc(p.about)}" aria-pressed="false">${esc(p.name)}</button>`)
+    .join('');
+  function usePreset(name: string) {
+    const p = PRESETS.find((x) => x.name === name)!;
+    items = p.items.map(([id, wt, higher, axis, q]) => fresh(id, wt, higher, axis ?? 0, q));
+    op = p.op;
+    mode = p.axes ? 'two' : 'one';
+    axisNames = p.axes ? [...p.axes] : [...AXIS_NAMES];
+    only = -1;
+    preset = name;
+    render();
+    push();
+  }
+  presetsEl.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button');
+    if (b) usePreset(b.dataset.name!);
+  });
+  opEl.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button');
+    if (!b) return;
+    op = b.dataset.op as Op;
+    preset = null;
+    render();
+    push();
+  });
+  list.addEventListener('change', (e) => {
+    const sel = e.target as HTMLSelectElement;
+    if (sel.tagName !== 'SELECT' || !sel.value) return;
+    const axis = Number(sel.dataset.axis) as 0 | 1;
+    items.push(fresh(sel.value, 1, undefined, axis));
+    preset = null;
+    render();
+    push();
+    list.querySelector(`select[data-axis="${axis}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  });
+  modeEl.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button');
+    if (!b || b.dataset.mode === mode) return;
+    mode = b.dataset.mode as Mode;
+    only = -1;
+    preset = null;
+    render();
+    push();
+  });
+  list.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-act]');
+    if (!b) return;
+    const i = Number(b.closest<HTMLElement>('.crit')!.dataset.i);
+    if (b.dataset.act === 'remove') items.splice(i, 1);
+    else if (b.dataset.act === 'axis') items[i].axis = (1 - items[i].axis) as 0 | 1;
+    else [items[i].good, items[i].bad] = [items[i].bad, items[i].good];
+    preset = null;
+    render();
+    push();
+  });
+  // Dragging a slider: the map and this criterion's own readouts, in place --
+  // not a re-render of the panel, which would drop the slider mid-drag.
+  list.addEventListener('input', (e) => {
+    const input = e.target as HTMLInputElement;
+    if (input.classList.contains('axis-name')) {
+      // Renamed in place: the key and the menus follow, the panel is not
+      // redrawn under the cursor.
+      axisNames[Number(input.dataset.axis)] = input.value.trim() || AXIS_NAMES[Number(input.dataset.axis)];
+      renderKeyTwo();
+      showNumbers();
+      return;
+    }
+    const row = input.closest<HTMLElement>('.crit');
+    if (!row || !input.dataset.k) return;
+    const it = items[Number(row.dataset.i)];
+    const l = byId.get(it.id)!;
+    const k = input.dataset.k as 'good' | 'bad' | 'weight';
+    it[k] = Number(input.value);
+    preset = null;
+    for (const b of presetsEl.querySelectorAll('button')) b.setAttribute('aria-pressed', 'false');
+    document.getElementById('preset-note')!.textContent = 'Your own mix. Pick an example to start again.';
+    row.querySelector(`[data-out="${k}"]`)!.textContent = k === 'weight' ? `×${it.weight}` : fmt(l, it[k]);
+    if (k !== 'weight') {
+      row.querySelector('.hist-wrap')!.innerHTML = histSvg(l, it);
+      row.querySelector('.way')!.textContent = it.good >= it.bad ? 'High values score best.' : 'Low values score best.';
+    }
+    push();
+  });
+  // ---- The numbers ---------------------------------------------------------
+  // Counted in a worker from each layer's area sample, a moment after the
+  // model stops changing: the map answers every frame, the numbers as soon
+  // as they are sure.
+  const stats = new Worker(new URL('../lib/dst/stats-worker.ts', import.meta.url), { type: 'module' });
+  const keyEl = document.querySelector<HTMLElement>('.key')!;
+  const pctEl = document.getElementById('pct')!;
+  const kmEl = document.getElementById('km')!;
+  const spreadEl = document.getElementById('spread')!;
+  const footEl = document.getElementById('key-foot')!;
+  const cutIn = document.getElementById('cut') as HTMLInputElement;
+  const cutOut = document.getElementById('cut-out')!;
+  const onlyIn = document.getElementById('only') as HTMLInputElement;
+  const scopeEl = document.getElementById('scope')!;
+  let scope: 'region' | 'view' = 'region';
+  let seq = 0;
+  let countTimer = 0;
+  let last: { region: Tally; view: Tally | null } | null = null;
+  const cut = () => Number(cutIn.value) / 100;
+  const grid = config.layers[0]?.sample;
+
+  /** The view as sample cells, for counting "this view". */
+  function viewCells(): [number, number, number, number] | null {
+    if (!grid) return null;
+    const b = map.getBounds();
+    const n = 2 ** grid.z * 256;
+    const px = (lng: number, lat: number) => {
+      const r = (lat * Math.PI) / 180;
+      return [((lng + 180) / 360) * n, ((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * n];
+    };
+    const [x0, y0] = px(b.getWest(), b.getNorth());
+    const [x1, y1] = px(b.getEast(), b.getSouth());
+    const c = (x: number) => Math.floor((x - grid.x0) / grid.step);
+    const r = (y: number) => Math.floor((y - grid.y0) / grid.step);
+    return [Math.max(0, c(x0)), Math.max(0, r(y0)), Math.min(grid.w, c(x1) + 1), Math.min(grid.h, r(y1) + 1)];
+  }
+
+  function recount() {
+    clearTimeout(countTimer);
+    if (!grid || !items.length) {
+      last = null;
+      showNumbers();
+      return;
+    }
+    countTimer = window.setTimeout(() => {
+      const req: StatsRequest = {
+        seq: ++seq,
+        grid,
+        op,
+        cut: cut(),
+        view: viewCells(),
+        breaks: mode === 'two' ? breaks : null,
+        criteria: items.map((it) => {
+          const l = byId.get(it.id)!;
+          return {
+            id: l.id,
+            src: abs(l.sampleSrc),
+            weight: it.weight,
+            bad: thresholdByte(l, it.bad),
+            good: thresholdByte(l, it.good),
+            axis: it.axis,
+          };
+        }),
+      };
+      stats.postMessage(req);
+    }, 120);
+  }
+  stats.onmessage = (e: MessageEvent<StatsResponse>) => {
+    if (e.data.seq !== seq) return;
+    if ('loading' in e.data) {
+      keyEl.classList.add('loading');
+      return;
+    }
+    keyEl.classList.remove('loading');
+    last = { region: e.data.region, view: e.data.view };
+    showNumbers();
+  };
+
+  const km2 = (v: number) =>
+    v >= 100 ? `${Math.round(v).toLocaleString('en-CA')} km²` : v >= 1 ? `${v.toFixed(1)} km²` : `${Math.round(v * 100)} ha`;
+
+  function showNumbers() {
+    const t = last ? (scope === 'view' ? last.view : last.region) : null;
+    if (mode === 'two') return showNumbersTwo(t);
+    const c = Math.round(cut() * 100);
+    cutOut.textContent = String(c);
+    if (!t || !t.total) {
+      pctEl.textContent = '–';
+      kmEl.textContent = items.length ? 'No data here for these layers.' : 'Add a layer to see how much fits.';
+      spreadEl.innerHTML = '';
+      footEl.textContent = '';
+      return;
+    }
+    pctEl.textContent = `${Math.round((t.above / t.total) * 100)}%`;
+    kmEl.innerHTML = `${km2(t.above)}<br>scores ${c} or more`;
+    spreadEl.innerHTML = spreadSvg(t, cut());
+    footEl.textContent =
+      `Of the ${km2(t.total)} ${scope === 'view' ? 'in view' : 'across the study area'} that these layers cover. ` +
+      `Average score ${Math.round(t.mean * 100)}. Counted at full detail.`;
+  }
+
+  /** The spread of scores by area, in the map's own colours: the key and the
+   *  distribution in one. Bars under the cut-off are faded. */
+  function spreadSvg(t: Tally, cutAt: number) {
+    const W = 300, H = 56, n = t.hist.length;
+    const max = Math.max(...t.hist) || 1;
+    const bars = t.hist
+      .map((a, i) => {
+        const h = Math.max(a > 0 ? 1.5 : 0, (a / max) * (H - 2));
+        const lo = i / n, hi = (i + 1) / n;
+        const tip = `${Math.round(lo * 100)}–${Math.round(hi * 100)}: ${km2(a)} (${Math.round((a / t.total) * 100)}%)`;
+        return `<rect x="${((i / n) * W + 1).toFixed(1)}" y="${(H - h).toFixed(1)}" width="${(W / n - 2).toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="${rampCss((i + 0.5) / n)}" opacity="${lo + 1e-9 >= cutAt ? 1 : 0.35}"><title>${tip}</title></rect>`;
+      })
+      .join('');
+    const x = cutAt * W;
+    return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${bars}<line x1="${x}" x2="${x}" y1="0" y2="${H}" stroke="#eef2ee" stroke-width="1.5" stroke-dasharray="3 3"/></svg>`;
+  }
+
+  // ---- Two scores: the key ---------------------------------------------------
+  const biGrid = document.getElementById('bi-grid')!;
+  const biPct = document.getElementById('bi-pct')!;
+  const biKm = document.getElementById('bi-km')!;
+  const biBrk = document.getElementById('bi-brk')!;
+  const BANDS = ['Low', 'Medium', 'High'];
+  /** Which cell the headline is about: the one shown alone, the one under
+   *  the pointer, or high on both. */
+  let hovered = -1;
+  const cellName = (cell: number) =>
+    `${BANDS[cell % 3]} ${axisNames[0].toLowerCase()}, ${BANDS[Math.floor(cell / 3)].toLowerCase()} ${axisNames[1].toLowerCase()}`;
+
+  function renderKeyTwo() {
+    document.getElementById('bi-x')!.innerHTML = `<i>${esc(axisNames[0])}</i> →`;
+    document.getElementById('bi-y')!.innerHTML = `<i>${esc(axisNames[1])}</i> →`;
+    // Top row first: high on the second axis.
+    biGrid.innerHTML = [6, 7, 8, 3, 4, 5, 0, 1, 2]
+      .map((c) => `<button type="button" data-cell="${c}" style="background:${PALETTE[c]}" aria-pressed="${c === only}" aria-label="${esc(cellName(c))}"></button>`)
+      .join('');
+    biGrid.classList.toggle('isolating', only >= 0);
+    const pc = (v: number) => Math.round(v * 100);
+    biBrk.innerHTML = ([0, 1] as const)
+      .map(
+        (a) => `<div class="brk" data-axis="${a}"><b>${esc(axisNames[a])}</b>
+          <label>Low below <output>${pc(breaks[a][0])}</output>
+            <input type="range" data-b="0" min="5" max="90" step="5" value="${pc(breaks[a][0])}"></label>
+          <label>High from <output>${pc(breaks[a][1])}</output>
+            <input type="range" data-b="1" min="10" max="95" step="5" value="${pc(breaks[a][1])}"></label></div>`,
+      )
+      .join('');
+  }
+
+  function showNumbersTwo(t: Tally | null) {
+    for (const b of biGrid.querySelectorAll<HTMLButtonElement>('button')) {
+      const c = Number(b.dataset.cell);
+      b.title = t && t.total ? `${cellName(c)}: ${km2(t.cells[c])} (${Math.round((t.cells[c] / t.total) * 100)}%)` : cellName(c);
+    }
+    const cell = hovered >= 0 ? hovered : only >= 0 ? only : 8;
+    const both = items.some((i) => i.axis === 0) && items.some((i) => i.axis === 1);
+    if (!t || !t.total) {
+      biPct.textContent = '–';
+      biKm.textContent = !items.length
+        ? 'Add layers to both scores to see how they overlap.'
+        : !both
+          ? 'Each score needs at least one layer.'
+          : 'No data here for these layers.';
+      footEl.textContent = '';
+      return;
+    }
+    biPct.textContent = `${Math.round((t.cells[cell] / t.total) * 100)}%`;
+    biKm.innerHTML = `${km2(t.cells[cell])}<br>${esc(cellName(cell).toLowerCase())}`;
+    footEl.textContent =
+      `Of the ${km2(t.total)} ${scope === 'view' ? 'in view' : 'across the study area'} where both scores have data. Counted at full detail.`;
+  }
+
+  biGrid.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button');
+    if (!b) return;
+    const c = Number(b.dataset.cell);
+    only = only === c ? -1 : c;
+    for (const x of biGrid.querySelectorAll('button')) x.setAttribute('aria-pressed', String(Number(x.getAttribute('data-cell')) === only));
+    biGrid.classList.toggle('isolating', only >= 0);
+    score.setBivariate({ breaks, palette: PALETTE, only });
+    showNumbers();
+  });
+  biGrid.addEventListener('pointerover', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button');
+    hovered = b ? Number(b.dataset.cell) : -1;
+    showNumbers();
+  });
+  biGrid.addEventListener('pointerleave', () => {
+    hovered = -1;
+    showNumbers();
+  });
+  biBrk.addEventListener('input', (e) => {
+    const input = e.target as HTMLInputElement;
+    const a = Number(input.closest<HTMLElement>('.brk')!.dataset.axis);
+    const k = Number(input.dataset.b);
+    let v = Number(input.value) / 100;
+    // Low stays below high.
+    if (k === 0) v = Math.min(v, breaks[a][1] - 0.05);
+    else v = Math.max(v, breaks[a][0] + 0.05);
+    breaks[a][k] = v;
+    input.value = String(Math.round(v * 100));
+    input.previousElementSibling!.textContent = String(Math.round(v * 100));
+    score.setBivariate({ breaks, palette: PALETTE, only });
+    recount();
+  });
+
+  cutIn.addEventListener('input', () => {
+    if (onlyIn.checked) score.setCut(cut());
+    showNumbers();
+    recount();
+  });
+  onlyIn.addEventListener('change', () => score.setCut(onlyIn.checked ? cut() : 0));
+  scopeEl.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button');
+    if (!b) return;
+    scope = b.dataset.scope as 'region' | 'view';
+    for (const x of scopeEl.querySelectorAll('button')) x.setAttribute('aria-checked', String(x === b));
+    showNumbers();
+  });
+  // "This view" follows the map.
+  map.on('moveend', () => {
+    if (items.length) recount();
+  });
+
+  const opacity = document.getElementById('opacity') as HTMLInputElement;
+  opacity.addEventListener('input', () => score.setOpacity(Number(opacity.value)));
+
+  const fold = document.getElementById('fold')!;
+  const panelBody = document.getElementById('panel-body')!;
+  fold.addEventListener('click', () => {
+    const open = fold.getAttribute('aria-expanded') !== 'true';
+    fold.setAttribute('aria-expanded', String(open));
+    fold.setAttribute('aria-label', open ? 'Fold the panel' : 'Open the panel');
+    panelBody.hidden = !open;
+  });
+
+  // ---- Why this place --------------------------------------------------------
+  const popup = new maplibregl.Popup({ maxWidth: '20rem', focusAfterOpen: false });
+  map.on('click', async (e) => {
+    if (!items.length) return;
+    const { lng, lat } = e.lngLat;
+    const { rows, total, second } = await score.explain(lng, lat);
+    const how = op === 'and' ? 'its weakest layer' : op === 'or' ? 'its strongest layer' : 'weighed up';
+    const band = (v: number, [lo, hi]: [number, number]) => (v < lo ? 0 : v < hi ? 1 : 2);
+    let head: string;
+    if (mode === 'two') {
+      head =
+        total === null || second === null
+          ? `<div class="why-total"><span>Both scores need data here.</span></div>`
+          : `<div class="why-total"><i class="why-sw" style="background:${PALETTE[band(second, breaks[1]) * 3 + band(total, breaks[0])]}"></i>` +
+            `<span><b>${esc(cellName(band(second, breaks[1]) * 3 + band(total, breaks[0])))}</b><br>` +
+            `${esc(axisNames[0])} ${Math.round(total * 100)} · ${esc(axisNames[1])} ${Math.round(second * 100)} · ${how}</span></div>`;
+    } else {
+      head =
+        total === null
+          ? `<div class="why-total"><span>No data here for these layers.</span></div>`
+          : `<div class="why-total"><b>${Math.round(total * 100)}</b><span>out of 100 · ${how}</span></div>`;
+    }
+    const html =
+      head +
+      `<table class="why">${rows
+        .map(({ c, value, score: sc }) => {
+          const l = byId.get(c.layer.id)!;
+          const right =
+            value === null
+              ? `<span class="dim">no data</span>`
+              : `${esc(fmt(l, value))}<span class="why-bar"><i style="width:${Math.round(sc! * 100)}%"></i></span>`;
+          const wt = op === 'mean' ? ` <span class="dim">×${c.weight}</span>` : '';
+          const dot = mode === 'two' ? `<i class="why-dot" style="background:${AXIS_COLOURS[c.axis ?? 0]}"></i>` : '';
+          return `<tr><td>${dot}${esc(l.name)}${wt}</td><td>${right}</td></tr>`;
+        })
+        .join('')}</table>`;
+    popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
+  });
+
+  // Opens empty: the map and the choice are the visitor's.
+  render();
+  showNumbers();
+</script>

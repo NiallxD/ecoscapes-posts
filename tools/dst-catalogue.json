@@ -1,0 +1,537 @@
+[
+ {
+  "id": "habitat-suitability",
+  "name": "Habitat suitability",
+  "group": "Ecosystem health",
+  "higher": "better",
+  "source": {
+   "drive": "2_Ecosystem Health/Values/habitat-suitability-2022.tif"
+  },
+  "about": "How well the land suits the region's native plants and animals, across many species at once."
+ },
+ {
+  "id": "habitat-permeability",
+  "name": "Landscape permeability",
+  "group": "Ecosystem health",
+  "higher": "better",
+  "source": {
+   "drive": "2_Ecosystem Health/Values/habitat-permeability-2022.tif"
+  },
+  "about": "How easily wildlife can move across the land. Roads, towns and clearings make it harder."
+ },
+ {
+  "id": "ecosystem-resilience",
+  "name": "Ecosystem resilience",
+  "group": "Ecosystem health",
+  "higher": "better",
+  "classes": true,
+  "source": {
+   "drive": "1_Ecosystem-Resilience/ecosystem-resilience_M40yr.tif"
+  },
+  "about": "How well the land here could absorb a disturbance, like a fire or a clearcut, and recover."
+ },
+ {
+  "id": "ecosystem-services",
+  "name": "Ecosystem services",
+  "group": "Ecosystem health",
+  "higher": "better",
+  "source": {
+   "drive": "2_Ecosystem Health/Values/ecosystem-services_2022.tif"
+  },
+  "about": "What nature here provides for free, such as clean water, flood protection and carbon storage."
+ },
+ {
+  "id": "biodiversity-index",
+  "name": "Biodiversity index",
+  "group": "Ecosystem health",
+  "higher": "better",
+  "source": {
+   "drive": "3_InSitu Biodiversity/BiodiversityIndex.tif"
+  },
+  "about": "Where the greatest variety of rare plants and animals is found."
+ },
+ {
+  "id": "cdc-ecosystem-vulnerability",
+  "name": "Ecosystem vulnerability",
+  "group": "Ecosystem health",
+  "higher": "better",
+  "source": {
+   "drive": "3_InSitu Biodiversity/CDC-ecosystem-vulnerability.tif"
+  },
+  "about": "Where rare ecological communities are most at risk from change."
+ },
+ {
+  "id": "conservation-priorities",
+  "name": "Conservation priorities",
+  "group": "Ecosystem health",
+  "higher": "better",
+  "classes": true,
+  "source": {
+   "felt": "06912663-93a6-4eb7-a5c2-461300004453"
+  },
+  "about": "Where restoring damaged habitat would do the most good for wildlife."
+ },
+ {
+  "id": "cumulative-impacts",
+  "name": "Cumulative human impacts",
+  "group": "Pressures",
+  "higher": "worse",
+  "source": {
+   "drive": "1_Ecosystem-Resilience/cumulative-impacts_2022.tif"
+  },
+  "about": "How strongly people have changed the land, from roads and towns to logging and mines, all added together."
+ },
+ {
+  "id": "human-footprint-change",
+  "name": "Change in human footprint",
+  "group": "Pressures",
+  "higher": "worse",
+  "source": {
+   "drive": "1_Ecosystem-Resilience/human-footprint-40yr2.tif"
+  },
+  "about": "How the human footprint has changed over forty years. Above zero it has grown; below zero the land has recovered."
+ },
+ {
+  "id": "built-up-density",
+  "name": "Built-up density",
+  "group": "Pressures",
+  "higher": "worse",
+  "source": {
+   "drive": "2_Ecosystem Health/Threats/BuiltUpArea_density.tif"
+  },
+  "about": "How densely built up the land around a place is."
+ },
+ {
+  "id": "distance-to-trails",
+  "name": "Closeness to trails",
+  "group": "Pressures",
+  "higher": "worse",
+  "source": {
+   "drive": "2_Ecosystem Health/Threats/Distance2Trails.tif"
+  },
+  "about": "Highest on and beside trails, falling to zero well away from them."
+ },
+ {
+  "id": "wildfire-hazard",
+  "name": "Wildfire hazard",
+  "group": "Pressures",
+  "higher": "worse",
+  "classes": true,
+  "valid": [
+   1,
+   10
+  ],
+  "source": {
+   "drive": "2_Ecosystem Health/Threats/wildfire-hazardr.tif"
+  },
+  "labels": [
+   {
+    "value": 1,
+    "label": "Class 1"
+   },
+   {
+    "value": 2,
+    "label": "Class 2"
+   },
+   {
+    "value": 3,
+    "label": "Class 3"
+   },
+   {
+    "value": 4,
+    "label": "Class 4"
+   },
+   {
+    "value": 5,
+    "label": "Class 5"
+   },
+   {
+    "value": 6,
+    "label": "Class 6"
+   },
+   {
+    "value": 7,
+    "label": "Class 7"
+   },
+   {
+    "value": 8,
+    "label": "Class 8"
+   },
+   {
+    "value": 9,
+    "label": "Class 9"
+   },
+   {
+    "value": 10,
+    "label": "Class 10"
+   }
+  ],
+  "about": "How intensely a wildfire could burn here today, given the forest, slope and weather."
+ },
+ {
+  "id": "forest-change",
+  "name": "Forest change",
+  "group": "Change over 40 years",
+  "higher": "better",
+  "source": {
+   "drive": "2_Ecosystem Health/Threats/forest-change_40yr.tif"
+  },
+  "labels": [
+   {
+    "value": -1,
+    "label": "Loss"
+   },
+   {
+    "value": 0,
+    "label": "No change"
+   },
+   {
+    "value": 1,
+    "label": "Gain"
+   }
+  ],
+  "about": "Where forest has been lost or gained over forty years."
+ },
+ {
+  "id": "riparian-change",
+  "name": "Riparian change",
+  "group": "Change over 40 years",
+  "higher": "better",
+  "source": {
+   "drive": "2_Ecosystem Health/Threats/riparian-change_40yr.tif"
+  },
+  "labels": [
+   {
+    "value": -1,
+    "label": "Loss"
+   },
+   {
+    "value": 0,
+    "label": "No change"
+   },
+   {
+    "value": 1,
+    "label": "Gain"
+   }
+  ],
+  "about": "Where streamside land has been lost or gained over forty years."
+ },
+ {
+  "id": "mesic-change",
+  "name": "Mesic vegetation change",
+  "group": "Change over 40 years",
+  "higher": "better",
+  "source": {
+   "drive": "2_Ecosystem Health/Threats/mesic-change_40yr.tif"
+  },
+  "labels": [
+   {
+    "value": -1,
+    "label": "Loss"
+   },
+   {
+    "value": 0,
+    "label": "No change"
+   },
+   {
+    "value": 1,
+    "label": "Gain"
+   }
+  ],
+  "about": "Where moist grasses and shrubs have been lost or gained over forty years."
+ },
+ {
+  "id": "xeric-change",
+  "name": "Xeric vegetation change",
+  "group": "Change over 40 years",
+  "higher": "better",
+  "source": {
+   "drive": "2_Ecosystem Health/Threats/xeric-change_40yr.tif"
+  },
+  "labels": [
+   {
+    "value": -1,
+    "label": "Loss"
+   },
+   {
+    "value": 0,
+    "label": "No change"
+   },
+   {
+    "value": 1,
+    "label": "Gain"
+   }
+  ],
+  "about": "Where dry grasses and shrubs have been lost or gained over forty years."
+ },
+ {
+  "id": "climate-macrorefugia",
+  "name": "Climate refugia (regional)",
+  "group": "Climate",
+  "higher": "better",
+  "source": {
+   "drive": "1_Ecosystem-Resilience/macrorefugia_1km.tif"
+  },
+  "about": "Places sheltered from the worst of a warming climate, where plants and animals could hold on as conditions change."
+ },
+ {
+  "id": "climate-microrefugia",
+  "name": "Climate refugia (local)",
+  "group": "Climate",
+  "higher": "better",
+  "source": {
+   "drive": "1_Ecosystem-Resilience/microrefugia_1km.tif"
+  },
+  "about": "Small sheltered spots, like cool valleys and shaded slopes, that could buffer local wildlife from a warming climate."
+ },
+ {
+  "id": "climate-conservation",
+  "name": "Climate conservation value",
+  "group": "Climate",
+  "higher": "better",
+  "source": {
+   "drive": "1_Ecosystem-Resilience/climate-conservation_1km.tif"
+  },
+  "about": "A climate-focused score for where protecting land could matter most."
+ },
+ {
+  "id": "climate-restoration",
+  "name": "Climate restoration value",
+  "group": "Climate",
+  "higher": "better",
+  "source": {
+   "drive": "1_Ecosystem-Resilience/climate-restoration_1km.tif"
+  },
+  "about": "A climate-focused score for where restoring land could matter most."
+ },
+ {
+  "id": "connectivity-linkages",
+  "name": "Connectivity linkages",
+  "group": "Connectivity",
+  "higher": "better",
+  "source": {
+   "felt": "7b436516-2a52-43b9-8e16-9f4400004453"
+  },
+  "about": "The easiest routes for wildlife to travel between areas of good habitat. Darker shades are the stronger links."
+ },
+ {
+  "id": "habitat-grizzly-bear",
+  "name": "Grizzly bear",
+  "group": "Species habitat",
+  "higher": "better",
+  "source": {
+   "felt": "666818e9-1103-4297-805b-bb5000004453"
+  },
+  "about": "How well the land suits the grizzly bear."
+ },
+ {
+  "id": "habitat-wolverine",
+  "name": "Wolverine",
+  "group": "Species habitat",
+  "higher": "better",
+  "source": {
+   "felt": "f848bdea-311d-5b47-ab4d-a6ff00004453"
+  },
+  "about": "How well the land suits the wolverine."
+ },
+ {
+  "id": "habitat-canada-lynx",
+  "name": "Canada lynx",
+  "group": "Species habitat",
+  "higher": "better",
+  "source": {
+   "felt": "c3b32718-dcec-4862-ab64-e9b000004453"
+  },
+  "about": "How well the land suits the Canada lynx."
+ },
+ {
+  "id": "habitat-pacific-fisher",
+  "name": "Pacific fisher",
+  "group": "Species habitat",
+  "higher": "better",
+  "source": {
+   "felt": "d8b43964-16e5-4e4f-b736-62e900004453"
+  },
+  "about": "How well the land suits the Pacific fisher."
+ },
+ {
+  "id": "habitat-hoary-marmot",
+  "name": "Hoary marmot",
+  "group": "Species habitat",
+  "higher": "better",
+  "source": {
+   "felt": "b28f1d57-5799-572c-b155-cf9200004453"
+  },
+  "about": "How well the land suits the hoary marmot."
+ },
+ {
+  "id": "habitat-coyote",
+  "name": "Coyote",
+  "group": "Species habitat",
+  "higher": "better",
+  "source": {
+   "felt": "db95faa8-f9af-4c03-9535-ae5b00004453"
+  },
+  "about": "How well the land suits the coyote."
+ },
+ {
+  "id": "habitat-douglas-squirrel",
+  "name": "Douglas squirrel",
+  "group": "Species habitat",
+  "higher": "better",
+  "source": {
+   "felt": "e27852d2-7dde-41e6-81d3-303700004453"
+  },
+  "about": "How well the land suits the Douglas squirrel."
+ },
+ {
+  "id": "habitat-yellow-pine-chipmunk",
+  "name": "Yellow-pine chipmunk",
+  "group": "Species habitat",
+  "higher": "better",
+  "source": {
+   "felt": "fd1f47f4-3f9c-56b0-98e4-6c7a00004453"
+  },
+  "about": "How well the land suits the yellow-pine chipmunk."
+ },
+ {
+  "id": "habitat-beaver",
+  "name": "Beaver",
+  "group": "Species habitat",
+  "higher": "better",
+  "source": {
+   "felt": "d06b5096-a73b-4f29-9468-f8c400004453"
+  },
+  "about": "How well the land suits the beaver."
+ },
+ {
+  "id": "habitat-mink",
+  "name": "Mink",
+  "group": "Species habitat",
+  "higher": "better",
+  "source": {
+   "felt": "b7be86f9-032f-5bd3-9485-93b500004453"
+  },
+  "about": "How well the land suits the mink."
+ },
+ {
+  "id": "habitat-northern-red-legged-frog",
+  "name": "Northern red-legged frog",
+  "group": "Species habitat",
+  "higher": "better",
+  "source": {
+   "felt": "42baa84d-6bd5-49e5-ac25-605900004453"
+  },
+  "about": "How well the land suits the Northern red-legged frog."
+ },
+ {
+  "id": "habitat-western-toad",
+  "name": "Western toad",
+  "group": "Species habitat",
+  "higher": "better",
+  "source": {
+   "felt": "508e6be0-769a-4b01-8f09-d8a300004453"
+  },
+  "about": "How well the land suits the Western toad."
+ },
+ {
+  "id": "habitat-pacific-tree-frog",
+  "name": "Pacific tree frog",
+  "group": "Species habitat",
+  "higher": "better",
+  "source": {
+   "felt": "52b6dfa4-76db-417e-ac54-40db00004453"
+  },
+  "about": "How well the land suits the Pacific tree frog."
+ },
+ {
+  "id": "habitat-ensatina-salamander",
+  "name": "Ensatina salamander",
+  "group": "Species habitat",
+  "higher": "better",
+  "source": {
+   "felt": "89f48d3c-dfbc-427e-a8c3-976400004453"
+  },
+  "about": "How well the land suits the Ensatina salamander."
+ },
+ {
+  "id": "habitat-northwestern-salamander",
+  "name": "Northwestern salamander",
+  "group": "Species habitat",
+  "higher": "better",
+  "source": {
+   "felt": "ff6dee29-d3e1-4712-9b45-eb3800004453"
+  },
+  "about": "How well the land suits the Northwestern salamander."
+ },
+ {
+  "id": "habitat-long-toed-salamander",
+  "name": "Long-toed salamander",
+  "group": "Species habitat",
+  "higher": "better",
+  "source": {
+   "felt": "36c3ed25-79a3-4b7a-81a6-b34000004453"
+  },
+  "about": "How well the land suits the long-toed salamander."
+ },
+ {
+  "id": "habitat-northern-alligator-lizard",
+  "name": "Northern alligator lizard",
+  "group": "Species habitat",
+  "higher": "better",
+  "source": {
+   "felt": "ace679da-fa5b-4568-9f61-9b9700004453"
+  },
+  "about": "How well the land suits the Northern alligator lizard."
+ },
+ {
+  "id": "habitat-garter-snake",
+  "name": "Common garter snake",
+  "group": "Species habitat",
+  "higher": "better",
+  "source": {
+   "felt": "3093af32-ce6e-49f5-bfe1-c7ef00004453"
+  },
+  "about": "How well the land suits the common garter snake."
+ },
+ {
+  "id": "habitat-black-bear-fall",
+  "name": "Black bear (fall)",
+  "group": "Species habitat",
+  "higher": "better",
+  "source": {
+   "felt": "ea552e7d-b66f-40c1-bfa9-e11b00004453"
+  },
+  "about": "How well the land suits the black bear (fall)."
+ },
+ {
+  "id": "habitat-black-bear-summer",
+  "name": "Black bear (summer)",
+  "group": "Species habitat",
+  "higher": "better",
+  "source": {
+   "felt": "fca1a6c3-43c3-4c15-9ba8-a69c00004453"
+  },
+  "about": "How well the land suits the black bear (summer)."
+ },
+ {
+  "id": "habitat-black-tailed-deer-a",
+  "name": "Black-tailed deer (A)",
+  "group": "Species habitat",
+  "higher": "better",
+  "source": {
+   "felt": "5e90d77b-3b07-4959-812d-597100004453"
+  },
+  "about": "How well the land suits the black-tailed deer (A)."
+ },
+ {
+  "id": "habitat-black-tailed-deer-b",
+  "name": "Black-tailed deer (B)",
+  "group": "Species habitat",
+  "higher": "better",
+  "source": {
+   "felt": "d73d69bb-fa6f-4ce8-87b0-735c00004453"
+  },
+  "about": "How well the land suits the black-tailed deer (B)."
+ }
+]
