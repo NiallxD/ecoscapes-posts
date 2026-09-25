@@ -30,6 +30,9 @@ const config = {
   limit: data.limit,
   declination: data.declination,
   basemap: asset('/tiles/basemap.pmtiles'),
+  // The study area's elevation, shared with /map/ and the planning map: the
+  // corridor is inside it, and only the tiles in view are fetched.
+  terrain: asset('/tiles/terrain.pmtiles'),
   glyphs: asset('/tiles/fonts/{fontstack}/{range}.pbf'),
   layers: data.layers.map((l) => ({ ...l, src: asset(l.src) })),
   callouts: data.callouts.map((c) => ({ ...c, image: c.image ? asset(c.image) : undefined })),
@@ -681,6 +684,7 @@ const config = {
   import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
   import { PMTiles, Protocol, TileType } from 'pmtiles';
   import { layers as basemapLayers, namedFlavor } from '@protomaps/basemaps';
+  import { addRelief } from '../lib/terrain';
   import { headingOf as compassHeading, requestCompass, hasCompassApi, needsTap, ORIENTATION_EVENTS } from '../lib/compass';
 
   type Layer = {
@@ -703,6 +707,7 @@ const config = {
     limit: [LngLat, LngLat];
     declination: number;
     basemap: string;
+    terrain: string;
     glyphs: string;
     layers: Layer[];
     callouts: Callout[];
@@ -889,6 +894,7 @@ const config = {
   const state = new Map(config.layers.map((l) => [l.id, { on: l.on, opacity: l.opacity }]));
 
   map.on('load', () => {
+    addRelief(map, abs(config.terrain));
     // Over the land and water, under the road network, so the roads are
     // still there to find your way by. (Runways and taxiways, also named
     // roads_*, come earlier and stay underneath.)

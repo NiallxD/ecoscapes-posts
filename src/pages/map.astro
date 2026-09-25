@@ -24,6 +24,7 @@ const config = {
   limit: data.limit,
   declination: data.declination,
   basemap: asset(data.basemap),
+  terrain: asset('/tiles/terrain.pmtiles'),
   glyphs: asset('/tiles/fonts/{fontstack}/{range}.pbf'),
   // Map-portal layers, generated outside this file (src/data/ecoscapes-layers.json).
   layers: layersData.map((l) => ({ ...l, src: asset(l.src) })),
@@ -55,6 +56,8 @@ const config = {
           <path d="M12 3.5l8.5 4.5-8.5 4.5L3.5 8z" /><path d="M3.5 12l8.5 4.5 8.5-4.5" /><path d="M3.5 16l8.5 4.5 8.5-4.5" />
         </svg>
       </button>
+      <!-- Flat, or tilted over the ground's own shape. -->
+      <button class="step" id="three-d" type="button" aria-pressed="false" aria-label="3D view" title="3D view"><span class="step-text">3D</span></button>
       <!-- Where you are, in three: off, following you, following you with the
            compass. Each tap steps on; after a drag it takes hold again first. -->
       <button class="step" id="locate" type="button" aria-label="Follow me" data-mode="off">
@@ -465,6 +468,7 @@ const config = {
   import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
   import { Protocol } from 'pmtiles';
   import { layers as basemapLayers, namedFlavor } from '@protomaps/basemaps';
+  import { addRelief, addSky, flat, setThreeD } from '../lib/terrain';
   import { headingOf as compassHeading, requestCompass, hasCompassApi, needsTap, ORIENTATION_EVENTS } from '../lib/compass';
 
   type Legend = { colour: string; label: string };
@@ -493,6 +497,7 @@ const config = {
     limit: [LngLat, LngLat];
     declination: number;
     basemap: string;
+    terrain: string;
     glyphs: string;
     layers: Layer[];
     themes: Theme[];
@@ -571,7 +576,6 @@ const config = {
     fitBoundsOptions: { padding: 20 },
     attributionControl: false,
     dragRotate: false,
-    pitchWithRotate: false,
     style: {
       version: 8,
       glyphs: abs(config.glyphs),
@@ -652,7 +656,7 @@ const config = {
       ],
     },
   });
-  map.touchZoomRotate.disableRotation();
+  flat(map);
   map.addControl(new maplibregl.AttributionControl({ compact: true }), 'top-right');
   // Compact still opens expanded on a narrow screen. Folded to its (i) until
   // asked.
@@ -666,6 +670,8 @@ const config = {
   const state = new Map(config.layers.map((l, i) => [l.id, { on: i === 0, opacity: l.opacity }]));
 
   map.on('load', () => {
+    addRelief(map, abs(config.terrain));
+    addSky(map);
     // Over the land and water, under the road network, so the roads are
     // still there to find your way by. (Runways and taxiways, also named
     // roads_*, come earlier and stay underneath.)
@@ -692,6 +698,16 @@ const config = {
         firstRoad,
       );
     }
+  });
+
+  // ---- 3D ----------------------------------------------------------------
+  // The ground raised and the map tilted over it; turning and tilting by hand
+  // only while it is on. Off, level and north-up again.
+  const threeD = document.getElementById('three-d')!;
+  threeD.addEventListener('click', () => {
+    const on = threeD.getAttribute('aria-pressed') !== 'true';
+    threeD.setAttribute('aria-pressed', String(on));
+    setThreeD(map, abs(config.terrain), on);
   });
 
   const setLayer = (id: string, on: boolean) => {

@@ -19,6 +19,7 @@ const config = {
   bounds: data.bounds,
   limit: data.limit,
   basemap: asset(data.basemap),
+  terrain: asset('/tiles/terrain.pmtiles'),
   glyphs: asset('/tiles/fonts/{fontstack}/{range}.pbf'),
   layers: layersData.map((l) => ({ ...l, src: asset(l.src) })),
 };
@@ -131,6 +132,8 @@ const config = {
     </aside>
 
     <div class="map-side">
+      <!-- Flat, or the scores laid over the ground's own shape. -->
+      <button class="step" id="three-d" type="button" aria-pressed="false" aria-label="3D view" title="3D view"><span class="step-text">3D</span></button>
       <button class="step" id="here" type="button" aria-label="Score where I am" title="Score where I am">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
           <circle cx="12" cy="12" r="4" /><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3" />
@@ -557,6 +560,7 @@ const config = {
   import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
   import { Protocol } from 'pmtiles';
   import { studyStyle } from '../lib/study-style';
+  import { addRelief, addSky, flat, setThreeD } from '../lib/terrain';
   import { ScoreLayer, MAX_CRITERIA, scoreOf, criterionLut, type Criterion, type Op } from '../lib/dst/score-layer';
   import type { Grid, StatsRequest, StatsResponse, Tally } from '../lib/dst/stats-worker';
 
@@ -584,7 +588,7 @@ const config = {
     sampleSrc: string;
     sample: Grid;
   };
-  type Config = { bounds: [LngLat, LngLat]; limit: [LngLat, LngLat]; basemap: string; glyphs: string; layers: Layer[] };
+  type Config = { bounds: [LngLat, LngLat]; limit: [LngLat, LngLat]; basemap: string; terrain: string; glyphs: string; layers: Layer[] };
 
   const el = document.getElementById('map')!;
   const config: Config = JSON.parse(el.dataset.config!);
@@ -785,10 +789,9 @@ const config = {
     maxZoom: 15,
     attributionControl: false,
     dragRotate: false,
-    pitchWithRotate: false,
     style: studyStyle({ basemap: abs(config.basemap), glyphs: abs(config.glyphs), limit: config.limit }),
   });
-  map.touchZoomRotate.disableRotation();
+  flat(map);
   map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: 'TerrAdapt-Cascadia, Nature Squamish' }), 'top-right');
   map.once('load', () => el.querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show'));
 
@@ -797,6 +800,8 @@ const config = {
   const debug = new URLSearchParams(location.search).has('debug') ? { counts: [] as number[] } : null;
   if (debug) Object.assign(window, { __dst: { map, score, debug } });
   map.on('load', () => {
+    addRelief(map, abs(config.terrain));
+    addSky(map);
     // Over the land, under the roads and the towns: still a map to find your
     // way by.
     const firstRoad = map.getStyle().layers.find((l) => l.id.startsWith('roads_tunnels'))?.id;
@@ -806,6 +811,15 @@ const config = {
       say('This needs a browser with WebGL 2.');
     }
     push();
+  });
+
+  // The scores over the ground's own shape, tilted: the score layer follows
+  // the terrain itself (score-layer.ts), so the sliders are as quick in 3D.
+  const threeD = document.getElementById('three-d')!;
+  threeD.addEventListener('click', () => {
+    const on = threeD.getAttribute('aria-pressed') !== 'true';
+    threeD.setAttribute('aria-pressed', String(on));
+    setThreeD(map, abs(config.terrain), on);
   });
 
   const toast = document.getElementById('toast')!;

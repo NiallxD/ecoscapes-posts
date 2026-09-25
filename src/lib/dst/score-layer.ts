@@ -1,4 +1,4 @@
-import type { CustomLayerInterface, CustomRenderMethodInput, Map as MlMap } from 'maplibre-gl';
+import type { CustomLayerInterface, CustomRenderMethodInput, Map as MlMap, OverscaledTileID } from 'maplibre-gl';
 import { MAX_CRITERIA, RUNS, VARIATIONS, combineScores, criterionLut, valueOf, type Bivariate, type Criterion, type Op } from './model';
 import type { TileReply, TileRequest } from './tile-worker';
 
@@ -23,6 +23,12 @@ export type { Bivariate, Criterion, Op, ValueLayer } from './model';
  *    the view moves on before they are answered. Behind them, a ring of tiles
  *    just outside the view, so a pan finds its new edge already loaded.
  *
+ *  - In 3D the surface is laid on the terrain itself: drawn over MapLibre's
+ *    own terrain tiles, on the same grid of points with the same triangles,
+ *    lifted by the same elevation texture through the same matrix -- so it
+ *    lies exactly on the ground, hidden behind a ridge as the ground is. The
+ *    scoring is untouched, so the sliders are as quick as flat.
+ *
  *  Mercator only. */
 
 const TILE = 256;
@@ -33,7 +39,28 @@ const INFLIGHT = 24;
 /** Textures kept (64 KB each on the GPU); the least recently drawn go first. */
 const KEEP = 700;
 
+/** Units across a tile in MapLibre's tile space, and the points across one
+ *  of its terrain tiles (Terrain.meshSize). */
+const EXTENT = 8192;
+const MESH = 128;
+/** Terrain tiles are drawn four times the size of a score tile (a 512 px
+ *  source, one zoom down: TerrainTileManager.deltaZoom), so each is covered
+ *  by scores from two zooms finer. */
+const GROUND_DZ = 2;
+/** Texture unit for the terrain's elevation, clear of the layers' and the
+ *  lookup table's. */
+const DEM_UNIT = MAX_CRITERIA + 1;
+
 type Want = { key: string; src: string; z: number; x: number; y: number };
+/** A square to score: a tile of the value layers, and in 3D the terrain tile
+ *  it is drawn on and where in it. */
+type Quad = {
+  z: number;
+  x: number;
+  y: number;
+  wrap: number;
+  ground?: { id: OverscaledTileID; ox: number; oy: number; size: number; seg: number };
+};
 
 const VERT = `#version 300 es
 uniform mat4 u_matrix;
@@ -43,6 +70,40 @@ out vec2 v_pos;
 void main() {
   v_pos = a_pos;
   gl_Position = u_matrix * vec4(u_tile.xy + a_pos * u_tile.z, 0.0, 1.0);
+}`;
+
+// In 3D: a grid over part of a terrain tile, each point lifted as MapLibre's
+// terrain shader lifts it (get_elevation in its prelude, copied here with
+// plain uniforms) and projected with that tile's matrix.
+const VERT3D = `#version 300 es
+uniform mat4 u_matrix;
+uniform vec3 u_quad;   // in the terrain tile: x, y, size (tile units)
+uniform sampler2D u_terrain;
+uniform mat4 u_terrain_matrix;
+uniform vec4 u_terrain_unpack;
+uniform float u_terrain_dim;
+uniform float u_terrain_exaggeration;
+in vec2 a_pos;
+out vec2 v_pos;
+float ele(ivec2 p) {
+  vec4 rgb = (texelFetch(u_terrain, p, 0) * 255.0) * u_terrain_unpack;
+  return rgb.r + rgb.g + rgb.b - u_terrain_unpack.a;
+}
+float elevation(vec2 pos) {
+  vec2 coord = (u_terrain_matrix * vec4(pos, 0.0, 1.0)).xy * u_terrain_dim + 1.5;
+  vec2 f = fract(coord);
+  ivec2 c = ivec2(floor(coord));
+  ivec2 hi = textureSize(u_terrain, 0) - 1;
+  float tl = ele(clamp(c, ivec2(0), hi));
+  float tr = ele(clamp(c + ivec2(1, 0), ivec2(0), hi));
+  float bl = ele(clamp(c + ivec2(0, 1), ivec2(0), hi));
+  float br = ele(clamp(c + ivec2(1, 1), ivec2(0), hi));
+  return mix(mix(tl, tr, f.x), mix(bl, br, f.x), f.y) * u_terrain_exaggeration;
+}
+void main() {
+  v_pos = a_pos;
+  vec2 p = u_quad.xy + a_pos * u_quad.z;
+  gl_Position = u_matrix * vec4(p, elevation(p), 1.0);
 }`;
 
 // One block per layer, written out rather than looped: GLSL ES 3.00 only
@@ -156,11 +217,19 @@ type Tex = { tex: WebGLTexture; used: number };
 export class ScoreLayer implements CustomLayerInterface {
   id: string;
   type = 'custom' as const;
-  renderingMode = '2d' as const;
+  /** In 3D, MapLibre's depth test and range for 3D -- the ones the terrain
+   *  was drawn with, so the surface matches it depth for depth. */
+  get renderingMode() {
+    return this.map?.terrain ? ('3d' as const) : ('2d' as const);
+  }
 
   private map!: MlMap;
   private gl!: WebGL2RenderingContext;
   private prog!: WebGLProgram;
+  private prog3!: WebGLProgram;
+  private loc3: Record<string, WebGLUniformLocation | null> = {};
+  /** Grids for 3D, by points across: an array, its vertices and indices. */
+  private meshes = new Map<number, { vao: WebGLVertexArrayObject; bufs: WebGLBuffer[]; count: number }>();
   private vao!: WebGLVertexArrayObject;
   private buf!: WebGLBuffer;
   private lutTex!: WebGLTexture;
@@ -367,15 +436,21 @@ export class ScoreLayer implements CustomLayerInterface {
       if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s) ?? 'shader');
       return s;
     };
-    const p = gl.createProgram()!;
-    gl.attachShader(p, sh(gl.VERTEX_SHADER, VERT));
-    gl.attachShader(p, sh(gl.FRAGMENT_SHADER, FRAG));
-    gl.linkProgram(p);
-    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p) ?? 'link');
-    this.prog = p;
-    for (const u of ['u_matrix', 'u_tile', 'u_v', 'u_lut', 'u_uv', 'u_n', 'u_op', 'u_w', 'u_axis', 'u_opacity',
-      'u_cut', 'u_mode', 'u_brk', 'u_pal', 'u_only', 'u_steady', 'u_steadyCut', 'u_var'])
-      this.loc[u] = gl.getUniformLocation(p, u);
+    const link = (vert: string, loc: Record<string, WebGLUniformLocation | null>, extra: string[]) => {
+      const p = gl.createProgram()!;
+      gl.attachShader(p, sh(gl.VERTEX_SHADER, vert));
+      gl.attachShader(p, sh(gl.FRAGMENT_SHADER, FRAG));
+      gl.bindAttribLocation(p, 0, 'a_pos');
+      gl.linkProgram(p);
+      if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p) ?? 'link');
+      for (const u of ['u_matrix', 'u_v', 'u_lut', 'u_uv', 'u_n', 'u_op', 'u_w', 'u_axis', 'u_opacity',
+        'u_cut', 'u_mode', 'u_brk', 'u_pal', 'u_only', 'u_steady', 'u_steadyCut', 'u_var', ...extra])
+        loc[u] = gl.getUniformLocation(p, u);
+      return p;
+    };
+    const p = (this.prog = link(VERT, this.loc, ['u_tile']));
+    this.prog3 = link(VERT3D, this.loc3, ['u_quad', 'u_terrain', 'u_terrain_matrix', 'u_terrain_unpack',
+      'u_terrain_dim', 'u_terrain_exaggeration']);
 
     // Its own vertex array, so nothing here touches MapLibre's.
     this.vao = gl.createVertexArray()!;
@@ -407,6 +482,12 @@ export class ScoreLayer implements CustomLayerInterface {
     gl.deleteTexture(this.lutTex);
     gl.deleteTexture(this.empty);
     gl.deleteProgram(this.prog);
+    gl.deleteProgram(this.prog3);
+    for (const m of this.meshes.values()) {
+      gl.deleteVertexArray(m.vao);
+      for (const b of m.bufs) gl.deleteBuffer(b);
+    }
+    this.meshes.clear();
     gl.deleteBuffer(this.buf);
     gl.deleteVertexArray(this.vao);
     this.worker.terminate();
@@ -425,6 +506,64 @@ export class ScoreLayer implements CustomLayerInterface {
     }
   }
 
+  /** A grid `seg` squares across over 0..1, split into triangles as the
+   *  terrain's own mesh is (Terrain.getTerrainMesh): each square from its
+   *  top left to its bottom right. */
+  private mesh(seg: number) {
+    const have = this.meshes.get(seg);
+    if (have) return have;
+    const gl = this.gl;
+    const n = seg + 1;
+    const pos = new Float32Array(n * n * 2);
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) pos.set([x / seg, y / seg], (y * n + x) * 2);
+    const idx = new Uint16Array(seg * seg * 6);
+    let k = 0;
+    for (let y = 0; y < seg; y++)
+      for (let x = 0; x < seg; x++) {
+        const a = y * n + x;
+        idx.set([a, a + n, a + n + 1, a, a + n + 1, a + 1], k);
+        k += 6;
+      }
+    const vao = gl.createVertexArray()!;
+    gl.bindVertexArray(vao);
+    const vb = gl.createBuffer()!;
+    gl.bindBuffer(gl.ARRAY_BUFFER, vb);
+    gl.bufferData(gl.ARRAY_BUFFER, pos, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    const ib = gl.createBuffer()!;
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
+    gl.bindVertexArray(null);
+    const m = { vao, bufs: [vb, ib], count: idx.length };
+    this.meshes.set(seg, m);
+    return m;
+  }
+
+  /** The squares to score in 3D: every terrain tile MapLibre is drawing, cut
+   *  into the score tiles two zooms finer (or coarser, at the ends of the
+   *  layers' zoom range). Each gets the part of the terrain tile's grid it
+   *  covers, so its points are the terrain's own. */
+  private onGround(terrain: NonNullable<MlMap['terrain']>): Quad[] {
+    const quads: Quad[] = [];
+    for (const tile of terrain.tileManager.getRenderableTiles()) {
+      if (!tile) continue;
+      const id = tile.tileID;
+      const { z, x, y } = id.canonical;
+      const cz = Math.min(MAXZ, Math.max(MINZ, z + GROUND_DZ));
+      const d = Math.min(Math.log2(MESH), Math.max(0, cz - z));
+      const n = 1 << d;
+      const size = EXTENT / n;
+      for (let j = 0; j < n; j++)
+        for (let i = 0; i < n; i++)
+          quads.push({
+            z: z + d, x: x * n + i, y: y * n + j, wrap: id.wrap,
+            ground: { id, ox: i * size, oy: j * size, size, seg: MESH >> d },
+          });
+    }
+    return quads;
+  }
+
   render(gl: WebGLRenderingContext | WebGL2RenderingContext, opts: CustomRenderMethodInput) {
     const g = gl as WebGL2RenderingContext;
     const cs = this.criteria;
@@ -434,39 +573,51 @@ export class ScoreLayer implements CustomLayerInterface {
       return;
     }
     this.frame++;
-    const tiles = this.map.coveringTiles({ tileSize: TILE, minzoom: MINZ, maxzoom: MAXZ });
+    const terrain = this.map.terrain;
+    const quads: Quad[] = terrain
+      ? this.onGround(terrain)
+      : this.map.coveringTiles({ tileSize: TILE, minzoom: MINZ, maxzoom: MAXZ }).map((t) => ({
+          z: t.canonical.z, x: t.canonical.x, y: t.canonical.y, wrap: t.wrap,
+        }));
 
-    // What this view needs, nearest the middle first.
+    // What this view needs, nearest the middle first -- measured across the
+    // world, as in 3D the squares are of many zooms.
     const c = this.map.getCenter();
-    const n = 2 ** (tiles[0]?.canonical.z ?? MINZ);
-    const mx = ((c.lng + 180) / 360) * n;
+    const mx = (c.lng + 180) / 360;
     const lat = (c.lat * Math.PI) / 180;
-    const my = ((1 - Math.log(Math.tan(lat) + 1 / Math.cos(lat)) / Math.PI) / 2) * n;
-    const dist = (t: (typeof tiles)[number]) => (t.canonical.x + 0.5 - mx) ** 2 + (t.canonical.y + 0.5 - my) ** 2;
+    const my = (1 - Math.log(Math.tan(lat) + 1 / Math.cos(lat)) / Math.PI) / 2;
+    const dist = (z: number, x: number, y: number) => ((x + 0.5) / 2 ** z - mx) ** 2 + ((y + 0.5) / 2 ** z - my) ** 2;
     const list: Want[] = [];
+    const seen = new Set<string>();
     const add = (z: number, x: number, y: number) => {
+      // Past the layers' finest zoom, the tile there that holds this one.
+      if (z > MAXZ) [x, y, z] = [x >> (z - MAXZ), y >> (z - MAXZ), MAXZ];
+      if (seen.has(`${z}/${x}/${y}`)) return;
+      seen.add(`${z}/${x}/${y}`);
       for (const cr of cs) list.push({ key: `${cr.layer.id}/${z}/${x}/${y}`, src: cr.layer.src, z, x, y });
     };
-    const sorted = [...tiles].sort((a, b) => dist(a) - dist(b));
-    for (const t of sorted) add(t.canonical.z, t.canonical.x, t.canonical.y);
+    const sorted = [...quads].sort((a, b) => dist(a.z, a.x, a.y) - dist(b.z, b.x, b.y));
+    for (const q of sorted) add(q.z, q.x, q.y);
     this.visible = new Set(list.map((q) => q.key));
     // The ring round the view, once everything in it has come -- so it never
     // competes with what can be seen -- and not while zoomed far out, where
-    // the view is most of the study area already.
-    const z = tiles[0]?.canonical.z ?? MINZ;
+    // the view is most of the study area already. Flat only: tilted, the
+    // view already reaches to the horizon.
+    const z = quads[0]?.z ?? MINZ;
     const inView = list.every((q) => this.textures.has(q.key));
-    if (inView && z >= 9 && tiles.length) {
-      const xs = tiles.map((t) => t.canonical.x), ys = tiles.map((t) => t.canonical.y);
+    if (!terrain && inView && z >= 9 && quads.length) {
+      const xs = quads.map((t) => t.x), ys = quads.map((t) => t.y);
       const [x0, x1, y0, y1] = [Math.min(...xs) - 1, Math.max(...xs) + 1, Math.min(...ys) - 1, Math.max(...ys) + 1];
       const ring: [number, number][] = [];
       for (let x = x0; x <= x1; x++) ring.push([x, y0], [x, y1]);
       for (let y = y0 + 1; y < y1; y++) ring.push([x0, y], [x1, y]);
-      ring.sort((a, b) => (a[0] + 0.5 - mx) ** 2 + (a[1] + 0.5 - my) ** 2 - ((b[0] + 0.5 - mx) ** 2 + (b[1] + 0.5 - my) ** 2));
+      ring.sort((a, b) => dist(z, a[0], a[1]) - dist(z, b[0], b[1]));
       for (const [x, y] of ring) if (x >= 0 && y >= 0 && x < 2 ** z && y < 2 ** z) add(z, x, y);
     }
     this.want(list);
 
-    g.useProgram(this.prog);
+    const loc = terrain ? this.loc3 : this.loc;
+    g.useProgram(terrain ? this.prog3 : this.prog);
     g.activeTexture(g.TEXTURE0 + MAX_CRITERIA);
     g.bindTexture(g.TEXTURE_2D, this.lutTex);
     if (this.lutDirty) {
@@ -474,43 +625,54 @@ export class ScoreLayer implements CustomLayerInterface {
       g.texSubImage2D(g.TEXTURE_2D, 0, 0, 0, 256, MAX_CRITERIA, g.RED, g.UNSIGNED_BYTE, this.lut);
       this.lutDirty = false;
     }
-    g.uniformMatrix4fv(this.loc.u_matrix, false, opts.defaultProjectionData.mainMatrix as Float32Array);
-    g.uniform1iv(this.loc.u_v, UNITS);
-    g.uniform1i(this.loc.u_lut, MAX_CRITERIA);
-    g.uniform1i(this.loc.u_n, cs.length);
-    g.uniform1i(this.loc.u_op, this.op === 'and' ? 1 : this.op === 'or' ? 2 : 0);
+    if (!terrain) g.uniformMatrix4fv(loc.u_matrix, false, opts.defaultProjectionData.mainMatrix as Float32Array);
+    g.uniform1iv(loc.u_v, UNITS);
+    g.uniform1i(loc.u_lut, MAX_CRITERIA);
+    g.uniform1i(loc.u_n, cs.length);
+    g.uniform1i(loc.u_op, this.op === 'and' ? 1 : this.op === 'or' ? 2 : 0);
     const pad = (a: number[]) => [...a, ...Array(MAX_CRITERIA - a.length).fill(0)];
-    g.uniform1fv(this.loc.u_w, pad(cs.map((c) => c.weight)));
-    g.uniform1fv(this.loc.u_axis, pad(cs.map((c) => c.axis ?? 0)));
-    g.uniform1f(this.loc.u_opacity, this.opacity);
-    g.uniform1f(this.loc.u_cut, this.cut);
+    g.uniform1fv(loc.u_w, pad(cs.map((c) => c.weight)));
+    g.uniform1fv(loc.u_axis, pad(cs.map((c) => c.axis ?? 0)));
+    g.uniform1f(loc.u_opacity, this.opacity);
+    g.uniform1f(loc.u_cut, this.cut);
     const steady = this.steady !== null && !this.bi && this.op === 'mean';
-    g.uniform1i(this.loc.u_steady, steady ? 1 : 0);
+    g.uniform1i(loc.u_steady, steady ? 1 : 0);
     if (steady) {
-      g.uniform1f(this.loc.u_steadyCut, this.steady!);
-      g.uniform4fv(this.loc.u_var, VARIATIONS);
+      g.uniform1f(loc.u_steadyCut, this.steady!);
+      g.uniform4fv(loc.u_var, VARIATIONS);
     }
     const bi = this.bi;
-    g.uniform1i(this.loc.u_mode, bi ? 1 : 0);
+    g.uniform1i(loc.u_mode, bi ? 1 : 0);
     if (bi) {
-      g.uniform4f(this.loc.u_brk, bi.breaks[0][0], bi.breaks[0][1], bi.breaks[1][0], bi.breaks[1][1]);
-      g.uniform3fv(this.loc.u_pal, bi.palette.flatMap(rgb01));
-      g.uniform1i(this.loc.u_only, bi.only);
+      g.uniform4f(loc.u_brk, bi.breaks[0][0], bi.breaks[0][1], bi.breaks[1][0], bi.breaks[1][1]);
+      g.uniform3fv(loc.u_pal, bi.palette.flatMap(rgb01));
+      g.uniform1i(loc.u_only, bi.only);
     }
 
-    g.bindVertexArray(this.vao);
     g.enable(g.BLEND);
     g.blendFunc(g.ONE, g.ONE_MINUS_SRC_ALPHA);
-    g.disable(g.DEPTH_TEST);
     g.disable(g.STENCIL_TEST);
+    if (terrain) {
+      // Tested against the ground MapLibre has drawn (its depth test and
+      // range, from renderingMode) but not written: the layers drawn after
+      // this one still lie on the ground rather than behind the scores. Drawn
+      // a hair toward the eye so the two surfaces never fight.
+      g.depthMask(false);
+      g.enable(g.POLYGON_OFFSET_FILL);
+      g.polygonOffset(-1, -2);
+      g.uniform1i(loc.u_terrain, DEM_UNIT);
+    } else {
+      g.bindVertexArray(this.vao);
+      g.disable(g.DEPTH_TEST);
+    }
 
     const uv = new Float32Array(3 * MAX_CRITERIA);
-    tile: for (const id of tiles) {
-      const { z, x, y } = id.canonical;
+    let on: OverscaledTileID | null = null;
+    quad: for (const q of quads) {
       for (let i = 0; i < cs.length; i++) {
-        const f = this.find(cs[i].layer.id, z, x, y);
-        // Every layer needs something here before the tile is drawn.
-        if (!f) continue tile;
+        const f = this.find(cs[i].layer.id, q.z, q.x, q.y);
+        // Every layer needs something here before the square is drawn.
+        if (!f) continue quad;
         f.t.used = this.frame;
         g.activeTexture(g.TEXTURE0 + i);
         g.bindTexture(g.TEXTURE_2D, f.t.tex);
@@ -518,12 +680,35 @@ export class ScoreLayer implements CustomLayerInterface {
         uv[i * 3 + 1] = f.v;
         uv[i * 3 + 2] = f.s;
       }
-      const size = 1 / 2 ** z;
-      g.uniform3fv(this.loc.u_uv, uv);
-      g.uniform3f(this.loc.u_tile, x * size + id.wrap, y * size, size);
-      g.drawArrays(g.TRIANGLE_STRIP, 0, 4);
+      g.uniform3fv(loc.u_uv, uv);
+      const gr = q.ground;
+      if (!gr || !terrain) {
+        const size = 1 / 2 ** q.z;
+        g.uniform3f(loc.u_tile, q.x * size + q.wrap, q.y * size, size);
+        g.drawArrays(g.TRIANGLE_STRIP, 0, 4);
+        continue;
+      }
+      // The terrain tile's elevation and matrix, once for all its squares.
+      if (on !== gr.id) {
+        on = gr.id;
+        const td = terrain.getTerrainData(gr.id);
+        g.activeTexture(g.TEXTURE0 + DEM_UNIT);
+        g.bindTexture(g.TEXTURE_2D, td.texture);
+        g.uniformMatrix4fv(loc.u_terrain_matrix, false, Float32Array.from(td.u_terrain_matrix as ArrayLike<number>));
+        g.uniform4fv(loc.u_terrain_unpack, td.u_terrain_unpack);
+        g.uniform1f(loc.u_terrain_dim, td.u_terrain_dim);
+        g.uniform1f(loc.u_terrain_exaggeration, td.u_terrain_exaggeration);
+        const pd = opts.getProjectionData({ tileID: { wrap: gr.id.wrap, canonical: gr.id.canonical }, applyTerrainMatrix: false });
+        g.uniformMatrix4fv(loc.u_matrix, false, pd.mainMatrix as Float32Array);
+      }
+      g.uniform3f(loc.u_quad, gr.ox, gr.oy, gr.size);
+      const m = this.mesh(gr.seg);
+      g.bindVertexArray(m.vao);
+      g.drawElements(g.TRIANGLES, m.count, g.UNSIGNED_SHORT, 0);
     }
     g.bindVertexArray(null);
+    g.disable(g.POLYGON_OFFSET_FILL);
+    g.depthMask(true);
     g.activeTexture(g.TEXTURE0);
     this.evict();
   }
