@@ -1,6 +1,5 @@
 {
-  "basemap-study.pmtiles": "b53fc01e3a832fcf",
-  "basemap.pmtiles": "6bf0020c03288886",
+  "basemap-study.pmtiles": "7694e8408711ecc9",
   "dst/biodiversity-index.pmtiles": "11e1a7ea5eb3ea09",
   "dst/biodiversity-index.sample.webp": "1daff7bedd66f7ba",
   "dst/built-up-density.pmtiles": "eacd5d6ca48d8e15",
@@ -130,5 +129,5 @@
   "ecoscapes/xeric-vegetation-change-40yr.pmtiles": "344df1c17167a63e",
   "layers/connectivity-linkages.pmtiles": "a07ac378d3cc3c6a",
   "layers/habitat-cores.pmtiles": "a8ece7b7c9f650ee",
-  "terrain.pmtiles": "2a9946ff7b148ebc"
+  "terrain.pmtiles": "55769a3712ca11a1"
 }

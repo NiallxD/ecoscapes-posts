@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 import { MAX_CRITERIA, RUNS, STEADY, VARIATIONS } from './model';
-/** Areas for the planning tool: how much of the study area -- or of the view
+/** Areas for the Data Sandbox: how much of the study area -- or of the view
  *  -- the current model scores at or above a cut-off, the spread of its
  *  scores, and with two scores the area in each of the nine cells.
  *
@@ -71,6 +71,7 @@ function load(src: string) {
       // After the map's own tiles: the numbers can wait a moment, the map
       // should not.
       const res = await fetch(src, { priority: 'low' } as RequestInit);
+      if (!res.ok) throw new Error(`${res.status} ${src}`);
       const bmp = await createImageBitmap(await res.blob(), { colorSpaceConversion: 'none', premultiplyAlpha: 'none' });
       const { width, height } = bmp;
       const c = new OffscreenCanvas(width, height);
@@ -82,6 +83,9 @@ function load(src: string) {
       for (let i = 0, j = 0; i < out.length; i++, j += 4) out[i] = rgba[j];
       return out;
     })();
+    // A failed fetch is forgotten, so the next count asks again rather than
+    // failing on the same dropped connection for the rest of the visit.
+    p.catch(() => samples.delete(src));
     samples.set(src, p);
   }
   return p;
@@ -128,7 +132,14 @@ async function run() {
     latest[req.kind] = null;
     if (req.layers.some((l) => !samples.has(l.src)))
       postMessage({ seq: req.seq, kind: req.kind, loading: true } satisfies StatsResponse);
-    const arrays = await Promise.all(req.layers.map((l) => load(l.src)));
+    let arrays: Uint8Array[];
+    try {
+      arrays = await Promise.all(req.layers.map((l) => load(l.src)));
+    } catch {
+      // A sample would not load. Not counted, but the loop carries on: a throw
+      // here would leave `busy` set and no count would ever run again.
+      continue;
+    }
     // A newer request of this kind came in while loading: count that instead.
     if (latest[req.kind]) continue;
     const t0 = performance.now();

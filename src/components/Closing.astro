@@ -68,7 +68,7 @@ const playlist = [...tiles]
              rules -- the engine's, not this sheet's -- and two pills side by
              side at different heights is the one thing this row must not do.
              The address it goes to still lives in the markup. -->
-        <button class="chip closing-more" id="closing-more" type="button" data-href={asset('/explore/')}>
+        <button class="chip closing-more" id="closing-more" type="button" data-href={asset('/map/')}>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
             <path d="M12 21s7-5.6 7-11a7 7 0 10-14 0c0 5.4 7 11 7 11z" /><circle cx="12" cy="10" r="2.5" />
           </svg>
@@ -89,7 +89,7 @@ const playlist = [...tiles]
     <!-- iOS never fires the install prompt: adding to the home screen is a
          thing the person does through the browser's own share sheet, so all
          this panel can do is say where it is. -->
-    <div class="howto" id="howto" role="dialog" aria-modal="true" aria-labelledby="howto-title">
+    <div class="howto" id="howto" role="dialog" aria-modal="true" aria-labelledby="howto-title" data-no-tap>
       <div class="howto-card">
         <h3 id="howto-title">Add this to your home screen</h3>
         <p class="howto-lede">Adding to your home screen makes this experience behave like an app.</p>
@@ -1012,6 +1012,8 @@ const playlist = [...tiles]
       (howtoClose as HTMLButtonElement).focus();
     };
     const hideHowto = () => {
+      // Installing closes it too, and focus should not jump if it was not up.
+      if (!howto.classList.contains('on')) return;
       howto.classList.remove('on');
       install.focus();
     };

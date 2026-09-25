@@ -4,8 +4,11 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import Shell from '../layouts/Shell.astro';
 import { asset, tile } from '../lib/paths';
 import layersData from '../data/dst-layers.json';
+// The longer text behind each layer's (i), kept as Markdown for the team to
+// edit: a `## Layer name` heading, paragraphs, then a `Source:` line.
+import descriptionsMd from '../data/layer-descriptions.md?raw';
 
-/** Planning support: the RRN demo's weighted, fuzzy scoring, on this
+/** The Data Sandbox (DST): the RRN demo's weighted, fuzzy scoring, on this
  *  region's own layers. Where /map/ shows each layer as it is, this page asks
  *  what matters and how much, and colours the whole area by how well each
  *  place fits. Every layer is a file of real values (tools/prepare-value-
@@ -15,26 +18,94 @@ const entry = await getEntry('ecoscapes', 'sea-to-sky');
 if (!entry) throw new Error('src/content/ecoscapes/sea-to-sky.md is missing');
 const { data } = entry;
 
+type Detail = { text: string[]; source: string; href: string };
+function readDescriptions(md: string) {
+  const idOf = new Map(layersData.map((l) => [l.name, l.id]));
+  const out: Record<string, Detail> = {};
+  for (const part of md.split(/^## /m).slice(1)) {
+    const [head, ...rest] = part.split('\n');
+    const id = idOf.get(head.trim());
+    if (!id) throw new Error(`src/data/layer-descriptions.md: "${head.trim()}" is not the name of a layer in the Data Sandbox`);
+    // Up to the next group heading, if there is one.
+    const body = rest.join('\n').split(/^# /m)[0];
+    const src = body.match(/^Source:\s*(.+)$/m)?.[1].trim() ?? '';
+    const link = src.match(/^\[(.+?)\]\((.+?)\)$/);
+    out[id] = {
+      text: body
+        .replace(/^Source:.*$/m, '')
+        .split(/\n\s*\n/)
+        .map((p) => p.replace(/\s*\n\s*/g, ' ').trim())
+        .filter(Boolean),
+      source: link ? link[1] : src,
+      href: link ? link[2] : '',
+    };
+  }
+  return out;
+}
+const details = readDescriptions(descriptionsMd);
+
 const config = {
   bounds: data.bounds,
   limit: data.limit,
   basemap: tile(data.basemap),
   terrain: tile('/tiles/terrain.pmtiles'),
   glyphs: asset('/tiles/fonts/{fontstack}/{range}.pbf'),
-  layers: layersData.map((l) => ({ ...l, src: tile(l.src), sampleSrc: tile(l.sampleSrc) })),
+  logo: asset('/img/ecoscapes-logo-white.png'),
+  emblem: asset('/img/ecoscapes-emblem.png'),
+  layers: layersData.map((l) => ({
+    ...l,
+    src: tile(l.src),
+    sampleSrc: tile(l.sampleSrc),
+    detail: details[l.id],
+  })),
 };
 ---
-<Shell title="EcoScapes planning support" description="Choose what matters and how much, and see where across the Sea-to-Sky fits best.">
+<Shell title="EcoScapes Data Sandbox" description="Choose what matters and how much, and see where across the Sea-to-Sky fits best.">
+  <!-- On a phone: not the tool, which needs the room, but a way to send
+       yourself the link for later, and the map to look at now. iPads and
+       computers never see this. -->
+  <section class="phone-gate" aria-labelledby="gate-title">
+    <img class="gate-logo" src={asset('/img/ecoscapes-logo-white.png')} alt="EcoScapes" width="800" height="184" />
+    <p class="eyebrow">Data Sandbox</p>
+    <h1 id="gate-title">This one needs a bigger screen</h1>
+    <p>The Data Sandbox is designed for a computer or a tablet. Send yourself the link and open it there, or take a look at our map explorer on your phone now.</p>
+    <a class="gate-btn gate-main" id="gate-mail" href="mailto:">Email me the link</a>
+    <!-- A shared model (a link or a scanned code) can be seen here as a
+         picture: the full map image, drawn on the phone when asked. -->
+    <button class="gate-btn" id="gate-see" type="button" hidden>See this map on your phone</button>
+    <p class="gate-busy" id="gate-busy" role="status" hidden>Drawing the map… this takes a few seconds.</p>
+    <a class="gate-btn" href={asset('/map/')}>Open the map</a>
+    <a class="gate-home" href={asset('/')}>All the posts</a>
+    <!-- The email's address filled in here, on its own: the page's main
+         script has the whole map library to load first, and the button must
+         work whether or not that ever runs. -->
+    <script is:inline>
+      document.getElementById('gate-mail').href =
+        'mailto:?subject=' + encodeURIComponent('EcoScapes Data Sandbox') +
+        '&body=' + encodeURIComponent('Open the EcoScapes Data Sandbox on a computer or tablet:\n\n' + location.href + '\n');
+      if (/^#m=/.test(location.hash)) document.getElementById('gate-see').hidden = false;
+    </script>
+  </section>
+  <!-- The picture, once drawn: the page itself pinches to zoom it. -->
+  <section class="phone-view" id="phone-view" hidden>
+    <div class="view-bar">
+      <button type="button" class="gate-btn" id="view-back">Back</button>
+      <a class="gate-btn gate-main" id="view-save" href="#">Save image</a>
+    </div>
+    <p class="view-hint">Pinch to zoom in. Open the link on a computer or tablet to change it.</p>
+    <img id="view-img" alt="The map for this sandbox, with its key and layers" />
+  </section>
   <main class="dst-page">
     <div class="map" id="map" data-config={JSON.stringify(config)}></div>
 
     <section class="dst-panel" id="panel" aria-labelledby="panel-title">
       <header class="panel-head">
         <div>
-          <p class="eyebrow">Planning support · demo</p>
+          <img class="panel-logo" src={asset('/img/ecoscapes-logo-white.png')} alt="EcoScapes" width="800" height="184" />
+          <p class="eyebrow">Data Sandbox · demo</p>
           <h1 id="panel-title">What matters here?</h1>
         </div>
-        <button class="fold" id="share" type="button" aria-label="Copy a link to this model" title="Copy a link to this model">
+        <button class="fold" id="share" type="button" aria-label="Copy a link to this sandbox" title="Copy a link to this sandbox">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1" /><path d="M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1" /></svg>
         </button>
         <button class="fold" id="fold" type="button" aria-expanded="true" aria-controls="panel-body" aria-label="Fold the panel">
@@ -42,32 +113,37 @@ const config = {
         </button>
       </header>
       <div class="panel-body" id="panel-body">
-        <p class="lede">Pick the layers that matter, say what counts as good, and weigh them. The map lights up where a place fits best. Tap the map to see why.</p>
+        <p class="lede">Choose the layers which you are interested in analysing. Configure how much you value each layers contribution to the analysis. The map lights up in response to your configuration. Click any location on the map to read how each layer contributes.</p>
 
-        <div class="block">
-          <h2>Start from an example</h2>
+        <!-- The three settings folded to a line each until opened, what is
+             chosen in each shown beside its name. -->
+        <details class="block fold-block" name="settings">
+          <summary><h2>Start from an example</h2><span class="sum-val" id="preset-val"></span><svg class="sum-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg></summary>
+          <p class="sec-desc">Load a preconfigured map based around key themes.</p>
           <div class="chips" id="presets"></div>
           <p class="op-note" id="preset-note"></p>
-        </div>
+        </details>
 
-        <div class="block">
-          <h2>Show</h2>
-          <div class="seg seg-2" id="mode" role="radiogroup" aria-label="One score or two">
-            <button type="button" role="radio" data-mode="one">One score</button>
-            <button type="button" role="radio" data-mode="two">Two scores</button>
+        <details class="block fold-block" name="settings">
+          <summary><h2>Bivariate</h2><span class="sum-val" id="mode-val"></span><svg class="sum-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg></summary>
+          <p class="sec-desc">Enable bivariate grouping to split the data into two groups, then plot them together into a bivariate map. This shows how much two variables agree or disagree about an area.</p>
+          <div class="seg seg-2" id="mode" role="radiogroup" aria-label="Single or bivariate">
+            <button type="button" role="radio" data-mode="one">Single</button>
+            <button type="button" role="radio" data-mode="two">Bivariate</button>
           </div>
           <p class="op-note" id="mode-note"></p>
-        </div>
+        </details>
 
-        <div class="block">
-          <h2>Combine them by</h2>
+        <details class="block fold-block" name="settings">
+          <summary><h2>Calculation type</h2><span class="sum-val" id="op-val"></span><svg class="sum-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg></summary>
+          <p class="sec-desc">When showing multiple data layers, you can choose how those layers are combined. Hover over each to learn more.</p>
           <div class="seg" id="op" role="radiogroup" aria-label="How the layers combine">
             <button type="button" role="radio" data-op="mean">Weigh up</button>
             <button type="button" role="radio" data-op="and">All must pass</button>
             <button type="button" role="radio" data-op="or">Any one</button>
           </div>
           <p class="op-note" id="op-note"></p>
-        </div>
+        </details>
 
         <div class="block">
           <h2>Layers</h2>
@@ -121,20 +197,6 @@ const config = {
       </div>
       <label class="key-op">Strength <input id="opacity" type="range" min="0.2" max="1" step="0.05" value="0.85" /></label>
       <p class="key-foot" id="key-foot"></p>
-      <!-- The strongest places for the model as it stands: numbered on the
-           map, named by the nearest town, and a tour that flies through them. -->
-      <div class="best">
-        <div class="best-head">
-          <button type="button" id="best-btn" aria-expanded="false" aria-controls="best-list">Best places</button>
-          <button type="button" id="tour-btn">Take the tour</button>
-        </div>
-        <ol class="best-list" id="best-list" hidden></ol>
-        <p class="best-note" id="best-note" hidden></p>
-      </div>
-      <div class="key-out">
-        <button type="button" id="save-png">Map image</button>
-        <button type="button" id="save-csv">Numbers (CSV)</button>
-      </div>
     </aside>
 
     <div class="map-side">
@@ -156,6 +218,35 @@ const config = {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true">
             <path d="M12 3a9 9 0 100 18c1 0 1.6-.8 1.6-1.7 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-.9.8-1.7 1.7-1.7H16a5 5 0 005-5C21 6.6 17 3 12 3z" />
             <circle cx="7.5" cy="11" r="1.1" fill="currentColor" /><circle cx="10.5" cy="7.3" r="1.1" fill="currentColor" /><circle cx="15" cy="7.8" r="1.1" fill="currentColor" />
+          </svg>
+        </button>
+      </div>
+      <!-- The strongest places for the model as it stands: numbered on the
+           map, named by the nearest town, and toured as soon as they open. -->
+      <div class="pop-wrap">
+        <div class="pop-menu best-menu" id="best-menu" hidden>
+          <p class="pop-title">Best places</p>
+          <ol class="best-list" id="best-list"></ol>
+          <p class="best-note" id="best-note"></p>
+        </div>
+        <button class="step" id="best-btn" type="button" aria-expanded="false" aria-controls="best-menu" aria-label="Best places" title="Best places">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.8l-5.2 2.8 1-5.8-4.3-4.1 5.9-.9z" />
+          </svg>
+        </button>
+      </div>
+      <!-- Sharing it: the whole area as a finished map, the view as it is,
+           the numbers, or a code that opens this model. -->
+      <div class="pop-wrap" id="save-wrap">
+        <div class="pop-menu" id="save-menu" hidden>
+          <button type="button" data-save="full">Full map<small>The whole area, with its key</small></button>
+          <button type="button" data-save="view">This view<small>The map as it is on screen</small></button>
+          <button type="button" data-save="csv">Numbers (CSV)<small>The model and the areas</small></button>
+          <button type="button" data-save="qr">QR code<small>Opens this sandbox on a phone or tablet</small></button>
+        </div>
+        <button class="step" id="save-btn" type="button" aria-expanded="false" aria-controls="save-menu" aria-label="Share" title="Share">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 15V3.5M8 7.5l4-4 4 4" /><path d="M8.5 10.5H6a1 1 0 00-1 1V20a1 1 0 001 1h12a1 1 0 001-1v-8.5a1 1 0 00-1-1h-2.5" />
           </svg>
         </button>
       </div>
@@ -181,6 +272,51 @@ const config = {
 
 <style>
   .dst-page { position: relative; height: 100dvh; overflow: hidden; }
+  /* A phone, upright or on its side: a touch screen under 600px either way.
+     The same test is in the script, which then stops before the map. */
+  .phone-gate { display: none; }
+  @media (pointer: coarse) and (max-width: 599px), (pointer: coarse) and (max-height: 599px) {
+    .dst-page { display: none; }
+    .phone-gate {
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 0.9rem;
+      max-width: 26rem;
+      margin: 0 auto;
+      padding: calc(var(--safe-t, 0px) + 2rem) 1.5rem 2rem;
+      background: var(--bg);
+    }
+  }
+  /* Drawing the picture: the map there to draw, but not seen. */
+  :global(html.phone-render) .dst-page { display: block; position: fixed; inset: 0; opacity: 0; pointer-events: none; z-index: -1; }
+  :global(html.phone-viewing) .phone-gate { display: none; }
+  .gate-btn:disabled { opacity: 0.5; }
+  button.gate-btn { width: 100%; appearance: none; background: none; font: inherit; cursor: pointer; }
+  .gate-busy { font-size: 0.85rem; text-align: center; }
+  .phone-view { padding: calc(var(--safe-t, 0px) + 0.8rem) 0.8rem 2rem; background: var(--bg); }
+  .phone-view[hidden] { display: none; }
+  .view-bar { display: flex; gap: 0.6rem; }
+  .view-bar .gate-btn { flex: 1; margin: 0; }
+  .view-hint { margin: 0.7rem 0.2rem; font-size: 0.8rem; line-height: 1.45; color: var(--ink-dim); }
+  #view-img { display: block; width: 100%; height: auto; border-radius: 6px; }
+  .gate-logo { width: 11rem; height: auto; margin-bottom: 1rem; }
+  .phone-gate .eyebrow { margin: 0; font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
+  .phone-gate h1 { margin: 0; font-size: 1.6rem; line-height: 1.2; }
+  .phone-gate p { margin: 0; line-height: 1.55; color: var(--ink-dim); }
+  .gate-btn {
+    display: block;
+    padding: 0.85rem 1rem;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    color: var(--ink);
+    text-align: center;
+    text-decoration: none;
+    font-weight: 600;
+  }
+  .gate-main { margin-top: 0.6rem; border-color: var(--accent); background: var(--accent); color: #0d1210; }
+  .gate-home { align-self: center; margin-top: 0.4rem; font-size: 0.85rem; color: var(--ink-dim); }
   .map { position: absolute; inset: 0; background: var(--bg); }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
@@ -216,6 +352,7 @@ const config = {
   }
   .panel-head { display: flex; align-items: flex-start; gap: 0.8rem; padding: 1rem 1.1rem 0.6rem; }
   .panel-head > div { flex: 1; min-width: 0; }
+  .panel-logo { display: block; width: 8.5rem; height: auto; margin: 0.1rem 0 0.7rem; }
   #share { margin-right: -0.4rem; }
   .eyebrow { margin: 0; font-size: 0.66rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
   h1 { font-size: 1.2rem; line-height: 1.2; margin: 0.25rem 0 0; }
@@ -251,6 +388,15 @@ const config = {
     text-transform: uppercase;
     color: var(--ink-dim);
   }
+  .fold-block summary { display: flex; align-items: center; gap: 0.5rem; list-style: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .fold-block summary::-webkit-details-marker { display: none; }
+  .fold-block summary h2 { margin: 0; }
+  .fold-block[open] summary { margin-bottom: 0.55rem; }
+  .sum-val { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; font-size: 0.74rem; color: var(--ink); }
+  .fold-block[open] .sum-val { visibility: hidden; }
+  .sum-chev { flex: none; width: 14px; height: 14px; color: var(--ink-dim); transition: transform 0.15s; }
+  .fold-block[open] .sum-chev { transform: rotate(180deg); }
+  .fold-block summary:hover h2, .fold-block summary:hover .sum-chev { color: var(--ink); }
 
   .chips :global(button), .seg button {
     appearance: none;
@@ -289,6 +435,42 @@ const config = {
   .seg button { padding: 0.5rem 0.4rem; border: 0; border-radius: 8px; background: none; color: var(--ink-dim); }
   .seg button:hover { color: var(--ink); }
   .seg button[aria-checked='true'] { background: var(--bg-lift); color: var(--accent); box-shadow: 0 0 0 1px var(--line); }
+  .sec-desc { margin: 0 0 0.6rem; font-size: 0.76rem; line-height: 1.45; color: var(--ink-dim); }
+  /* The examples, the two modes and the calculation types explained on
+     hover (and keyboard focus), in a tip under the button: kept inside the
+     panel by lining it up with the button's outer edge at either side. */
+  .fold-block :global([data-tip]) { position: relative; }
+  .fold-block :global([data-tip])::after {
+    content: attr(data-tip);
+    position: absolute;
+    z-index: 3;
+    top: calc(100% + 8px);
+    left: 50%;
+    width: 14rem;
+    padding: 0.5rem 0.65rem;
+    border-radius: 9px;
+    border: 1px solid var(--line);
+    background: rgba(13, 18, 16, 0.97);
+    color: var(--ink);
+    font-size: 0.72rem;
+    font-weight: 400;
+    line-height: 1.45;
+    text-align: left;
+    white-space: normal;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    visibility: hidden;
+    --tx: -50%;
+    transform: translate(var(--tx), -3px);
+    transition: opacity 0.12s, transform 0.12s, visibility 0.12s;
+    pointer-events: none;
+  }
+  .seg :global([data-tip]:first-child)::after, .chips :global([data-tip]:nth-child(odd))::after { left: 0; --tx: 0; }
+  .seg :global([data-tip]:last-child)::after, .chips :global([data-tip]:nth-child(even))::after { left: auto; right: 0; --tx: 0; }
+  @media (hover: hover) {
+    .fold-block :global([data-tip]:hover)::after { opacity: 1; visibility: visible; transform: translate(var(--tx), 0); }
+  }
+  .fold-block :global([data-tip]:focus-visible)::after { opacity: 1; visibility: visible; transform: translate(var(--tx), 0); }
   .op-note { margin: 0.5rem 0 0; font-size: 0.76rem; line-height: 1.45; color: var(--ink-dim); }
   button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
@@ -342,10 +524,78 @@ const config = {
     -webkit-tap-highlight-color: transparent;
   }
   #criteria :global(.icon svg) { width: 14px; height: 14px; }
+  #criteria :global(.icon[aria-expanded='true']) { color: var(--accent); border-color: var(--accent); }
+  #criteria :global(.info) { margin: 0.45rem 0 0.4rem; padding: 0.55rem 0.7rem; border-radius: 10px; background: var(--bg-lift); font-size: 0.76rem; line-height: 1.5; }
+  #criteria :global(.info p) { margin: 0; }
+  #criteria :global(.info p + p) { margin-top: 0.4rem; }
+  #criteria :global(.info .info-src) { margin-top: 0.4rem; font-size: 0.7rem; color: var(--ink-dim); }
+  #criteria :global(.info a) { color: var(--accent); }
+  /* Which way is good, as plainly as it can be put: a tag after the text. */
+  #criteria :global(.way) { display: inline-block; margin-left: 0.2rem; padding: 0.05rem 0.45rem; border-radius: 6px; background: var(--bg-lift); color: var(--ink); font-weight: 600; white-space: nowrap; }
   #criteria :global(.dir) { margin: 0.15rem 0 0.35rem; font-size: 0.76rem; color: var(--ink-dim); }
   #criteria :global(svg.hist) { display: block; width: 100%; height: 44px; }
-  #criteria :global(.thresh) { display: grid; grid-template-columns: 1fr 1fr; gap: 0.2rem 0.8rem; margin-top: 0.3rem; }
-  #criteria :global(.thresh label), #criteria :global(.weight) {
+  /* Poor and best as two handles on one slider, under the histogram and
+     lined up with it: the inputs run half a handle past each end, so a
+     handle's middle sits over the value it stands for. */
+  #criteria :global(.dual) { position: relative; height: 22px; margin-top: 0.2rem; }
+  #criteria :global(.dual::before), #criteria :global(.dual::after) { content: ''; position: absolute; border-radius: 3px; pointer-events: none; }
+  #criteria :global(.dual::before) { left: 0; right: 0; top: 9.5px; height: 3px; background: var(--line); }
+  #criteria :global(.dual::after) {
+    left: var(--lo);
+    right: calc(100% - var(--hi));
+    top: 8.5px;
+    height: 5px;
+    background: linear-gradient(var(--dir), rgba(154, 167, 159, 0.4), var(--ramp-hi, #ffdd80));
+  }
+  /* input[type='range'] to outrank the general slider rule further down. */
+  #criteria :global(.dual input[type='range']) {
+    position: absolute;
+    left: -10px;
+    top: 0;
+    width: calc(100% + 20px);
+    height: 22px;
+    margin: 0;
+    background: none;
+    -webkit-appearance: none;
+    appearance: none;
+    pointer-events: none;
+  }
+  #criteria :global(.dual input.front) { z-index: 1; }
+  #criteria :global(.dual input::-webkit-slider-runnable-track) { height: 22px; background: none; }
+  #criteria :global(.dual input::-moz-range-track) { background: none; }
+  #criteria :global(.dual input::-webkit-slider-thumb) {
+    -webkit-appearance: none;
+    pointer-events: auto;
+    width: 20px;
+    height: 20px;
+    margin-top: 1px;
+    border-radius: 50%;
+    border: 2px solid #0d1210;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+    cursor: grab;
+  }
+  #criteria :global(.dual input::-moz-range-thumb) {
+    pointer-events: auto;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2px solid #0d1210;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+    cursor: grab;
+  }
+  #criteria :global(.t-bad::-webkit-slider-thumb) { background: #c9d2cc; }
+  #criteria :global(.t-bad::-moz-range-thumb) { background: #c9d2cc; }
+  #criteria :global(.t-good::-webkit-slider-thumb) { background: var(--ramp-hi, #ffdd80); }
+  #criteria :global(.t-good::-moz-range-thumb) { background: var(--ramp-hi, #ffdd80); }
+  #criteria :global(.dual input:focus-visible) { outline: none; }
+  #criteria :global(.dual input:focus-visible::-webkit-slider-thumb) { box-shadow: 0 0 0 3px var(--accent); }
+  #criteria :global(.dual input:focus-visible::-moz-range-thumb) { box-shadow: 0 0 0 3px var(--accent); }
+  #criteria :global(.thresh) { display: flex; justify-content: space-between; margin-top: 0.25rem; font-size: 0.72rem; color: var(--ink-dim); }
+  #criteria :global(.thresh.flip) { flex-direction: row-reverse; }
+  #criteria :global(.thresh i) { display: inline-block; width: 8px; height: 8px; margin-right: 0.35rem; border-radius: 50%; vertical-align: 0.05em; }
+  #criteria :global(.dot-bad) { background: #c9d2cc; }
+  #criteria :global(.dot-good) { background: var(--ramp-hi, #ffdd80); }
+  #criteria :global(.weight) {
     display: grid;
     gap: 0.15rem;
     font-size: 0.72rem;
@@ -354,6 +604,11 @@ const config = {
   #criteria :global(.thresh output), #criteria :global(.weight output) { color: var(--ink); font-variant-numeric: tabular-nums; }
   #criteria :global(input[type='range']) { width: 100%; margin: 0; accent-color: var(--accent); }
   #criteria :global(.weight) { margin-top: 0.5rem; }
+  #criteria :global(.weight-head) { display: flex; justify-content: space-between; gap: 0.5rem; }
+  #criteria :global(.weight-head b) { color: var(--ink); font-weight: 600; white-space: nowrap; }
+  #criteria :global(.weight-foot) { display: flex; align-items: baseline; gap: 0.5rem; }
+  #criteria :global(.weight-foot small) { font-size: 0.68rem; color: var(--ink-dim); }
+  #criteria :global(.weight-foot output) { margin-left: auto; }
   .op-and #criteria :global(.weight), .op-or #criteria :global(.weight) { display: none; }
 
 
@@ -445,25 +700,8 @@ const config = {
   .bi-brk :global(.brk b) { grid-column: 1 / -1; font-weight: 600; color: var(--ink); }
   .bi-brk :global(.brk output) { color: var(--ink); font-variant-numeric: tabular-nums; }
   .bi-brk :global(input) { width: 100%; margin: 0; accent-color: var(--accent); }
-  .best { margin-top: 0.6rem; }
-  .best-head { display: flex; gap: 0.4rem; }
-  .best-head button {
-    flex: 1;
-    appearance: none;
-    padding: 0.45rem 0.5rem;
-    border-radius: 8px;
-    border: 1px solid var(--line);
-    background: var(--bg-lift);
-    color: var(--ink);
-    font: inherit;
-    font-size: 0.76rem;
-    cursor: pointer;
-  }
-  .best-head button[aria-expanded='true'], .best-head button[aria-pressed='true'] { border-color: var(--accent); color: var(--accent); }
-  .best-list { list-style: none; margin: 0.45rem 0 0; padding: 0; display: grid; gap: 0.2rem; }
-  .best-list[hidden] { display: none; }
-  .best-note { margin: 0.3rem 0 0; font-size: 0.68rem; line-height: 1.4; color: var(--ink-dim); }
-  .best-note[hidden] { display: none; }
+  .best-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.15rem; }
+  .best-note { margin: 0.35rem 0.3rem 0.1rem; font-size: 0.68rem; line-height: 1.4; color: var(--ink-dim); }
   .best-list :global(button) {
     width: 100%;
     display: grid;
@@ -500,20 +738,6 @@ const config = {
   :global(.best-pin.on) { transform: scale(1.25); box-shadow: 0 0 0 2px #0d1210, 0 0 0 5px rgba(255, 221, 128, 0.5); }
   :global(.here-dot) { width: 16px; height: 16px; border-radius: 50%; background: #6fb6ff; border: 3px solid #0d1210; box-shadow: 0 0 0 2px #6fb6ff; }
   .map-side { display: flex; flex-direction: column; gap: 0.6rem; }
-  .key-out { display: flex; gap: 0.4rem; margin-top: 0.6rem; }
-  .key-out button {
-    flex: 1;
-    appearance: none;
-    padding: 0.4rem 0.5rem;
-    border-radius: 8px;
-    border: 1px solid var(--line);
-    background: none;
-    color: var(--ink-dim);
-    font: inherit;
-    font-size: 0.72rem;
-    cursor: pointer;
-  }
-  .key-out button:hover { color: var(--ink); border-color: #3a4843; }
   /* Tiles still arriving: a thin bar across the top of the map. */
   .loading-bar {
     position: absolute;
@@ -587,8 +811,8 @@ const config = {
   .map :global(.maplibregl-ctrl-top-right) { top: var(--safe-t); }
   @media (min-width: 48rem) { .map :global(.maplibregl-ctrl-bottom-right) { bottom: 7rem; } }
   /* The palette menu: out to the left of its button, swatches in a column. */
-  .pal-wrap { position: relative; }
-  .pal-menu {
+  .pal-wrap, .pop-wrap { position: relative; }
+  .pal-menu, .pop-menu {
     position: absolute;
     z-index: 5;
     right: calc(100% + 0.6rem);
@@ -603,7 +827,7 @@ const config = {
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
   }
-  .pal-menu[hidden] { display: none; }
+  .pal-menu[hidden], .pop-menu[hidden] { display: none; }
   .pal-menu :global(button) {
     appearance: none;
     display: grid;
@@ -621,7 +845,29 @@ const config = {
   .pal-menu :global(button:hover) { background: var(--bg-lift); color: var(--ink); }
   .pal-menu :global(button[aria-checked='true']) { border-color: var(--accent); color: var(--ink); }
   .pal-menu :global(.pal-bar) { display: block; height: 8px; border-radius: 4px; }
-  #pal-btn[aria-expanded='true'] { border-color: var(--accent); color: var(--accent); }
+  #pal-btn[aria-expanded='true'], #best-btn[aria-expanded='true'], #save-btn[aria-expanded='true'] { border-color: var(--accent); color: var(--accent); }
+  /* The save menu, and the best places: as the palettes, beside their button. */
+  .pop-menu > button {
+    appearance: none;
+    display: grid;
+    gap: 0.1rem;
+    padding: 0.45rem 0.6rem;
+    border-radius: 9px;
+    border: 0;
+    background: none;
+    color: var(--ink);
+    font: inherit;
+    font-size: 0.78rem;
+    text-align: left;
+    cursor: pointer;
+  }
+  .pop-menu > button:hover:not(:disabled) { background: var(--bg-lift); }
+  .pop-menu > button:disabled { opacity: 0.5; cursor: progress; }
+  .pop-menu small { font-size: 0.68rem; color: var(--ink-dim); }
+  .pop-title { margin: 0.2rem 0.3rem 0.35rem; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-dim); }
+  .best-menu { width: 17rem; max-height: min(24rem, 70dvh); overflow-y: auto; }
+  /* On a phone the buttons are at the top: their menus hang down. */
+  @media (max-width: 47.99rem) { .pop-menu { top: 0; bottom: auto; } }
   /* Wider screens: the numbers in the top right corner, the controls in the
      bottom right under them, and the attribution in the bottom left corner,
      under the panel. */
@@ -642,11 +888,22 @@ const config = {
   import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
   import { Protocol } from 'pmtiles';
   import { studyStyle } from '../lib/study-style';
-  import { addRelief, addSky, flat, threeDButton } from '../lib/terrain';
+  import { addRelief, addSky, tilting } from '../lib/terrain';
   import { confirmLeave } from '../lib/leave';
   import { PALETTES, paletteById, rgb } from '../lib/dst/palettes';
   import { ScoreLayer, MAX_CRITERIA, scoreOf, criterionLut, type Criterion, type Op } from '../lib/dst/score-layer';
   import type { Grid, StatsRequest, StatsResponse, Tally } from '../lib/dst/stats-worker';
+
+  // A phone gets the screen above instead (.phone-gate), and nothing past
+  // here runs.
+  // Unless a shared model is to be drawn as a picture (showOnPhone, below):
+  // then the rest runs behind the screen, the map unseen.
+  const PHONE = '(pointer: coarse) and (max-width: 599px), (pointer: coarse) and (max-height: 599px)';
+  const onPhone = matchMedia(PHONE).matches;
+  if (onPhone) {
+    await new Promise<void>((go) => document.getElementById('gate-see')!.addEventListener('click', () => go(), { once: true }));
+    document.documentElement.classList.add('phone-render');
+  }
 
   type LngLat = [number, number];
   type Layer = {
@@ -667,12 +924,14 @@ const config = {
      *  kind rather than by two thresholds. */
     categorical?: boolean;
     about: string;
+    /** The map portal's longer description, and where the data comes from. */
+    detail?: { text: string[]; source: string; href: string };
     hist: number[];
     /** Its area sample: full-detail values on a grid every layer shares. */
     sampleSrc: string;
     sample: Grid;
   };
-  type Config = { bounds: [LngLat, LngLat]; limit: [LngLat, LngLat]; basemap: string; terrain: string; glyphs: string; layers: Layer[] };
+  type Config = { bounds: [LngLat, LngLat]; limit: [LngLat, LngLat]; basemap: string; terrain: string; glyphs: string; logo: string; emblem: string; layers: Layer[] };
 
   const el = document.getElementById('map')!;
   const config: Config = JSON.parse(el.dataset.config!);
@@ -701,6 +960,8 @@ const config = {
   /** One layer shown alone (its index), or -1: its own score on the map and
    *  in the numbers, to see what it contributes. */
   let solo = -1;
+  /** Layers whose longer description is open, by id. */
+  const infoOpen = new Set<string>();
   const soloing = () => solo >= 0 && solo < items.length;
   /** What is actually drawn and counted: the model, or the one layer alone. */
   const effectiveMode = (): Mode => (soloing() ? 'one' : mode);
@@ -826,7 +1087,7 @@ const config = {
     {
       name: 'Value × pressure',
       about:
-        'Two scores: how valuable the land is for nature, set against how much pressure it is under. The top-right square, high on both, is where they meet.',
+        'Bivariate: how valuable the land is for nature, set against how much pressure it is under. The top-right square, high on both, is where they meet.',
       op: 'mean',
       axes: ['Value', 'Pressure'],
       items: [
@@ -843,7 +1104,7 @@ const config = {
     {
       name: 'Habitat × climate',
       about:
-        'Two scores: good habitat today, set against places sheltered from a warming climate. The top-right square is where the two coincide.',
+        'Bivariate: good habitat today, set against places sheltered from a warming climate. The top-right square is where the two coincide.',
       op: 'mean',
       axes: ['Habitat now', 'Climate shelter'],
       items: [
@@ -859,25 +1120,36 @@ const config = {
   maplibregl.setWorkerUrl(workerUrl);
   maplibregl.addProtocol('pmtiles', new Protocol().tile);
   const [[w, s], [e, n]] = config.limit;
+  /** As far as the map pans: the study area and as much again on every
+   *  side, so zoomed right out the whole area fits on any screen, the dark
+   *  beyond its edge all round it. */
+  const ROOM: [LngLat, LngLat] = [[w - (e - w), s - (n - s)], [e + (e - w), n + (n - s)]];
+  // On a phone the panel covers the lower half: the area is framed in the
+  // part of the map left showing.
+  const framing = () =>
+    matchMedia('(min-width: 48rem)').matches
+      ? { top: 20, bottom: 20, right: 20, left: 25 * 16 + 20 }
+      : { top: 20, left: 20, right: 20, bottom: innerHeight * 0.56 + 10 };
   const map = new maplibregl.Map({
     container: el,
     bounds: config.bounds,
-    maxBounds: [[w - 0.1, s - 0.06], [e + 0.1, n + 0.06]],
-    // On a phone the panel covers the lower half: the area is framed in the
-    // part of the map left showing.
-    fitBoundsOptions: {
-      padding: matchMedia('(min-width: 48rem)').matches
-        ? { top: 20, bottom: 20, right: 20, left: 25 * 16 + 20 }
-        : { top: 20, left: 20, right: 20, bottom: innerHeight * 0.56 + 10 },
-    },
+    maxBounds: ROOM,
+    fitBoundsOptions: { padding: framing() },
     maxZoom: 15,
     attributionControl: false,
     dragRotate: false,
     style: studyStyle({ basemap: abs(config.basemap), glyphs: abs(config.glyphs), limit: config.limit }),
   });
-  flat(map);
   map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: 'TerrAdapt-Cascadia, Nature Squamish' }), 'bottom-left');
   map.once('load', () => el.querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show'));
+  // Out as far as the whole area beside the panels, and a little more; no
+  // further, where it would only be the dark round it.
+  const setMinZoom = () => {
+    const cam = map.cameraForBounds(config.limit, { padding: framing() });
+    if (cam?.zoom !== undefined) map.setMinZoom(Math.max(0, cam.zoom - 0.4));
+  };
+  setMinZoom();
+  map.on('resize', setMinZoom);
 
   const score = new ScoreLayer('score');
   // ?debug: hooks for measuring (tools/bench-dst.mjs), nothing on screen.
@@ -899,7 +1171,7 @@ const config = {
 
   // The scores over the ground's own shape, tilted: the score layer follows
   // the terrain itself (score-layer.ts), so the sliders are as quick in 3D.
-  threeDButton(map, abs(config.terrain), document.getElementById('three-d')!, document.getElementById('tilt')!);
+  tilting(map, abs(config.terrain), document.getElementById('three-d')!, document.getElementById('tilt')!);
 
   const toast = document.getElementById('toast')!;
   let toastTimer = 0;
@@ -945,14 +1217,26 @@ const config = {
     one: 'Every layer feeds one score, from poor fit to best fit.',
     two: 'Sort the layers into two groups and see where they coincide: each place gets a score for each group, and a colour for the pair.',
   };
+  for (const b of modeEl.querySelectorAll<HTMLElement>('[data-mode]')) b.dataset.tip = MODE_NOTES[b.dataset.mode as Mode];
   const presetsEl = document.getElementById('presets')!;
+  // One settings group open at a time: name="settings" does it where the
+  // browser knows exclusive <details>, this where it does not.
+  const folds = document.querySelectorAll<HTMLDetailsElement>('.fold-block');
+  for (const d of folds)
+    d.addEventListener('toggle', () => {
+      if (d.open) for (const o of folds) if (o !== d) o.open = false;
+    });
   const opEl = document.getElementById('op')!;
+  /** The calculation type as its button names it, for the exports. */
+  const opLabel = () => opEl.querySelector(`[data-op="${op}"]`)!.textContent!;
   const OP_NAMES: Record<Op, string> = { mean: 'weighing up', and: 'all must pass', or: 'any one' };
   const OP_NOTES: Record<Op, string> = {
     mean: 'Each layer counts as much as its weight says: a weak layer can be made up for by strong ones.',
     and: 'A place scores only as well as its weakest layer. Weights are set aside.',
     or: 'A place scores as well as its strongest layer. Weights are set aside.',
   };
+  // Each calculation type's note as its button's hover tip.
+  for (const b of opEl.querySelectorAll<HTMLElement>('[data-op]')) b.dataset.tip = OP_NOTES[b.dataset.op as Op];
 
   const fmt = (l: Layer, v: number) => {
     if (l.classes) return l.classes.find((c) => c.value === snap(l, v))?.label ?? String(v);
@@ -991,6 +1275,29 @@ const config = {
     return `rgb(${c.join(',')})`;
   }
 
+  /** A weight in words. 1 is neutral -- every layer counts the same --
+   *  so the bands are narrow near it and widen upward, as a doubling
+   *  matters more than a step: 0.1-0.3, 0.4-0.7, 0.8-1.2, 1.3-1.7,
+   *  1.8-2.4, 2.5-3.2, 3.3-4.2, 4.3-5. */
+  const WEIGHT_WORDS: [number, string][] = [
+    [0.35, 'Very little'],
+    [0.75, 'Little'],
+    [1.25, 'Neutral'],
+    [1.75, 'A bit'],
+    [2.45, 'Quite a bit'],
+    [3.25, 'A lot'],
+    [4.25, 'Lots'],
+    [Infinity, 'Most important'],
+  ];
+  const weightWord = (w: number) => WEIGHT_WORDS.find(([top]) => w < top)![1];
+
+  /** Where the two handles of a layer's one slider sit, for the shading
+   *  between them: poor to best, whichever way round they are. */
+  function dualStyle(l: Layer, it: Item) {
+    const pc = (v: number) => (((v - l.lo) / (l.hi - l.lo || 1)) * 100).toFixed(2);
+    return `--bad:${pc(it.bad)}%;--good:${pc(it.good)}%;--lo:${pc(Math.min(it.bad, it.good))}%;--hi:${pc(Math.max(it.bad, it.good))}%;--dir:${it.good >= it.bad ? '90deg' : '270deg'}`;
+  }
+
   function sliderAttrs(l: Layer) {
     if (l.classes) {
       const v = l.classes.map((c) => c.value);
@@ -1022,8 +1329,11 @@ const config = {
 
   function critHtml(it: Item, i: number) {
     const l = byId.get(it.id)!;
-    const better = it.good >= it.bad ? 'High values score best' : 'Low values score best';
+    const better = it.good >= it.bad ? 'Higher = better' : 'Lower = better';
     const on = soloing() && solo === i;
+    // A weight only counts against another layer's: in the same score, when
+    // there are two.
+    const alone = items.filter((x) => mode !== 'two' || x.axis === it.axis).length === 1;
     return `<div class="crit${on ? ' solo' : ''}" data-i="${i}">
       <div class="crit-head">
         <b>${esc(l.name)}</b>
@@ -1040,24 +1350,44 @@ const config = {
         <button class="icon" type="button" data-act="flip" aria-label="Swap which end is good" title="Swap which end is good">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v16M4 7l3-3 3 3M17 20V4M14 17l3 3 3-3"/></svg>
         </button>
+        ${
+          l.detail
+            ? `<button class="icon" type="button" data-act="info" aria-expanded="${infoOpen.has(l.id)}" aria-label="About ${esc(l.name)}" title="About this layer">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6"/><circle cx="12" cy="7.5" r="0.6" fill="currentColor"/></svg>
+        </button>`
+            : ''
+        }
         <button class="icon" type="button" data-act="remove" aria-label="Remove ${esc(l.name)}" title="Remove">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
         </button>
       </div>
       ${
+        l.detail && infoOpen.has(l.id)
+          ? `<div class="info">${l.detail.text.map((t) => `<p>${esc(t)}</p>`).join('')}<p class="info-src">Source: ${
+              l.detail.href ? `<a href="${esc(l.detail.href)}" target="_blank" rel="noopener">${esc(l.detail.source)}</a>` : esc(l.detail.source)
+            }</p></div>`
+          : ''
+      }
+      ${
         l.categorical
           ? `<p class="dir">Score each kind. ${esc(l.about)}</p>${catsHtml(l, it)}`
-          : `<p class="dir"><span class="way">${better}.</span> ${esc(l.about)}</p>
+          : `<p class="dir">${esc(l.about)} <span class="way">${better}</span></p>
       <div class="hist-wrap">${histSvg(l, it)}</div>
-      <div class="thresh">
-        <label>Poor at <output data-out="bad">${esc(fmt(l, it.bad))}</output>
-          <input type="range" data-k="bad" ${sliderAttrs(l)} value="${it.bad}"></label>
-        <label>Best at <output data-out="good">${esc(fmt(l, it.good))}</output>
-          <input type="range" data-k="good" ${sliderAttrs(l)} value="${it.good}"></label>
+      <div class="dual" style="${dualStyle(l, it)}">
+        <input type="range" class="t-bad" data-k="bad" ${sliderAttrs(l)} value="${it.bad}" aria-label="Poor at">
+        <input type="range" class="t-good" data-k="good" ${sliderAttrs(l)} value="${it.good}" aria-label="Best at">
+      </div>
+      <div class="thresh${it.good < it.bad ? ' flip' : ''}">
+        <span><i class="dot-bad"></i>Poor at <output data-out="bad">${esc(fmt(l, it.bad))}</output></span>
+        <span><i class="dot-good"></i>Best at <output data-out="good">${esc(fmt(l, it.good))}</output></span>
       </div>`
       }
-      <label class="weight">How much it matters <output data-out="weight">×${it.weight}</output>
-        <input type="range" data-k="weight" min="0.5" max="5" step="0.5" value="${it.weight}"></label>
+      <label class="weight">
+        <span class="weight-head">How much do you value this layer? <b data-out="weight-word">${weightWord(it.weight)}</b></span>
+        <input type="range" data-k="weight" min="0.1" max="5" step="0.1" value="${it.weight}">
+        <span class="weight-foot">${
+          alone ? '<small>Add another layer below to use weighting</small>' : ''
+        }<output data-out="weight">×${it.weight.toFixed(1)}</output></span></label>
     </div>`;
   }
 
@@ -1102,6 +1432,9 @@ const config = {
     for (const b of modeEl.querySelectorAll<HTMLButtonElement>('button'))
       b.setAttribute('aria-checked', String(b.dataset.mode === mode));
     document.getElementById('mode-note')!.textContent = MODE_NOTES[mode];
+    document.getElementById('mode-val')!.textContent = mode === 'two' ? 'Bivariate' : 'Single';
+    document.getElementById('op-val')!.textContent = opEl.querySelector(`[data-op="${op}"]`)!.textContent!;
+    document.getElementById('preset-val')!.textContent = preset ?? (items.length ? 'Your own mix' : '');
 
     for (const b of opEl.querySelectorAll<HTMLButtonElement>('button'))
       b.setAttribute('aria-checked', String(b.dataset.op === op));
@@ -1121,7 +1454,7 @@ const config = {
   }
 
   presetsEl.innerHTML = PRESETS.filter((p) => p.items.every(([id]) => byId.has(id)))
-    .map((p) => `<button type="button" data-name="${esc(p.name)}" title="${esc(p.about)}" aria-pressed="false">${esc(p.name)}</button>`)
+    .map((p) => `<button type="button" data-name="${esc(p.name)}" data-tip="${esc(p.about)}" aria-pressed="false">${esc(p.name)}</button>`)
     .join('');
   function usePreset(name: string) {
     const p = PRESETS.find((x) => x.name === name)!;
@@ -1186,6 +1519,12 @@ const config = {
     if (!b) return;
     const i = Number(b.closest<HTMLElement>('.crit')!.dataset.i);
     const act = b.dataset.act;
+    if (act === 'info') {
+      const id = items[i].id;
+      if (!infoOpen.delete(id)) infoOpen.add(id);
+      render();
+      return;
+    }
     if (act === 'solo') {
       solo = solo === i ? -1 : i;
       render();
@@ -1228,10 +1567,16 @@ const config = {
     preset = null;
     for (const b of presetsEl.querySelectorAll('button')) b.setAttribute('aria-pressed', 'false');
     document.getElementById('preset-note')!.textContent = 'Your own mix. Pick an example to start again.';
-    row.querySelector(`[data-out="${k}"]`)!.textContent = k === 'weight' ? `×${it.weight}` : fmt(l, it[k]);
+    document.getElementById('preset-val')!.textContent = 'Your own mix';
+    row.querySelector(`[data-out="${k}"]`)!.textContent = k === 'weight' ? `×${it.weight.toFixed(1)}` : fmt(l, it[k]);
+    if (k === 'weight') row.querySelector('[data-out="weight-word"]')!.textContent = weightWord(it.weight);
     if (k !== 'weight') {
       row.querySelector('.hist-wrap')!.innerHTML = histSvg(l, it);
-      row.querySelector('.way')!.textContent = it.good >= it.bad ? 'High values score best.' : 'Low values score best.';
+      row.querySelector('.way')!.textContent = it.good >= it.bad ? 'Higher = better' : 'Lower = better';
+      row.querySelector('.dual')!.setAttribute('style', dualStyle(l, it));
+      row.querySelector('.thresh')!.classList.toggle('flip', it.good < it.bad);
+      // The handle last moved on top, so two that meet can still be parted.
+      for (const x of row.querySelectorAll('.dual input')) x.classList.toggle('front', x === input);
     }
     push();
   });
@@ -1285,7 +1630,11 @@ const config = {
     palMenu.hidden = !open;
     palBtn.setAttribute('aria-expanded', String(open));
   };
-  palBtn.addEventListener('click', () => showPalettes(palMenu.hidden));
+  palBtn.addEventListener('click', () => {
+    // One menu out at a time: they open into the same space.
+    if (palMenu.hidden) closeOthers();
+    showPalettes(palMenu.hidden);
+  });
   palMenu.addEventListener('click', (e) => {
     const b = (e.target as HTMLElement).closest<HTMLElement>('[data-palette]');
     if (!b) return;
@@ -1378,6 +1727,10 @@ const config = {
       const key = modelKey(m);
       const hit = regionCache.get(key);
       if (hit) {
+        // Any count still on its way is for an older model: bumping the
+        // sequence drops it, rather than letting it land over this one and be
+        // cached under this model's key.
+        seq++;
         tallies.region = hit;
         showNumbers();
         showBest();
@@ -1799,9 +2152,9 @@ const config = {
     await new Promise((r) => setTimeout(r, 300));
     try {
       await navigator.clipboard.writeText(location.href);
-      say(items.length ? 'Link copied: it opens this exact model.' : 'Link copied.');
+      say(items.length ? 'Link copied: it opens this exact sandbox.' : 'Link copied.');
     } catch {
-      say('Copy the address bar to share this model.');
+      say('Copy the address bar to share this sandbox.');
     }
   });
 
@@ -1831,47 +2184,548 @@ const config = {
       return `${axis}${l.name}: ${how}${wt}`;
     });
 
-  document.getElementById('save-png')!.addEventListener('click', () => {
+  // The save button's menu: the whole area as a finished map, the view, or
+  // the numbers.
+  const saveWrap = document.getElementById('save-wrap')!;
+  const saveBtn = document.getElementById('save-btn')!;
+  const saveMenu = document.getElementById('save-menu')!;
+  const showSave = (open: boolean) => {
+    saveMenu.hidden = !open;
+    saveBtn.setAttribute('aria-expanded', String(open));
+  };
+  let saving = false;
+  saveBtn.addEventListener('click', () => {
     if (!items.length) return say('Add a layer first.');
-    // The canvas is only readable during a render: ask for one and copy it then.
-    map.once('render', () => {
-      const src = map.getCanvas();
-      const dpr = src.width / el.clientWidth;
-      const lines = modelLines();
-      const headline =
-        effectiveMode() === 'two'
-          ? `${biPct.textContent} ${biKm.textContent?.replace(/\s+/g, ' ')}`
-          : `${pctEl.textContent} (${kmEl.textContent?.replace(/\s+/g, ' ')})`;
-      const pad = 18 * dpr, line = 17 * dpr, foot = pad * 2 + line * (lines.length + 3);
-      const out = document.createElement('canvas');
-      out.width = src.width;
-      out.height = src.height + foot;
-      const ctx = out.getContext('2d')!;
-      ctx.fillStyle = '#0d1210';
-      ctx.fillRect(0, 0, out.width, out.height);
-      ctx.drawImage(src, 0, 0);
-      ctx.fillStyle = '#eef2ee';
-      ctx.font = `600 ${14 * dpr}px system-ui, sans-serif`;
-      let y = src.height + pad + line * 0.8;
-      ctx.fillText(`EcoScapes planning support: ${headline}`, pad, y);
-      ctx.font = `${12 * dpr}px system-ui, sans-serif`;
-      ctx.fillStyle = '#9aa79f';
-      y += line * 1.2;
-      ctx.fillText(`Combined by: ${OP_NAMES[op]}. Numbers ${WHERE[scope]}. ${stamp()}`, pad, y);
-      for (const l of lines) ctx.fillText(l, pad, (y += line));
-      download(`ecoscapes-planning-${stamp()}.png`, out.toDataURL('image/png'));
-    });
-    map.triggerRepaint();
+    if (saveMenu.hidden) closeOthers();
+    showSave(saveMenu.hidden);
+  });
+  saveMenu.addEventListener('click', async (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-save]');
+    if (!b || saving) return;
+    const all = saveMenu.querySelectorAll('button');
+    saving = true;
+    for (const x of all) x.disabled = true;
+    try {
+      await ({ full: saveFull, view: saveView, csv: saveCsv, qr: saveQr } as Record<string, () => unknown>)[b.dataset.save!]();
+      showSave(false);
+    } finally {
+      saving = false;
+      for (const x of all) x.disabled = false;
+    }
+  });
+  document.addEventListener('click', (e) => {
+    if (!saveMenu.hidden && !saving && !saveWrap.contains(e.target as Node)) showSave(false);
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !saveMenu.hidden && !saving) showSave(false);
   });
 
-  document.getElementById('save-csv')!.addEventListener('click', () => {
+  /** The canvas as it is drawn next: it is only readable during a render. */
+  const grab = () =>
+    new Promise<HTMLCanvasElement>((done) => {
+      map.once('render', () => {
+        const src = map.getCanvas();
+        const c = document.createElement('canvas');
+        c.width = src.width;
+        c.height = src.height;
+        c.getContext('2d')!.drawImage(src, 0, 0);
+        done(c);
+      });
+      map.triggerRepaint();
+    });
+
+  /** The view as it is, with the key and the model under it. */
+  async function saveView() {
+    const src = await grab();
+    const dpr = src.width / el.clientWidth;
+    const lines = modelLines();
+    const headline =
+      effectiveMode() === 'two'
+        ? `${biPct.textContent} ${biKm.textContent?.replace(/\s+/g, ' ')}`
+        : `${pctEl.textContent} (${kmEl.textContent?.replace(/\s+/g, ' ')})`;
+    const pad = 18 * dpr, line = 17 * dpr, foot = pad * 2 + line * (lines.length + 3);
+    const out = document.createElement('canvas');
+    out.width = src.width;
+    out.height = src.height + foot;
+    const ctx = out.getContext('2d')!;
+    ctx.fillStyle = '#0d1210';
+    ctx.fillRect(0, 0, out.width, out.height);
+    ctx.drawImage(src, 0, 0);
+    ctx.fillStyle = '#eef2ee';
+    ctx.font = `600 ${14 * dpr}px system-ui, sans-serif`;
+    let y = src.height + pad + line * 0.8;
+    ctx.fillText(`EcoScapes Data Sandbox: ${headline}`, pad, y);
+    ctx.font = `${12 * dpr}px system-ui, sans-serif`;
+    ctx.fillStyle = '#9aa79f';
+    y += line * 1.2;
+    ctx.fillText(`Calculation type: ${opLabel()}. Numbers ${WHERE[scope]}. ${stamp()}`, pad, y);
+    for (const l of lines) ctx.fillText(l, pad, (y += line));
+    download(`ecoscapes-data-sandbox-${stamp()}.png`, out.toDataURL('image/png'));
+  }
+
+  /** Everything in view drawn: the map's own tiles and the scores'. */
+  const settled = () =>
+    new Promise<void>((done) => {
+      const until = Date.now() + 30000;
+      let calm = 0;
+      const check = () => {
+        const ready = !map.isMoving() && map.areTilesLoaded() && score.pending === 0;
+        calm = ready ? calm + 1 : 0;
+        if (calm >= 3 || Date.now() > until) return done();
+        map.triggerRepaint();
+        setTimeout(check, 150);
+      };
+      map.once('render', () => setTimeout(check, 150));
+      map.triggerRepaint();
+    });
+
+  const logo = new Image();
+  logo.src = config.logo;
+  const emblem = new Image();
+  emblem.src = config.emblem;
+
+  /** A code that opens this model, on its own: dark on white for any phone
+   *  to read, with the EcoScapes emblem in the middle. The most error
+   *  correction the link leaves room for, so the emblem can cover the
+   *  middle and the code still reads. */
+  async function saveQr() {
+    const { default: qrcode } = await import('qrcode-generator');
+    let qr: ReturnType<typeof qrcode> | null = null;
+    let level = '';
+    for (const l of ['H', 'Q', 'M', 'L'] as const) {
+      try {
+        const q = qrcode(0, l);
+        q.addData(location.href);
+        q.make();
+        [qr, level] = [q, l];
+        break;
+      } catch {}
+    }
+    if (!qr) return say('This link is too long for a code.');
+    if (!emblem.complete) await new Promise((r) => (emblem.onload = emblem.onerror = r));
+    const n = qr.getModuleCount();
+    const quiet = 4;
+    const cell = Math.max(8, Math.ceil(1200 / (n + quiet * 2)));
+    const size = (n + quiet * 2) * cell;
+    const out = document.createElement('canvas');
+    out.width = out.height = size;
+    const ctx = out.getContext('2d')!;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, size, size);
+    ctx.fillStyle = '#0d1210';
+    for (let r = 0; r < n; r++)
+      for (let c = 0; c < n; c++) if (qr.isDark(r, c)) ctx.fillRect((c + quiet) * cell, (r + quiet) * cell, cell, cell);
+    // The emblem: about a fifth of the code across with high correction, less
+    // as the correction drops, on a white ring so its edge stays clean.
+    if (emblem.naturalWidth) {
+      const share = { H: 0.24, Q: 0.2, M: 0.15, L: 0.1 }[level as 'H' | 'Q' | 'M' | 'L'];
+      const d = n * cell * share;
+      const mid = size / 2;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(mid, mid, d / 2 + cell, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.drawImage(emblem, mid - d / 2, mid - d / 2, d, d);
+    }
+    download(`ecoscapes-data-sandbox-qr-${stamp()}.png`, out.toDataURL('image/png'));
+  }
+
+  /** The whole study area to its dashed edge, flat and north up, drawn
+   *  sharper than the screen and finished as a map: north, a scale, the key,
+   *  the model, where it all comes from, and a code that opens this model.
+   *  The camera goes back after. */
+  async function saveFull() {
+    const out = await drawFull();
+    download(`ecoscapes-data-sandbox-full-${stamp()}.png`, out.toDataURL('image/png'));
+  }
+  async function drawFull() {
+    stopTour();
+    popup.remove();
+    say('Drawing the full map…');
+    const before = { center: map.getCenter(), zoom: map.getZoom(), pitch: map.getPitch(), bearing: map.getBearing() };
+    const ratio = map.getPixelRatio();
+    const [[bw, bs], [be, bn]] = config.limit;
+    let shot: HTMLCanvasElement, crop: { x: number; y: number; w: number; h: number }, zoom: number, lat: number;
+    try {
+      map.setMaxBounds(null);
+      map.jumpTo({ ...map.cameraForBounds(config.limit, { padding: 6 })!, pitch: 0, bearing: 0 });
+      // Sharper than the screen: about 3200 pixels on the long side, within
+      // what the graphics card takes.
+      const nw = map.project([bw, bn]), se = map.project([be, bs]);
+      const long = Math.max(se.x - nw.x, se.y - nw.y);
+      const gl = map.getCanvas().getContext('webgl2');
+      const maxSide = Math.min(8192, gl ? (gl.getParameter(gl.MAX_RENDERBUFFER_SIZE) as number) : 4096);
+      map.setPixelRatio(Math.max(ratio, Math.min(4, 3200 / long, maxSide / Math.max(el.clientWidth, el.clientHeight))));
+      await settled();
+      shot = await grab();
+      // Out by a pixel, so the dashed edge is inside the picture whole.
+      const k = shot.width / el.clientWidth;
+      const x0 = Math.round((nw.x - 1) * k), y0 = Math.round((nw.y - 1) * k);
+      crop = { x: x0, y: y0, w: Math.round((se.x + 1) * k) - x0, h: Math.round((se.y + 1) * k) - y0 };
+      zoom = map.getZoom();
+      lat = map.getCenter().lat;
+    } finally {
+      map.setPixelRatio(ratio);
+      map.jumpTo(before);
+      map.setMaxBounds(ROOM);
+    }
+    if (!logo.complete) await new Promise((r) => (logo.onload = logo.onerror = r));
+
+    const { default: qrcode } = await import('qrcode-generator');
+    const qr = qrcode(0, 'L');
+    qr.addData(location.href);
+    qr.make();
+
+    // Laid out in units of a thousandth of the map's width.
+    const u = crop.w / 1000;
+    const M = 36 * u;
+    const out = document.createElement('canvas');
+    const ctx = out.getContext('2d')!;
+    const font = (size: number, weight = 400) => (ctx.font = `${weight} ${size * u}px system-ui, -apple-system, 'Segoe UI', sans-serif`);
+    /** Text broken into lines no wider than w. */
+    const wrap = (text: string, w: number) => {
+      const rows: string[] = [];
+      let row = '';
+      for (const word of text.split(' ')) {
+        const next = row ? `${row} ${word}` : word;
+        if (row && ctx.measureText(next).width > w) {
+          rows.push(row);
+          row = word;
+        } else row = next;
+      }
+      return row ? [...rows, row] : rows;
+    };
+
+    // The foot's height first: the model, the layers' descriptions and the
+    // sources in one column, the code beside them.
+    const qrSize = 136 * u, qrGap = 32 * u;
+    const textW = crop.w - qrSize - qrGap;
+    // The model as a chart per layer: its values across the area, shaded by
+    // the score each gets, with the poor and best marks on it.
+    const crits = criteria();
+    const cols = crits.length > 1 ? 2 : 1;
+    const rowsN = Math.ceil(crits.length / cols);
+    const chartGap = 26 * u, chartH = 34 * u, cellH = 84 * u;
+    const chartW = (textW - chartGap * (cols - 1)) / cols;
+    font(10.5);
+    // How to read them, in plain words.
+    const explain = wrap(
+      'Each bar is a slice of the study area, low values on the left to high on the right; taller means more land. ' +
+        'Colour is the score: dark counts little, bright counts most. ' +
+        'E.g. a tall bright bar is a lot of land that scores well; a short dark one, a little that scores poorly.',
+      textW,
+    );
+    const used = crits.map((c) => byId.get(c.layer.id)!);
+    const from = [...new Set(used.map((l) => l.detail?.source).filter(Boolean))].join('; ') || 'TerrAdapt-Cascadia, Nature Squamish';
+    font(10);
+    const sources = wrap(
+      `${stamp()} · Layers: ${from} · Relief © Mapterhorn · Base map © OpenStreetMap, Protomaps · A demo, not a recommendation`,
+      textW,
+    );
+    const headH = 50 * u;
+
+    // About each layer: its description, in two columns when there is more
+    // than one, each block to the shorter column.
+    const aboutLH = 15 * u, aboutGap = 26 * u;
+    const withText = used.filter((l) => l.detail);
+    const aboutCols = withText.length > 1 ? 2 : 1;
+    const aboutW = (textW - aboutGap * (aboutCols - 1)) / aboutCols;
+    font(10.5);
+    const blocks = withText.map((l) => {
+      // Paragraphs apart by an empty row.
+      const rows = l.detail!.text.flatMap((t, i) => [...(i ? [''] : []), ...wrap(t, aboutW)]);
+      return { l, rows, h: 18 * u + rows.length * aboutLH + 16 * u };
+    });
+    const colH = Array(aboutCols).fill(0) as number[];
+    const placed = blocks.map((b) => {
+      const c = colH.indexOf(Math.min(...colH));
+      const at = { ...b, col: c, y: colH[c] };
+      colH[c] += b.h;
+      return at;
+    });
+    const modelH = 12 * u + explain.length * 15 * u + 10 * u + rowsN * cellH;
+    const aboutH = blocks.length ? 30 * u + 12 * u + Math.max(...colH) : 0;
+    const bodyH = Math.max(qrSize + 30 * u, modelH + aboutH + 14 * u + sources.length * 15 * u);
+    const footH = 30 * u + headH + 26 * u + bodyH;
+    out.width = Math.round(crop.w + M * 2);
+    out.height = Math.round(crop.h + M * 2 + footH);
+
+    ctx.fillStyle = '#0d1210';
+    ctx.fillRect(0, 0, out.width, out.height);
+    ctx.drawImage(shot, crop.x, crop.y, crop.w, crop.h, M, M, crop.w, crop.h);
+
+    // North, top right, inside the dashed edge.
+    const ax = M + crop.w - 44 * u, ay = M + 44 * u;
+    ctx.fillStyle = 'rgba(13,18,16,0.75)';
+    ctx.beginPath();
+    ctx.arc(ax, ay, 28 * u, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#eef2ee';
+    ctx.beginPath();
+    ctx.moveTo(ax, ay - 2 * u);
+    ctx.lineTo(ax + 8 * u, ay + 21 * u);
+    ctx.lineTo(ax, ay + 16 * u);
+    ctx.lineTo(ax - 8 * u, ay + 21 * u);
+    ctx.closePath();
+    ctx.fill();
+    font(12, 700);
+    ctx.textAlign = 'center';
+    ctx.fillText('N', ax, ay - 8 * u);
+    ctx.textAlign = 'left';
+
+    // A scale, bottom left, inside the edge: a round distance near a fifth of
+    // the width.
+    const metresPerPx = (40075016.686 * Math.cos((lat * Math.PI) / 180)) / (512 * 2 ** zoom) / (shot.width / el.clientWidth);
+    const want = (crop.w / 5) * metresPerPx;
+    const step = 10 ** Math.floor(Math.log10(want));
+    const dist = [5, 2, 1].map((f) => f * step).find((d) => d <= want)!;
+    const barW = dist / metresPerPx, sx = M + 30 * u, sy = M + crop.h - 30 * u;
+    ctx.fillStyle = 'rgba(13,18,16,0.75)';
+    ctx.fillRect(sx - 12 * u, sy - 28 * u, barW + 24 * u, 44 * u);
+    ctx.fillStyle = '#eef2ee';
+    ctx.fillRect(sx, sy, barW / 2, 6 * u);
+    ctx.strokeStyle = '#eef2ee';
+    ctx.lineWidth = 1.5 * u;
+    ctx.strokeRect(sx, sy, barW, 6 * u);
+    font(12);
+    ctx.fillText('0', sx, sy - 8 * u);
+    ctx.textAlign = 'right';
+    ctx.fillText(`${dist >= 1000 ? dist / 1000 : dist} ${dist >= 1000 ? 'km' : 'm'}`, sx + barW, sy - 8 * u);
+    ctx.textAlign = 'left';
+
+    // The head of the foot: the logo and title, and the key at the right.
+    let y = M + crop.h + 30 * u;
+    const lw = logo.naturalWidth ? (logo.naturalWidth / logo.naturalHeight) * headH : 0;
+    if (lw) ctx.drawImage(logo, M, y, lw, headH);
+    ctx.fillStyle = '#3a4843';
+    ctx.fillRect(M + lw + 20 * u, y + 4 * u, 1.5 * u, headH - 8 * u);
+    const tx = M + lw + 40 * u;
+    ctx.fillStyle = '#eef2ee';
+    font(23, 650);
+    ctx.fillText('Sea-to-Sky Data Sandbox', tx, y + 22 * u);
+    ctx.fillStyle = '#9aa79f';
+    font(13);
+    const two = effectiveMode() === 'two';
+    const t = tallies.region;
+    let headline = '';
+    if (t && t.total) {
+      if (two) {
+        const cell = only >= 0 ? only : 8;
+        headline = `${Math.round((t.cells[cell] / t.total) * 100)}% of the study area ${cellName(cell).toLowerCase()} (${km2(t.cells[cell])})`;
+      } else {
+        headline = `${Math.round((t.above / t.total) * 100)}% of the study area scores ${Math.round(cut() * 100)} or more (${km2(t.above)})`;
+      }
+    }
+    ctx.fillText(headline, tx, y + 44 * u);
+
+    const kx = M + crop.w;
+    if (two) {
+      const c = 20 * u, g = 3 * u, gx = kx - 3 * c - 2 * g;
+      [6, 7, 8, 3, 4, 5, 0, 1, 2].forEach((cell, i) => {
+        ctx.fillStyle = PALETTE[cell];
+        ctx.fillRect(gx + (i % 3) * (c + g), y - 6 * u + Math.floor(i / 3) * (c + g), c, c);
+      });
+      font(11);
+      ctx.fillStyle = '#9aa79f';
+      ctx.textAlign = 'right';
+      ctx.fillText(`${axisNames[1]} ↑`, gx - 10 * u, y + 10 * u);
+      ctx.fillText(`${axisNames[0]} →`, gx - 10 * u, y + 52 * u);
+      ctx.textAlign = 'left';
+    } else {
+      const rw = 200 * u, rh = 12 * u, rx = kx - rw, ry = y + 8 * u;
+      const grad = ctx.createLinearGradient(rx, 0, rx + rw, 0);
+      for (let i = 0; i <= 10; i++) grad.addColorStop(i / 10, rampCss(i / 10));
+      ctx.fillStyle = grad;
+      ctx.fillRect(rx, ry, rw, rh);
+      ctx.fillStyle = '#eef2ee';
+      ctx.fillRect(rx + rw * cut() - u, ry - 4 * u, 2 * u, rh + 8 * u);
+      font(11);
+      ctx.fillStyle = '#9aa79f';
+      ctx.fillText('Poor fit', rx, ry + rh + 17 * u);
+      ctx.textAlign = 'right';
+      ctx.fillText('Best fit', rx + rw, ry + rh + 17 * u);
+      ctx.textAlign = 'left';
+    }
+
+    // The body: the model and the sources, and the code beside them.
+    y += headH + 22 * u;
+    ctx.fillStyle = '#2a3430';
+    ctx.fillRect(M, y, crop.w, 1.5 * u);
+    y += 18 * u;
+    const top = y;
+    ctx.fillStyle = '#eef2ee';
+    font(12, 650);
+    ctx.fillText(`The model · Calculation type: ${opLabel()}`, M, y + 10 * u);
+    font(10.5);
+    ctx.fillStyle = '#9aa79f';
+    let ey = y + 10 * u;
+    for (const row of explain) ctx.fillText(row, M, (ey += 15 * u));
+    const gridTop = ey + 14 * u;
+    const fit = (text: string, w: number) => {
+      let t = text;
+      while (ctx.measureText(t).width > w && t.length > 4) t = t.slice(0, -2);
+      return t === text ? text : `${t}…`;
+    };
+    crits.forEach((c, i) => {
+      const l = byId.get(c.layer.id)!;
+      const cx = M + (i % cols) * (chartW + chartGap);
+      const cy = gridTop + Math.floor(i / cols) * cellH;
+      // Name, and the weight at the right.
+      font(11, 650);
+      const wt = op === 'mean' && !soloing() ? `×${c.weight.toFixed(1)} · ${weightWord(c.weight)}` : '';
+      const wtW = wt ? ctx.measureText(wt).width + 10 * u : 0;
+      let nx = cx;
+      if (two) {
+        ctx.fillStyle = AXIS_COLOURS[c.axis ?? 0];
+        ctx.beginPath();
+        ctx.arc(cx + 4 * u, cy + 7 * u, 4 * u, 0, Math.PI * 2);
+        ctx.fill();
+        nx += 13 * u;
+      }
+      ctx.fillStyle = '#eef2ee';
+      ctx.fillText(fit(l.name, chartW - wtW - (nx - cx)), nx, cy + 11 * u);
+      if (wt) {
+        font(10);
+        ctx.fillStyle = '#9aa79f';
+        ctx.textAlign = 'right';
+        ctx.fillText(wt, cx + chartW, cy + 11 * u);
+        ctx.textAlign = 'left';
+      }
+      // The chart: square-root heights, as the panel draws it, so a layer
+      // mostly at one value still shows the rest.
+      const by = cy + 18 * u, n = l.hist.length;
+      const max = Math.sqrt(Math.max(...l.hist)) || 1;
+      const bw = chartW / n;
+      l.hist.forEach((count, b) => {
+        const h = (Math.sqrt(count) / max) * (chartH - 2 * u);
+        const mid = l.lo + ((b + 0.5) / n) * (l.hi - l.lo);
+        ctx.fillStyle = rampCss(scoreOf(c, mid));
+        ctx.fillRect(cx + b * bw, by + chartH - h, Math.max(bw - 0.6 * u, 0.5 * u), h);
+      });
+      const at = (v: number) => cx + ((v - l.lo) / (l.hi - l.lo || 1)) * chartW;
+      if (!c.scores) {
+        ctx.fillStyle = '#9aa79f';
+        ctx.fillRect(at(c.bad) - u, by - 2 * u, 2 * u, chartH + 4 * u);
+        ctx.fillStyle = rgb(STOPS[4]);
+        ctx.fillRect(at(c.good) - u, by - 2 * u, 2 * u, chartH + 4 * u);
+      }
+      // Under it: the ends, and the settings.
+      font(9.5);
+      ctx.fillStyle = '#7d8a83';
+      ctx.fillText(fmt(l, l.lo), cx, by + chartH + 12 * u);
+      ctx.textAlign = 'right';
+      ctx.fillText(fmt(l, l.hi), cx + chartW, by + chartH + 12 * u);
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#c9d2cc';
+      const how = c.scores
+        ? 'Scored kind by kind'
+        : `Poor at ${fmt(l, c.bad)} · Best at ${fmt(l, c.good)} · ${c.good >= c.bad ? 'Higher = better' : 'Lower = better'}`;
+      ctx.fillText(fit(how, chartW - 90 * u), cx + chartW / 2, by + chartH + 12 * u);
+      ctx.textAlign = 'left';
+    });
+    y += modelH;
+
+    // About these layers, in the same column.
+    if (blocks.length) {
+      y += 30 * u;
+      ctx.fillStyle = '#eef2ee';
+      font(12, 650);
+      ctx.fillText('About these layers', M, y);
+      y += 12 * u;
+      for (const b of placed) {
+        const bx = M + b.col * (aboutW + aboutGap);
+        let by = y + b.y + 14 * u;
+        ctx.fillStyle = '#eef2ee';
+        font(11, 650);
+        ctx.fillText(b.l.name, bx, by);
+        ctx.fillStyle = '#b7c1bb';
+        font(10.5);
+        for (const row of b.rows) ctx.fillText(row, bx, (by += aboutLH));
+      }
+      y += Math.max(...colH);
+    }
+    y += 24 * u;
+    font(10);
+    ctx.fillStyle = '#7d8a83';
+    for (const row of sources) {
+      ctx.fillText(row, M, y);
+      y += 15 * u;
+    }
+
+    // A code that opens this exact model, light on dark as a phone reads it.
+    const n = qr.getModuleCount();
+    const cell = qrSize / (n + 4);
+    const qx = M + crop.w - qrSize, qy = top;
+    ctx.fillStyle = '#eef2ee';
+    ctx.fillRect(qx, qy, qrSize, qrSize);
+    ctx.fillStyle = '#0d1210';
+    for (let r = 0; r < n; r++)
+      for (let c = 0; c < n; c++)
+        if (qr.isDark(r, c)) ctx.fillRect(qx + (c + 2) * cell, qy + (r + 2) * cell, Math.ceil(cell), Math.ceil(cell));
+    font(10);
+    ctx.fillStyle = '#9aa79f';
+    ctx.textAlign = 'center';
+    ctx.fillText('Open this sandbox', qx + qrSize / 2, qy + qrSize + 18 * u);
+    ctx.textAlign = 'left';
+
+    return out;
+  }
+
+  /** On a phone, the shared model as the full map image, to look at and
+   *  keep: drawn behind the screen, then shown in place of it. */
+  async function showOnPhone() {
+    const see = document.getElementById('gate-see') as HTMLButtonElement;
+    const busy = document.getElementById('gate-busy')!;
+    const view = document.getElementById('phone-view')!;
+    const root = document.documentElement;
+    const fail = (why: string) => {
+      busy.textContent = why;
+      root.classList.remove('phone-render');
+    };
+    see.disabled = true;
+    busy.hidden = false;
+    if (!document.createElement('canvas').getContext('webgl2')) return fail('This phone cannot draw the map. Email yourself the link instead.');
+    if (!items.length) return fail('This link has no model in it to draw.');
+    try {
+      if (!map.loaded()) await new Promise((r) => map.once('load', r));
+      // The whole area's count, for the headline under the map.
+      const until = Date.now() + 30000;
+      while (!tallies.region && Date.now() < until) await new Promise((r) => setTimeout(r, 200));
+      const out = await drawFull();
+      const blob = await new Promise<Blob | null>((r) => out.toBlob(r, 'image/png'));
+      if (!blob) throw new Error('no image');
+      const url = URL.createObjectURL(blob);
+      (document.getElementById('view-img') as HTMLImageElement).src = url;
+      const save = document.getElementById('view-save') as HTMLAnchorElement;
+      save.href = url;
+      save.download = `ecoscapes-data-sandbox-${stamp()}.png`;
+      // Done with the map: its memory back for the picture.
+      map.remove();
+      root.classList.remove('phone-render');
+      const open = (on: boolean) => {
+        root.classList.toggle('phone-viewing', on);
+        view.hidden = !on;
+        scrollTo(0, 0);
+      };
+      open(true);
+      busy.hidden = true;
+      see.disabled = false;
+      see.addEventListener('click', () => open(true));
+      document.getElementById('view-back')!.addEventListener('click', () => open(false));
+    } catch {
+      fail('Could not draw the map on this phone. Email yourself the link instead.');
+    }
+  }
+
+  /** The model and its areas as a table. */
+  function saveCsv() {
     const t = current();
     if (!items.length || !t) return say('Add a layer first.');
     const q = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
     const rows: (string | number)[][] = [
-      ['EcoScapes planning support', stamp()],
+      ['EcoScapes Data Sandbox', stamp()],
       ['Counted', WHERE[scope]],
-      ['Combined by', OP_NAMES[op]],
+      ['Calculation type', opLabel()],
       [],
       ['Layer', 'Group', 'Poor at', 'Best at', 'Weight'],
       ...criteria().map((c) => {
@@ -1892,8 +2746,8 @@ const config = {
       );
     }
     const csv = rows.map((r) => r.map(q).join(',')).join('\r\n');
-    download(`ecoscapes-planning-${stamp()}.csv`, URL.createObjectURL(new Blob([csv], { type: 'text/csv' })));
-  });
+    download(`ecoscapes-data-sandbox-${stamp()}.csv`, URL.createObjectURL(new Blob([csv], { type: 'text/csv' })));
+  }
 
   const opacity = document.getElementById('opacity') as HTMLInputElement;
   opacity.addEventListener('input', () => score.setOpacity(Number(opacity.value)));
@@ -1922,7 +2776,9 @@ const config = {
     const how = op === 'and' ? 'its weakest layer' : op === 'or' ? 'its strongest layer' : 'weighed up';
     const band = (v: number, [lo, hi]: [number, number]) => (v < lo ? 0 : v < hi ? 1 : 2);
     let head: string;
-    if (mode === 'two') {
+    // One layer shown alone is one score, whichever mode the model is in.
+    const two = effectiveMode() === 'two';
+    if (two) {
       head =
         total === null || second === null
           ? `<div class="why-total"><span>Both scores need data here.</span></div>`
@@ -1945,7 +2801,7 @@ const config = {
               ? `<span class="dim">no data</span>`
               : `${esc(fmt(l, value))}<span class="why-bar"><i style="width:${Math.round(sc! * 100)}%"></i></span>`;
           const wt = op === 'mean' ? ` <span class="dim">×${c.weight}</span>` : '';
-          const dot = mode === 'two' ? `<i class="why-dot" style="background:${AXIS_COLOURS[c.axis ?? 0]}"></i>` : '';
+          const dot = two ? `<i class="why-dot" style="background:${AXIS_COLOURS[c.axis ?? 0]}"></i>` : '';
           return `<tr><td>${dot}${esc(l.name)}${wt}</td><td>${right}</td></tr>`;
         })
         .join('')}</table>`;
@@ -1985,8 +2841,8 @@ const config = {
   };
 
   const bestBtn = document.getElementById('best-btn')!;
-  const tourBtn = document.getElementById('tour-btn')!;
   const bestList = document.getElementById('best-list')!;
+  const bestMenu = document.getElementById('best-menu')!;
   let bestOpen = false;
   let pins: maplibregl.Marker[] = [];
   const spots = () => {
@@ -2000,13 +2856,15 @@ const config = {
     for (const p of pins) p.remove();
     pins = [];
     const list = spots();
-    tourBtn.toggleAttribute('disabled', !list.length);
+    bestBtn.toggleAttribute('disabled', !list.length && !bestOpen);
     const note = document.getElementById('best-note')!;
-    if (!bestOpen || !list.length) {
-      bestList.hidden = note.hidden = true;
+    bestMenu.hidden = !bestOpen;
+    if (!bestOpen) return;
+    if (!list.length) {
+      bestList.innerHTML = '';
+      note.textContent = items.length ? 'Still counting…' : 'Add a layer to find the best places.';
       return;
     }
-    bestList.hidden = note.hidden = false;
     note.textContent =
       (effectiveMode() === 'two'
         ? 'The places with the most land high on both scores, '
@@ -2048,10 +2906,29 @@ const config = {
       map.flyTo({ center: s.at, zoom: Math.max(map.getZoom(), 11), duration, essential: true });
     });
   }
-  bestBtn.addEventListener('click', () => {
-    bestOpen = !bestOpen;
-    bestBtn.setAttribute('aria-expanded', String(bestOpen));
+  /** Opened, the places are toured at once; pressed again, the tour stops,
+   *  and once more, the places go. */
+  function setBest(open: boolean) {
+    bestOpen = open;
+    bestBtn.setAttribute('aria-expanded', String(open));
+    const label = touring ? 'Stop the tour' : open ? 'Hide the best places' : 'Best places';
+    bestBtn.title = label;
+    bestBtn.setAttribute('aria-label', label);
     showBest();
+  }
+  bestBtn.addEventListener('click', () => {
+    if (touring) stopTour();
+    else if (bestOpen) setBest(false);
+    else {
+      closeOthers();
+      tour();
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && bestOpen) {
+      stopTour();
+      setBest(false);
+    }
   });
   bestList.addEventListener('click', (e) => {
     const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button');
@@ -2061,22 +2938,27 @@ const config = {
     }
   });
 
+  /** Every toolbar menu shut, before another opens. */
+  function closeOthers() {
+    showPalettes(false);
+    showSave(false);
+    if (bestOpen) {
+      stopTour();
+      setBest(false);
+    }
+  }
+
   // The tour: to each place in turn, explaining it, until it ends or the map
   // is touched.
   let touring = 0;
   function stopTour() {
     if (!touring) return;
     touring = 0;
-    tourBtn.setAttribute('aria-pressed', 'false');
-    tourBtn.textContent = 'Take the tour';
+    setBest(bestOpen);
   }
-  tourBtn.addEventListener('click', async () => {
-    if (touring) return stopTour();
-    if (!spots().length) return;
+  async function tour() {
     const me = (touring = Date.now());
-    tourBtn.setAttribute('aria-pressed', 'true');
-    tourBtn.textContent = 'Stop the tour';
-    if (!bestOpen) bestBtn.click();
+    setBest(true);
     const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
     for (let i = 0; i < spots().length && touring === me; i++) {
       await visit(i, reduce ? 0 : 3200);
@@ -2086,7 +2968,7 @@ const config = {
       stopTour();
       map.flyTo({ center: map.getCenter(), zoom: 8.2, duration: reduce ? 0 : 2400 });
     }
-  });
+  }
   for (const ev of ['dragstart', 'wheel', 'touchstart'] as const) map.on(ev, () => stopTour());
 
   // ---- Where I am ---------------------------------------------------------------
@@ -2118,4 +3000,5 @@ const config = {
   render();
   showNumbers();
   if (shared) push();
+  if (onPhone) showOnPhone();
 </script>

@@ -5,8 +5,8 @@ type LngLat = [number, number];
 
 /** The study-area map's ground: the Protomaps dark style taken toward the
  *  site's greens, the towns and nothing else written on it, and the area's
- *  edge drawn with the world beyond it darkened. The same look as /map/ --
- *  written out here for /ecoscapes-dst/; /map/ still carries its own copy. */
+ *  edge drawn with the world beyond it darkened. Shared by /map/ and
+ *  /ecoscapes-dst/. */
 export function studyStyle(opts: { basemap: string; glyphs: string; limit: [LngLat, LngLat] }): StyleSpecification {
   const flavor = {
     ...namedFlavor('dark'),
@@ -29,24 +29,37 @@ export function studyStyle(opts: { basemap: string; glyphs: string; limit: [LngL
   };
   const [[w, s], [e, n]] = opts.limit;
   const ring: LngLat[] = [[w, s], [e, s], [e, n], [w, n], [w, s]];
+  // Beyond the edge: the world darkened, then faded out to the ground's own
+  // dark over the margin the map files carry round the area (BUFFER, the
+  // extract scripts' BBOX), evenly on every side. Stacked rings, each a
+  // little further out and darker, the last opaque before the files end.
+  const BUFFER = [0.3, 0.2];
+  const SEE = 0.07; // how much of the world shows just past the edge
+  const RINGS = 6;
+  const beyond = Array.from({ length: RINGS + 1 }, (_, k) => {
+    const f = (k / RINGS) * 0.85;
+    const [dx, dy] = [BUFFER[0] * f, BUFFER[1] * f];
+    const hole: LngLat[] = [[w - dx, s - dy], [w - dx, n + dy], [e + dx, n + dy], [e + dx, s - dy], [w - dx, s - dy]];
+    // Through ring k the world shows SEE * (1 - k / RINGS).
+    const before = k ? SEE * (1 - (k - 1) / RINGS) : 1;
+    const after = SEE * (1 - k / RINGS);
+    return {
+      opacity: 1 - after / before,
+      data: {
+        type: 'Feature' as const,
+        properties: {},
+        geometry: {
+          type: 'Polygon' as const,
+          coordinates: [[[w - 5, s - 5], [e + 5, s - 5], [e + 5, n + 5], [w - 5, n + 5], [w - 5, s - 5]], hole],
+        },
+      },
+    };
+  });
   return {
     version: 8,
     glyphs: opts.glyphs,
     sources: {
-      beyond: {
-        type: 'geojson',
-        data: {
-          type: 'Feature',
-          properties: {},
-          geometry: {
-            type: 'Polygon',
-            coordinates: [
-              [[w - 5, s - 5], [e + 5, s - 5], [e + 5, n + 5], [w - 5, n + 5], [w - 5, s - 5]],
-              [...ring].reverse(),
-            ],
-          },
-        },
-      },
+      ...Object.fromEntries(beyond.map((b, k) => [`beyond-${k}`, { type: 'geojson' as const, data: b.data }])),
       edge: { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: ring } } },
       protomaps: {
         type: 'vector',
@@ -94,7 +107,12 @@ export function studyStyle(opts: { basemap: string; glyphs: string; limit: [LngL
           'text-halo-blur': 0.5,
         },
       },
-      { id: 'beyond', type: 'fill', source: 'beyond', paint: { 'fill-color': '#0b100e', 'fill-opacity': 0.93 } },
+      ...beyond.map((b, k) => ({
+        id: k ? `beyond-${k}` : 'beyond',
+        type: 'fill' as const,
+        source: `beyond-${k}`,
+        paint: { 'fill-color': '#0b100e', 'fill-opacity': b.opacity },
+      })),
       {
         id: 'edge',
         type: 'line',

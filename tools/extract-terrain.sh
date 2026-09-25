@@ -6,7 +6,8 @@
 # sits inside the study area, and PMTiles only fetches the tiles in view.
 #
 #  * public/tiles/terrain.pmtiles -- 512 px Terrarium-encoded WebP tiles, cut
-#    to `limit` in src/content/ecoscapes/sea-to-sky.md (keep the two in step).
+#    to `limit` in src/content/ecoscapes/sea-to-sky.md and the same margin
+#    round it as the basemap (tools/extract-basemap.sh; keep them in step).
 #    Zoom 11 is about 25 m a pixel here: finer than the relief needs, and
 #    MapLibre overzooms it smoothly. Zoom 12 would be about 220 MB.
 #
@@ -16,7 +17,7 @@
 # tools/extract-basemap.sh. Needs the pmtiles CLI (brew install pmtiles).
 set -euo pipefail
 
-BBOX="${BBOX:--124.69,48.94,-121.43,51.26}"
+BBOX="${BBOX:--124.99,48.74,-121.13,51.46}"
 MAXZOOM="${MAXZOOM:-11}"
 OUT="public/tiles"
 OUT_FILE="${OUT_FILE:-terrain.pmtiles}"

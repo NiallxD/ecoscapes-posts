@@ -25,4 +25,8 @@ export default defineConfig({
   // The dev toolbar docks to the bottom centre of the screen, which is where the
   // panel arrows now live -- on a phone it sits right on top of them.
   devToolbar: { enabled: false },
+  // Loaded only when the planning map's full image is saved: Vite's first scan
+  // misses it, and finding it later re-bundles every dependency under a page
+  // already open, which breaks that page (no map, no buttons) until a reload.
+  vite: { optimizeDeps: { include: ['qrcode-generator'] } },
 });

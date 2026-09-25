@@ -50,6 +50,9 @@ const span = ({ video, years }: { video?: { from: number; to: number }; years?: 
 </Shell>
 
 <style>
+  /* The layout pins the body to the screen for the decks and maps. This page
+     is an ordinary one, and on a small phone it runs past the foot of it. */
+  :global(html), :global(body) { height: auto; overflow: auto; }
   .home {
     max-width: 44rem; margin: 0 auto;
     padding: calc(var(--safe-t) + 2.6rem) 1.25rem calc(var(--safe-b) + 3rem);

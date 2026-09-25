@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * The planning tool (/ecoscapes-dst/), driven end to end in a real browser:
+ * The Data Sandbox (/ecoscapes-dst/), driven end to end in a real browser:
  * every example, both score modes, a categorical layer, one layer alone, a
  * shared link, both downloads and tap-to-explain -- checking each does what
  * it should, with no errors.

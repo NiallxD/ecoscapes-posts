@@ -99,7 +99,7 @@ const { prompt, shareTo, title, prev, next } = Astro.props;
          line about the place, in your words, travelling with the picture. The
          prompt rotates so it reads as an invitation rather than a form field,
          and stops the moment it is being answered. -->
-    <div class="cap-sheet" id="cap-sheet" hidden>
+    <div class="cap-sheet" id="cap-sheet" data-no-tap hidden>
       <label class="sr-only" for="cap-note">Say something about this place</label>
       <textarea id="cap-note" rows="2" maxlength="280" placeholder="What did you see?"></textarea>
       <div class="cap-sheet-row">
@@ -518,8 +518,11 @@ const { prompt, shareTo, title, prev, next } = Astro.props;
       closeSheet();
     });
 
+    let sending = false;
     send.addEventListener('click', async () => {
-      if (!file) return;
+      // A second tap while the first is still sending would run it all twice.
+      if (!file || sending) return;
+      sending = true;
       const said = note.value.trim();
       closeSheet();
       await fakeSend();
@@ -535,6 +538,7 @@ const { prompt, shareTo, title, prev, next } = Astro.props;
       setTimeout(() => {
         upload.hidden = true;
         reset();
+        sending = false;
       }, 700);
     });
   }

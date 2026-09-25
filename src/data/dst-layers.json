@@ -8,7 +8,7 @@
   "hi": 100.0,
   "unit": "",
   "higher": "better",
-  "about": "How well the land suits the region's native plants and animals, across many species at once.",
+  "about": "How well does the landscape meet the needs of the region's native plants and animals, across many species at once?",
   "hist": [
    9223193,
    332532,
@@ -2073,7 +2073,7 @@
   "hi": 99.74690246582031,
   "unit": "",
   "higher": "better",
-  "about": "How well the land suits the grizzly bear.",
+  "about": "How well does the landscape meet the needs of the grizzly bear?",
   "hist": [
    18445487,
    3393006,
@@ -2159,7 +2159,7 @@
   "hi": 99.0,
   "unit": "",
   "higher": "better",
-  "about": "How well the land suits the wolverine.",
+  "about": "How well does the landscape meet the needs of the wolverine?",
   "hist": [
    15663060,
    821269,
@@ -2245,7 +2245,7 @@
   "hi": 10000.0,
   "unit": "",
   "higher": "better",
-  "about": "How well the land suits the Canada lynx.",
+  "about": "How well does the landscape meet the needs of the Canada lynx?",
   "hist": [
    30555162,
    2899867,
@@ -2331,7 +2331,7 @@
   "hi": 9101.0,
   "unit": "",
   "higher": "better",
-  "about": "How well the land suits the Pacific fisher.",
+  "about": "How well does the landscape meet the needs of the Pacific fisher?",
   "hist": [
    35074249,
    1634206,
@@ -2417,7 +2417,7 @@
   "hi": 0.9569000005722046,
   "unit": "",
   "higher": "better",
-  "about": "How well the land suits the hoary marmot.",
+  "about": "How well does the landscape meet the needs of the hoary marmot?",
   "hist": [
    16780606,
    662950,
@@ -2503,7 +2503,7 @@
   "hi": 0.9995999932289124,
   "unit": "",
   "higher": "better",
-  "about": "How well the land suits the coyote.",
+  "about": "How well does the landscape meet the needs of the coyote?",
   "hist": [
    4570377,
    4868555,
@@ -2589,7 +2589,7 @@
   "hi": 1.0,
   "unit": "",
   "higher": "better",
-  "about": "How well the land suits the Douglas squirrel.",
+  "about": "How well does the landscape meet the needs of the Douglas squirrel?",
   "hist": [
    2476298,
    818160,
@@ -2675,7 +2675,7 @@
   "hi": 0.9998999834060669,
   "unit": "",
   "higher": "better",
-  "about": "How well the land suits the yellow-pine chipmunk.",
+  "about": "How well does the landscape meet the needs of the yellow-pine chipmunk?",
   "hist": [
    3397655,
    1454168,
@@ -2761,7 +2761,7 @@
   "hi": 0.9998999834060669,
   "unit": "",
   "higher": "better",
-  "about": "How well the land suits the beaver.",
+  "about": "How well does the landscape meet the needs of the beaver?",
   "hist": [
    17054041,
    661886,
@@ -2847,7 +2847,7 @@
   "hi": 0.9800000190734863,
   "unit": "",
   "higher": "better",
-  "about": "How well the land suits the mink.",
+  "about": "How well does the landscape meet the needs of the mink?",
   "hist": [
    2360891,
    1512634,
@@ -2933,7 +2933,7 @@
   "hi": 0.9998000264167786,
   "unit": "",
   "higher": "better",
-  "about": "How well the land suits the Northern red-legged frog.",
+  "about": "How well does the landscape meet the needs of the Northern red-legged frog?",
   "hist": [
    9563130,
    1743223,
@@ -3019,7 +3019,7 @@
   "hi": 1.0,
   "unit": "",
   "higher": "better",
-  "about": "How well the land suits the Western toad.",
+  "about": "How well does the landscape meet the needs of the Western toad?",
   "hist": [
    1338202,
    408969,
@@ -3105,7 +3105,7 @@
   "hi": 0.9998999834060669,
   "unit": "",
   "higher": "better",
-  "about": "How well the land suits the Pacific tree frog.",
+  "about": "How well does the landscape meet the needs of the Pacific tree frog?",
   "hist": [
    12846,
    657628,
@@ -3191,7 +3191,7 @@
   "hi": 0.9998999834060669,
   "unit": "",
   "higher": "better",
-  "about": "How well the land suits the Ensatina salamander.",
+  "about": "How well does the landscape meet the needs of the Ensatina salamander?",
   "hist": [
    6667794,
    2505803,
@@ -3277,7 +3277,7 @@
   "hi": 1.0,
   "unit": "",
   "higher": "better",
-  "about": "How well the land suits the Northwestern salamander.",
+  "about": "How well does the landscape meet the needs of the Northwestern salamander?",
   "hist": [
    462176,
    1633549,
@@ -3363,7 +3363,7 @@
   "hi": 1.0,
   "unit": "",
   "higher": "better",
-  "about": "How well the land suits the long-toed salamander.",
+  "about": "How well does the landscape meet the needs of the long-toed salamander?",
   "hist": [
    3340670,
    89375,
@@ -3449,7 +3449,7 @@
   "hi": 1.0,
   "unit": "",
   "higher": "better",
-  "about": "How well the land suits the Northern alligator lizard.",
+  "about": "How well does the landscape meet the needs of the Northern alligator lizard?",
   "hist": [
    3484469,
    2500792,
@@ -3535,7 +3535,7 @@
   "hi": 0.9832000136375427,
   "unit": "",
   "higher": "better",
-  "about": "How well the land suits the common garter snake.",
+  "about": "How well does the landscape meet the needs of the common garter snake?",
   "hist": [
    1198129,
    1302369,
@@ -3621,7 +3621,7 @@
   "hi": 1.0,
   "unit": "",
   "higher": "better",
-  "about": "How well the land suits the black bear (fall).",
+  "about": "How well does the landscape meet the needs of the black bear (fall)?",
   "hist": [
    6665640,
    1435674,
@@ -3707,7 +3707,7 @@
   "hi": 1.0,
   "unit": "",
   "higher": "better",
-  "about": "How well the land suits the black bear (summer).",
+  "about": "How well does the landscape meet the needs of the black bear (summer)?",
   "hist": [
    319187,
    475313,
@@ -3793,7 +3793,7 @@
   "hi": 1.0,
   "unit": "",
   "higher": "better",
-  "about": "How well the land suits the black-tailed deer (A).",
+  "about": "How well does the landscape meet the needs of the black-tailed deer (A)?",
   "hist": [
    1687714,
    1676145,
@@ -3879,7 +3879,7 @@
   "hi": 1.0,
   "unit": "",
   "higher": "better",
-  "about": "How well the land suits the black-tailed deer (B).",
+  "about": "How well does the landscape meet the needs of the black-tailed deer (B)?",
   "hist": [
    6505767,
    2121517,

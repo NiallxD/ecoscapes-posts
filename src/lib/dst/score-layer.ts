@@ -6,7 +6,7 @@ import { PALETTES } from './palettes';
 export { MAX_CRITERIA, combineScores, scoreOf, criterionLut, band, valueOf } from './model';
 export type { Bivariate, Criterion, Op, ValueLayer } from './model';
 
-/** The planning map's scored surface: a MapLibre custom layer that scores
+/** The Data Sandbox's scored surface: a MapLibre custom layer that scores
  *  every pixel of up to eight layers' value tiles on the GPU.
  *
  *  - Each layer's tiles are fetched and decoded in a worker (tile-worker.ts)
@@ -431,7 +431,7 @@ export class ScoreLayer implements CustomLayerInterface {
   // ---- GL ------------------------------------------------------------------
   onAdd(map: MlMap, context: WebGLRenderingContext | WebGL2RenderingContext) {
     this.map = map;
-    if (!('texStorage3D' in context)) throw new Error('The planning map needs WebGL2');
+    if (!('texStorage3D' in context)) throw new Error('The Data Sandbox needs WebGL2');
     const gl = (this.gl = context);
     const sh = (type: number, src: string) => {
       const s = gl.createShader(type)!;

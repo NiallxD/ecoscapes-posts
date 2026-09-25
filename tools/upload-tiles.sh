@@ -6,7 +6,7 @@
 # what tile() in src/lib/paths.ts asks for when PUBLIC_TILES_BASE is set.
 #
 #   tools/upload-tiles.sh                     # every map file not already up
-#                                             # (.pmtiles, and the planning map's
+#                                             # (.pmtiles, and the Data Sandbox's
 #                                             # .sample.webp area samples)
 #   tools/upload-tiles.sh dst/foo.pmtiles     # just these (paths under public/tiles)
 #   FORCE=1 tools/upload-tiles.sh             # everything, changed or not

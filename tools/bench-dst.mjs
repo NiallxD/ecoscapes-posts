@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * A repeatable performance run of the planning tool (/ecoscapes-dst/), for
+ * A repeatable performance run of the Data Sandbox (/ecoscapes-dst/), for
  * comparing one build with the next.
  *
  *   npm run build && npm run preview      # in another terminal (port 4331)
@@ -68,7 +68,7 @@ async function step(name, act) {
   await page.evaluate(() => (window.__long.length = 0));
   const b0 = bytes, r0 = requests;
   const t0 = Date.now();
-  // In the page: the first frame after which the planning layer has nothing
+  // In the page: the first frame after which the Data Sandbox's layer has nothing
   // left to load for three frames running -- its own drawing, not the basemap's.
   const scored = page.evaluate(
     () =>

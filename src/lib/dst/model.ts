@@ -1,4 +1,4 @@
-/** The planning tool's scoring, in one place: what the map's shader
+/** The Data Sandbox's scoring, in one place: what the map's shader
  *  (score-layer.ts), the area counts (stats-worker.ts) and tap-to-explain all
  *  compute from, so the three can never disagree.
  *

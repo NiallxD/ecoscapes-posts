@@ -1,5 +1,5 @@
 /// <reference lib="webworker" />
-/** Fetches and decodes the planning tool's value tiles, off the main thread.
+/** Fetches and decodes the Data Sandbox's value tiles, off the main thread.
  *
  *  A value tile is a 256x256 greyscale lossless WebP whose every pixel is one
  *  byte of data (tools/prepare-value-layer.py): 0 no data, 1..255 the value.

@@ -7,7 +7,7 @@
   "source": {
    "drive": "2_Ecosystem Health/Values/habitat-suitability-2022.tif"
   },
-  "about": "How well the land suits the region's native plants and animals, across many species at once."
+  "about": "How well does the landscape meet the needs of the region's native plants and animals, across many species at once?"
  },
  {
   "id": "habitat-permeability",
@@ -411,7 +411,7 @@
   "source": {
    "felt": "666818e9-1103-4297-805b-bb5000004453"
   },
-  "about": "How well the land suits the grizzly bear."
+  "about": "How well does the landscape meet the needs of the grizzly bear?"
  },
  {
   "id": "habitat-wolverine",
@@ -421,7 +421,7 @@
   "source": {
    "felt": "f848bdea-311d-5b47-ab4d-a6ff00004453"
   },
-  "about": "How well the land suits the wolverine.",
+  "about": "How well does the landscape meet the needs of the wolverine?",
   "mask": {
    "drive": "2_Ecosystem Health/Values/TALandCover_2022.tif"
   }
@@ -434,7 +434,7 @@
   "source": {
    "felt": "c3b32718-dcec-4862-ab64-e9b000004453"
   },
-  "about": "How well the land suits the Canada lynx."
+  "about": "How well does the landscape meet the needs of the Canada lynx?"
  },
  {
   "id": "habitat-pacific-fisher",
@@ -444,7 +444,7 @@
   "source": {
    "felt": "d8b43964-16e5-4e4f-b736-62e900004453"
   },
-  "about": "How well the land suits the Pacific fisher."
+  "about": "How well does the landscape meet the needs of the Pacific fisher?"
  },
  {
   "id": "habitat-hoary-marmot",
@@ -454,7 +454,7 @@
   "source": {
    "felt": "b28f1d57-5799-572c-b155-cf9200004453"
   },
-  "about": "How well the land suits the hoary marmot."
+  "about": "How well does the landscape meet the needs of the hoary marmot?"
  },
  {
   "id": "habitat-coyote",
@@ -464,7 +464,7 @@
   "source": {
    "felt": "db95faa8-f9af-4c03-9535-ae5b00004453"
   },
-  "about": "How well the land suits the coyote."
+  "about": "How well does the landscape meet the needs of the coyote?"
  },
  {
   "id": "habitat-douglas-squirrel",
@@ -474,7 +474,7 @@
   "source": {
    "felt": "e27852d2-7dde-41e6-81d3-303700004453"
   },
-  "about": "How well the land suits the Douglas squirrel."
+  "about": "How well does the landscape meet the needs of the Douglas squirrel?"
  },
  {
   "id": "habitat-yellow-pine-chipmunk",
@@ -484,7 +484,7 @@
   "source": {
    "felt": "fd1f47f4-3f9c-56b0-98e4-6c7a00004453"
   },
-  "about": "How well the land suits the yellow-pine chipmunk."
+  "about": "How well does the landscape meet the needs of the yellow-pine chipmunk?"
  },
  {
   "id": "habitat-beaver",
@@ -494,7 +494,7 @@
   "source": {
    "felt": "d06b5096-a73b-4f29-9468-f8c400004453"
   },
-  "about": "How well the land suits the beaver."
+  "about": "How well does the landscape meet the needs of the beaver?"
  },
  {
   "id": "habitat-mink",
@@ -504,7 +504,7 @@
   "source": {
    "felt": "b7be86f9-032f-5bd3-9485-93b500004453"
   },
-  "about": "How well the land suits the mink."
+  "about": "How well does the landscape meet the needs of the mink?"
  },
  {
   "id": "habitat-northern-red-legged-frog",
@@ -514,7 +514,7 @@
   "source": {
    "felt": "42baa84d-6bd5-49e5-ac25-605900004453"
   },
-  "about": "How well the land suits the Northern red-legged frog."
+  "about": "How well does the landscape meet the needs of the Northern red-legged frog?"
  },
  {
   "id": "habitat-western-toad",
@@ -524,7 +524,7 @@
   "source": {
    "felt": "508e6be0-769a-4b01-8f09-d8a300004453"
   },
-  "about": "How well the land suits the Western toad."
+  "about": "How well does the landscape meet the needs of the Western toad?"
  },
  {
   "id": "habitat-pacific-tree-frog",
@@ -534,7 +534,7 @@
   "source": {
    "felt": "52b6dfa4-76db-417e-ac54-40db00004453"
   },
-  "about": "How well the land suits the Pacific tree frog."
+  "about": "How well does the landscape meet the needs of the Pacific tree frog?"
  },
  {
   "id": "habitat-ensatina-salamander",
@@ -544,7 +544,7 @@
   "source": {
    "felt": "89f48d3c-dfbc-427e-a8c3-976400004453"
   },
-  "about": "How well the land suits the Ensatina salamander."
+  "about": "How well does the landscape meet the needs of the Ensatina salamander?"
  },
  {
   "id": "habitat-northwestern-salamander",
@@ -554,7 +554,7 @@
   "source": {
    "felt": "ff6dee29-d3e1-4712-9b45-eb3800004453"
   },
-  "about": "How well the land suits the Northwestern salamander."
+  "about": "How well does the landscape meet the needs of the Northwestern salamander?"
  },
  {
   "id": "habitat-long-toed-salamander",
@@ -564,7 +564,7 @@
   "source": {
    "felt": "36c3ed25-79a3-4b7a-81a6-b34000004453"
   },
-  "about": "How well the land suits the long-toed salamander."
+  "about": "How well does the landscape meet the needs of the long-toed salamander?"
  },
  {
   "id": "habitat-northern-alligator-lizard",
@@ -574,7 +574,7 @@
   "source": {
    "felt": "ace679da-fa5b-4568-9f61-9b9700004453"
   },
-  "about": "How well the land suits the Northern alligator lizard."
+  "about": "How well does the landscape meet the needs of the Northern alligator lizard?"
  },
  {
   "id": "habitat-garter-snake",
@@ -584,7 +584,7 @@
   "source": {
    "felt": "3093af32-ce6e-49f5-bfe1-c7ef00004453"
   },
-  "about": "How well the land suits the common garter snake."
+  "about": "How well does the landscape meet the needs of the common garter snake?"
  },
  {
   "id": "habitat-black-bear-fall",
@@ -594,7 +594,7 @@
   "source": {
    "felt": "ea552e7d-b66f-40c1-bfa9-e11b00004453"
   },
-  "about": "How well the land suits the black bear (fall)."
+  "about": "How well does the landscape meet the needs of the black bear (fall)?"
  },
  {
   "id": "habitat-black-bear-summer",
@@ -604,7 +604,7 @@
   "source": {
    "felt": "fca1a6c3-43c3-4c15-9ba8-a69c00004453"
   },
-  "about": "How well the land suits the black bear (summer)."
+  "about": "How well does the landscape meet the needs of the black bear (summer)?"
  },
  {
   "id": "habitat-black-tailed-deer-a",
@@ -614,7 +614,7 @@
   "source": {
    "felt": "5e90d77b-3b07-4959-812d-597100004453"
   },
-  "about": "How well the land suits the black-tailed deer (A)."
+  "about": "How well does the landscape meet the needs of the black-tailed deer (A)?"
  },
  {
   "id": "habitat-black-tailed-deer-b",
@@ -624,6 +624,6 @@
   "source": {
    "felt": "d73d69bb-fa6f-4ce8-87b0-735c00004453"
   },
-  "about": "How well the land suits the black-tailed deer (B)."
+  "about": "How well does the landscape meet the needs of the black-tailed deer (B)?"
  }
 ]

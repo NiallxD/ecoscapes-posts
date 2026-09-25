@@ -19,6 +19,7 @@
     "astro": "^7.3.3",
     "maplibre-gl": "^6.11.2",
     "pmtiles": "^4.5.0",
+    "qrcode-generator": "^2.0.4",
     "three": "^0.186.0"
   },
   "allowScripts": {

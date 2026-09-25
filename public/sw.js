@@ -201,8 +201,12 @@ self.addEventListener('fetch', (event) => {
           // followed redirect cannot be handed back for a navigation -- the
           // browser fails it -- so it is sent the redirect to follow itself.
           if (res.redirected) return Response.redirect(res.url, 302);
-          const copy = res.clone();
-          caches.open(SHELL).then((c) => c.put(request, copy));
+          // Only a real page is kept: a 404 or a host error stored here would
+          // stand in for the page the next time there is no signal.
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(SHELL).then((c) => c.put(request, copy));
+          }
           return res;
         })
         .catch(async () => (await caches.match(request, MATCH)) || (await caches.match(OFFLINE, MATCH))),
