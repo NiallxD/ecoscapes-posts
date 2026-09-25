@@ -33,6 +33,9 @@ const config = {
           <p class="eyebrow">Planning support · demo</p>
           <h1 id="panel-title">What matters here?</h1>
         </div>
+        <button class="fold" id="share" type="button" aria-label="Copy a link to this model" title="Copy a link to this model">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1" /><path d="M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1" /></svg>
+        </button>
         <button class="fold" id="fold" type="button" aria-expanded="true" aria-controls="panel-body" aria-label="Fold the panel">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
         </button>
@@ -82,6 +85,7 @@ const config = {
           <button type="button" role="radio" data-scope="view" aria-checked="false">This view</button>
         </div>
       </div>
+      <p class="key-solo" id="key-solo" hidden></p>
       <div class="key-one">
         <p class="big"><b id="pct">–</b><span id="km"></span></p>
         <div class="spread" id="spread" aria-hidden="true"></div>
@@ -104,6 +108,10 @@ const config = {
       </div>
       <label class="key-op">Strength <input id="opacity" type="range" min="0.2" max="1" step="0.05" value="0.85" /></label>
       <p class="key-foot" id="key-foot"></p>
+      <div class="key-out">
+        <button type="button" id="save-png">Map image</button>
+        <button type="button" id="save-csv">Numbers (CSV)</button>
+      </div>
     </aside>
 
     <div class="map-side">
@@ -114,6 +122,7 @@ const config = {
       </a>
     </div>
 
+    <div class="loading-bar" id="loading-bar" aria-hidden="true"></div>
     <p class="toast" id="toast" role="status" aria-live="polite" hidden></p>
   </main>
 </Shell>
@@ -155,6 +164,7 @@ const config = {
   }
   .panel-head { display: flex; align-items: flex-start; gap: 0.8rem; padding: 1rem 1.1rem 0.6rem; }
   .panel-head > div { flex: 1; min-width: 0; }
+  #share { margin-right: -0.4rem; }
   .eyebrow { margin: 0; font-size: 0.66rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
   h1 { font-size: 1.2rem; line-height: 1.2; margin: 0.25rem 0 0; }
   .fold {
@@ -326,8 +336,22 @@ const config = {
   .key-op output { color: var(--ink); font-variant-numeric: tabular-nums; }
   /* One key or the other, by mode. */
   .key-two { display: none; }
-  .mode-two .key-one { display: none; }
-  .mode-two .key-two { display: block; }
+  .bi-on .key-one { display: none; }
+  .bi-on .key-two { display: block; }
+  /* One layer shown alone: said at the top of the key, its card marked. */
+  .key-solo { display: flex; align-items: center; gap: 0.5rem; margin: 0.55rem 0 0; padding: 0.4rem 0.55rem; border-radius: 8px; background: var(--bg-lift); font-size: 0.74rem; }
+  .key-solo[hidden] { display: none; }
+  .key-solo :global(button) { margin-left: auto; appearance: none; border: 0; background: none; color: var(--accent); font: inherit; cursor: pointer; }
+  .soloing #criteria :global(.crit:not(.solo)) { opacity: 0.45; }
+  #criteria :global(.icon[aria-pressed='true']) { color: var(--accent); border-color: var(--accent); }
+  /* A categorical layer: a score for each kind, not two thresholds. */
+  #criteria :global(.cats) { display: grid; gap: 0.25rem; margin-top: 0.35rem; }
+  #criteria :global(.cat) { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 0.5rem; font-size: 0.76rem; }
+  #criteria :global(.cat small) { color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+  #criteria :global(.cat-seg) { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+  #criteria :global(.cat-seg button) { appearance: none; border: 0; background: none; color: var(--ink-dim); font: inherit; font-size: 0.7rem; padding: 0.2rem 0.45rem; cursor: pointer; }
+  #criteria :global(.cat-seg button + button) { border-left: 1px solid var(--line); }
+  #criteria :global(.cat-seg button[aria-pressed='true']) { background: var(--bg-lift); color: var(--accent); }
   /* The nine cells: second axis up, first across, high/high top right. */
   .bi { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; gap: 0.35rem 0.5rem; align-items: center; }
   .bi-y { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 0.72rem; color: var(--ink-dim); white-space: nowrap; }
@@ -352,6 +376,37 @@ const config = {
   .bi-brk :global(.brk b) { grid-column: 1 / -1; font-weight: 600; color: var(--ink); }
   .bi-brk :global(.brk output) { color: var(--ink); font-variant-numeric: tabular-nums; }
   .bi-brk :global(input) { width: 100%; margin: 0; accent-color: var(--accent); }
+  .key-out { display: flex; gap: 0.4rem; margin-top: 0.6rem; }
+  .key-out button {
+    flex: 1;
+    appearance: none;
+    padding: 0.4rem 0.5rem;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: none;
+    color: var(--ink-dim);
+    font: inherit;
+    font-size: 0.72rem;
+    cursor: pointer;
+  }
+  .key-out button:hover { color: var(--ink); border-color: #3a4843; }
+  /* Tiles still arriving: a thin bar across the top of the map. */
+  .loading-bar {
+    position: absolute;
+    z-index: 5;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent) 0 0 / 40% 100% no-repeat;
+    opacity: 0;
+    transition: opacity 0.3s;
+    animation: loading 1.1s linear infinite;
+    pointer-events: none;
+  }
+  .loading-bar.on { opacity: 0.8; }
+  @keyframes loading { from { background-position: -40% 0; } to { background-position: 140% 0; } }
+  @media (prefers-reduced-motion: reduce) { .loading-bar { animation: none; background-size: 100% 100%; } }
   .key-foot { margin: 0.55rem 0 0; font-size: 0.7rem; line-height: 1.4; color: var(--ink-dim); }
   .key-ends { display: flex; justify-content: space-between; margin-top: 0.25rem; font-size: 0.7rem; color: var(--ink-dim); }
   .key-op { display: grid; gap: 0.15rem; margin-top: 0.45rem; font-size: 0.7rem; color: var(--ink-dim); }
@@ -413,7 +468,7 @@ const config = {
   import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
   import { Protocol } from 'pmtiles';
   import { studyStyle } from '../lib/study-style';
-  import { ScoreLayer, MAX_CRITERIA, scoreOf, thresholdByte, type Criterion, type Op } from '../lib/dst/score-layer';
+  import { ScoreLayer, MAX_CRITERIA, scoreOf, criterionLut, type Criterion, type Op } from '../lib/dst/score-layer';
   import type { Grid, StatsRequest, StatsResponse, Tally } from '../lib/dst/stats-worker';
 
   type LngLat = [number, number];
@@ -431,6 +486,9 @@ const config = {
     classes?: { value: number; label: string }[];
     /** Which way is usually "good" for this layer, for a new criterion. */
     higher: 'better' | 'worse';
+    /** Categories with no order between them (land cover): scored kind by
+     *  kind rather than by two thresholds. */
+    categorical?: boolean;
     about: string;
     hist: number[];
     /** Its area sample: full-detail values on a grid every layer shares. */
@@ -450,7 +508,8 @@ const config = {
 
   // ---- The model -----------------------------------------------------------
   // All of it, in one place: what the map, the panel and the explanation read.
-  type Item = { id: string; weight: number; good: number; bad: number; axis: 0 | 1 };
+  /** `scores`: a categorical layer's score for each class value. */
+  type Item = { id: string; weight: number; good: number; bad: number; axis: 0 | 1; scores?: Record<number, number> };
   let items: Item[] = [];
   let op: Op = 'mean';
   // Two scores (bivariate): each layer feeds one of two axes, each axis is
@@ -462,6 +521,12 @@ const config = {
   let breaks: [[number, number], [number, number]] = [[0.35, 0.65], [0.35, 0.65]];
   /** The one cell shown alone, or -1 for all. */
   let only = -1;
+  /** One layer shown alone (its index), or -1: its own score on the map and
+   *  in the numbers, to see what it contributes. */
+  let solo = -1;
+  const soloing = () => solo >= 0 && solo < items.length;
+  /** What is actually drawn and counted: the model, or the one layer alone. */
+  const effectiveMode = (): Mode => (soloing() ? 'one' : mode);
   // Row-major from low/low: row = second axis (up), column = first (across).
   // Blue across, orange up, cream where both are high. Checked with the
   // palette validator on this basemap over all 36 pairs: normal vision ΔE
@@ -492,7 +557,9 @@ const config = {
     const [qa, qb] = q ?? (up ? [0.25, 0.95] : [0.05, 0.75]);
     const a = snap(l, l.classes ? l.classes[0].value : quantile(l, qa));
     const b = snap(l, l.classes ? l.classes.at(-1)!.value : quantile(l, qb));
-    return { id, weight, bad: up ? a : b, good: up ? b : a, axis };
+    // A categorical layer starts with every kind in the middle, to be scored.
+    const scores = l.categorical ? Object.fromEntries(l.classes!.map((c) => [c.value, 0.5])) : undefined;
+    return { id, weight, bad: up ? a : b, good: up ? b : a, axis, scores };
   };
 
   // Examples, to show what the tool is for. Plainly examples: nobody's
@@ -598,7 +665,7 @@ const config = {
     // part of the map left showing.
     fitBoundsOptions: {
       padding: matchMedia('(min-width: 48rem)').matches
-        ? { top: 20, bottom: 20, right: 20, left: 24 * 16 + 20 }
+        ? { top: 20, bottom: 20, right: 20, left: 25 * 16 + 20 }
         : { top: 20, left: 20, right: 20, bottom: innerHeight * 0.56 + 10 },
     },
     maxZoom: 15,
@@ -612,6 +679,9 @@ const config = {
   map.once('load', () => el.querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show'));
 
   const score = new ScoreLayer('score');
+  // ?debug: hooks for measuring (tools/bench-dst.mjs), nothing on screen.
+  const debug = new URLSearchParams(location.search).has('debug') ? { counts: [] as number[] } : null;
+  if (debug) Object.assign(window, { __dst: { map, score, debug } });
   map.on('load', () => {
     // Over the land, under the roads and the towns: still a map to find your
     // way by.
@@ -634,12 +704,29 @@ const config = {
   }
 
   const criteria = (): Criterion[] =>
-    items.map((i) => ({ layer: byId.get(i.id)!, weight: i.weight, good: i.good, bad: i.bad, axis: i.axis }));
-  /** The model to the map: uniforms only, so on the next frame. */
+    (soloing() ? [items[solo]] : items).map((i) => ({
+      layer: byId.get(i.id)!,
+      weight: soloing() ? 1 : i.weight,
+      good: i.good,
+      bad: i.bad,
+      axis: i.axis,
+      scores: i.scores,
+    }));
+  /** The model to the map: lookup tables and uniforms only, so on the next
+   *  frame. */
   function push() {
     score.setModel(criteria(), op);
-    score.setBivariate(mode === 'two' ? { breaks, palette: PALETTE, only } : null);
+    const two = effectiveMode() === 'two';
+    score.setBivariate(two ? { breaks, palette: PALETTE, only } : null);
+    page.classList.toggle('bi-on', two);
+    page.classList.toggle('soloing', soloing());
+    document.getElementById('key-title')!.textContent = two ? 'Where they meet' : 'How much fits';
+    const note = document.getElementById('key-solo')!;
+    note.hidden = !soloing();
+    if (soloing())
+      note.innerHTML = `Showing <b>${esc(byId.get(items[solo].id)!.name)}</b> alone <button type="button" id="solo-off">Show all</button>`;
     recount();
+    saveHash();
   }
 
   // ---- The panel -----------------------------------------------------------
@@ -652,6 +739,7 @@ const config = {
   };
   const presetsEl = document.getElementById('presets')!;
   const opEl = document.getElementById('op')!;
+  const OP_NAMES: Record<Op, string> = { mean: 'weighing up', and: 'all must pass', or: 'any one' };
   const OP_NOTES: Record<Op, string> = {
     mean: 'Each layer counts as much as its weight says: a weak layer can be made up for by strong ones.',
     and: 'A place scores only as well as its weakest layer. Weights are set aside.',
@@ -702,12 +790,37 @@ const config = {
     return `min="${l.lo}" max="${l.hi}" step="${(l.hi - l.lo) / 254}"`;
   }
 
+  /** A categorical layer's kinds, each with its share of the study area and
+   *  a Poor / Fair / Good choice. */
+  function catsHtml(l: Layer, it: Item) {
+    const total = l.hist.reduce((a, b) => a + b, 0) || 1;
+    const share = (v: number) => {
+      const bin = Math.min(l.hist.length - 1, Math.floor(((v - l.lo) / (l.hi - l.lo || 1)) * l.hist.length));
+      return l.hist[bin] / total;
+    };
+    const LEVELS: [string, number][] = [['Poor', 0], ['Fair', 0.5], ['Good', 1]];
+    return `<div class="cats">${l
+      .classes!.map((c) => {
+        const pct = share(c.value) * 100;
+        const s = it.scores?.[c.value] ?? 0.5;
+        return `<div class="cat"><span>${esc(c.label)}</span><small>${pct >= 1 ? Math.round(pct) : pct > 0 ? '<1' : 0}%</small>
+          <span class="cat-seg" role="group" aria-label="${esc(c.label)}">${LEVELS.map(
+            ([name, v]) => `<button type="button" data-act="cat" data-v="${c.value}" data-s="${v}" aria-pressed="${s === v}">${name}</button>`,
+          ).join('')}</span></div>`;
+      })
+      .join('')}</div>`;
+  }
+
   function critHtml(it: Item, i: number) {
     const l = byId.get(it.id)!;
     const better = it.good >= it.bad ? 'High values score best' : 'Low values score best';
-    return `<div class="crit" data-i="${i}">
+    const on = soloing() && solo === i;
+    return `<div class="crit${on ? ' solo' : ''}" data-i="${i}">
       <div class="crit-head">
         <b>${esc(l.name)}</b>
+        <button class="icon" type="button" data-act="solo" aria-pressed="${on}" aria-label="Show ${esc(l.name)} alone" title="Show this layer alone">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
         ${
           mode === 'two'
             ? `<button class="icon" type="button" data-act="axis" aria-label="Move to ${esc(axisNames[1 - it.axis])}" title="Move to ${esc(axisNames[1 - it.axis])}">
@@ -722,14 +835,18 @@ const config = {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
         </button>
       </div>
-      <p class="dir"><span class="way">${better}.</span> ${esc(l.about)}</p>
+      ${
+        l.categorical
+          ? `<p class="dir">Score each kind. ${esc(l.about)}</p>${catsHtml(l, it)}`
+          : `<p class="dir"><span class="way">${better}.</span> ${esc(l.about)}</p>
       <div class="hist-wrap">${histSvg(l, it)}</div>
       <div class="thresh">
         <label>Poor at <output data-out="bad">${esc(fmt(l, it.bad))}</output>
           <input type="range" data-k="bad" ${sliderAttrs(l)} value="${it.bad}"></label>
         <label>Best at <output data-out="good">${esc(fmt(l, it.good))}</output>
           <input type="range" data-k="good" ${sliderAttrs(l)} value="${it.good}"></label>
-      </div>
+      </div>`
+      }
       <label class="weight">How much it matters <output data-out="weight">×${it.weight}</output>
         <input type="range" data-k="weight" min="0.5" max="5" step="0.5" value="${it.weight}"></label>
     </div>`;
@@ -776,8 +893,7 @@ const config = {
     for (const b of modeEl.querySelectorAll<HTMLButtonElement>('button'))
       b.setAttribute('aria-checked', String(b.dataset.mode === mode));
     document.getElementById('mode-note')!.textContent = MODE_NOTES[mode];
-    page.classList.toggle('mode-two', mode === 'two');
-    document.getElementById('key-title')!.textContent = mode === 'two' ? 'Where they meet' : 'How much fits';
+
     for (const b of opEl.querySelectorAll<HTMLButtonElement>('button'))
       b.setAttribute('aria-checked', String(b.dataset.op === op));
     document.getElementById('op-note')!.textContent =
@@ -805,6 +921,7 @@ const config = {
     mode = p.axes ? 'two' : 'one';
     axisNames = p.axes ? [...p.axes] : [...AXIS_NAMES];
     only = -1;
+    solo = -1;
     preset = name;
     render();
     push();
@@ -836,6 +953,7 @@ const config = {
     if (!b || b.dataset.mode === mode) return;
     mode = b.dataset.mode as Mode;
     only = -1;
+    solo = -1;
     preset = null;
     render();
     push();
@@ -844,8 +962,22 @@ const config = {
     const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-act]');
     if (!b) return;
     const i = Number(b.closest<HTMLElement>('.crit')!.dataset.i);
-    if (b.dataset.act === 'remove') items.splice(i, 1);
-    else if (b.dataset.act === 'axis') items[i].axis = (1 - items[i].axis) as 0 | 1;
+    const act = b.dataset.act;
+    if (act === 'solo') {
+      solo = solo === i ? -1 : i;
+      render();
+      push();
+      return;
+    }
+    if (act === 'remove') {
+      items.splice(i, 1);
+      if (solo === i) solo = -1;
+      else if (solo > i) solo--;
+    } else if (act === 'axis') items[i].axis = (1 - items[i].axis) as 0 | 1;
+    else if (act === 'cat') items[i].scores = { ...items[i].scores, [Number(b.dataset.v)]: Number(b.dataset.s) };
+    else if (items[i].scores)
+      // Swapping ends on a categorical layer turns every score over.
+      items[i].scores = Object.fromEntries(Object.entries(items[i].scores!).map(([k, v]) => [k, 1 - v]));
     else [items[i].good, items[i].bad] = [items[i].bad, items[i].good];
     preset = null;
     render();
@@ -861,6 +993,7 @@ const config = {
       axisNames[Number(input.dataset.axis)] = input.value.trim() || AXIS_NAMES[Number(input.dataset.axis)];
       renderKeyTwo();
       showNumbers();
+      saveHash();
       return;
     }
     const row = input.closest<HTMLElement>('.crit');
@@ -900,21 +1033,48 @@ const config = {
   const cut = () => Number(cutIn.value) / 100;
   const grid = config.layers[0]?.sample;
 
-  /** The view as sample cells, for counting "this view". */
+  /** The part of the map that can be seen -- not what the panel covers on a
+   *  wide screen -- as sample cells, for counting "this view". */
   function viewCells(): [number, number, number, number] | null {
     if (!grid) return null;
-    const b = map.getBounds();
+    const panel = document.getElementById('panel')!;
+    // Folded to its title, the panel hides next to nothing.
+    const wide = matchMedia('(min-width: 48rem)').matches && !document.getElementById('panel-body')!.hidden;
+    const left = wide ? panel.getBoundingClientRect().right - el.getBoundingClientRect().left : 0;
+    const nw = map.unproject([Math.max(0, left), 0]);
+    const se = map.unproject([el.clientWidth, el.clientHeight]);
     const n = 2 ** grid.z * 256;
     const px = (lng: number, lat: number) => {
       const r = (lat * Math.PI) / 180;
       return [((lng + 180) / 360) * n, ((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * n];
     };
-    const [x0, y0] = px(b.getWest(), b.getNorth());
-    const [x1, y1] = px(b.getEast(), b.getSouth());
+    const [x0, y0] = px(nw.lng, nw.lat);
+    const [x1, y1] = px(se.lng, se.lat);
     const c = (x: number) => Math.floor((x - grid.x0) / grid.step);
     const r = (y: number) => Math.floor((y - grid.y0) / grid.step);
     return [Math.max(0, c(x0)), Math.max(0, r(y0)), Math.min(grid.w, c(x1) + 1), Math.min(grid.h, r(y1) + 1)];
   }
+
+  /** The model as the counting worker takes it: every layer's lookup table
+   *  (the shader's own), weights and axes. */
+  function statsModel() {
+    const cs = criteria();
+    const luts = new Uint8Array(cs.length * 256);
+    cs.forEach((c, i) => luts.set(criterionLut(c), i * 256));
+    return {
+      grid: grid!,
+      op,
+      cut: cut(),
+      breaks: effectiveMode() === 'two' ? breaks : null,
+      layers: cs.map((c) => ({ src: abs(byId.get(c.layer.id)!.sampleSrc), weight: c.weight, axis: c.axis ?? 0 })),
+      luts,
+    };
+  }
+  /** The whole area is counted once per model; a model counted before is
+   *  answered from here, so going back and forth costs nothing. */
+  const regionCache = new Map<string, Tally>();
+  const modelKey = (m: ReturnType<typeof statsModel>) =>
+    JSON.stringify([m.op, m.cut, m.breaks, m.layers, Array.from(m.luts)]);
 
   function recount() {
     clearTimeout(countTimer);
@@ -924,45 +1084,55 @@ const config = {
       return;
     }
     countTimer = window.setTimeout(() => {
-      const req: StatsRequest = {
-        seq: ++seq,
-        grid,
-        op,
-        cut: cut(),
-        view: viewCells(),
-        breaks: mode === 'two' ? breaks : null,
-        criteria: items.map((it) => {
-          const l = byId.get(it.id)!;
-          return {
-            id: l.id,
-            src: abs(l.sampleSrc),
-            weight: it.weight,
-            bad: thresholdByte(l, it.bad),
-            good: thresholdByte(l, it.good),
-            axis: it.axis,
-          };
-        }),
-      };
-      stats.postMessage(req);
+      const m = statsModel();
+      const key = modelKey(m);
+      const hit = regionCache.get(key);
+      if (hit) {
+        last = { region: hit, view: last?.view ?? null };
+        showNumbers();
+      } else stats.postMessage({ ...m, seq: ++seq, kind: 'region', view: null } satisfies StatsRequest);
+      regionKey = key;
+      if (scope === 'view') recountView();
     }, 120);
   }
+  /** The view alone, over just its own rectangle: after a pan or zoom, or
+   *  when "This view" is chosen. */
+  function recountView() {
+    if (!grid || !items.length) return;
+    stats.postMessage({ ...statsModel(), seq: ++viewSeq, kind: 'view', view: viewCells() } satisfies StatsRequest);
+  }
+  let regionKey = '';
+  let viewSeq = 0;
   stats.onmessage = (e: MessageEvent<StatsResponse>) => {
-    if (e.data.seq !== seq) return;
-    if ('loading' in e.data) {
+    const d = e.data;
+    if (d.kind === 'region' ? d.seq !== seq : d.seq !== viewSeq) return;
+    if ('loading' in d) {
       keyEl.classList.add('loading');
       return;
     }
     keyEl.classList.remove('loading');
-    last = { region: e.data.region, view: e.data.view };
+    if (debug) debug.counts.push(d.ms);
+    if (d.kind === 'region') {
+      regionCache.set(regionKey, d.tally);
+      if (regionCache.size > 50) regionCache.delete(regionCache.keys().next().value!);
+      last = { region: d.tally, view: last?.view ?? null };
+    } else last = { region: last?.region ?? d.tally, view: d.tally };
     showNumbers();
   };
 
+  /** How sure the numbers are: sampled at full detail every ~200 m, which is
+   *  exact enough for the study area, but zoomed right in few samples fall in
+   *  view. */
+  const precision = (t: Tally) =>
+    t.points < 2000
+      ? `Zoomed in this close, only ${t.points.toLocaleString('en-CA')} sample points are in view: treat these as approximate.`
+      : 'Counted at full detail.';
   const km2 = (v: number) =>
     v >= 100 ? `${Math.round(v).toLocaleString('en-CA')} km²` : v >= 1 ? `${v.toFixed(1)} km²` : `${Math.round(v * 100)} ha`;
 
   function showNumbers() {
     const t = last ? (scope === 'view' ? last.view : last.region) : null;
-    if (mode === 'two') return showNumbersTwo(t);
+    if (effectiveMode() === 'two') return showNumbersTwo(t);
     const c = Math.round(cut() * 100);
     cutOut.textContent = String(c);
     if (!t || !t.total) {
@@ -977,7 +1147,7 @@ const config = {
     spreadEl.innerHTML = spreadSvg(t, cut());
     footEl.textContent =
       `Of the ${km2(t.total)} ${scope === 'view' ? 'in view' : 'across the study area'} that these layers cover. ` +
-      `Average score ${Math.round(t.mean * 100)}. Counted at full detail.`;
+      `Average score ${Math.round(t.mean * 100)}. ${precision(t)}`;
   }
 
   /** The spread of scores by area, in the map's own colours: the key and the
@@ -1049,7 +1219,7 @@ const config = {
     biPct.textContent = `${Math.round((t.cells[cell] / t.total) * 100)}%`;
     biKm.innerHTML = `${km2(t.cells[cell])}<br>${esc(cellName(cell).toLowerCase())}`;
     footEl.textContent =
-      `Of the ${km2(t.total)} ${scope === 'view' ? 'in view' : 'across the study area'} where both scores have data. Counted at full detail.`;
+      `Of the ${km2(t.total)} ${scope === 'view' ? 'in view' : 'across the study area'} where both scores have data. ${precision(t)}`;
   }
 
   biGrid.addEventListener('click', (e) => {
@@ -1084,12 +1254,14 @@ const config = {
     input.previousElementSibling!.textContent = String(Math.round(v * 100));
     score.setBivariate({ breaks, palette: PALETTE, only });
     recount();
+    saveHash();
   });
 
   cutIn.addEventListener('input', () => {
     if (onlyIn.checked) score.setCut(cut());
     showNumbers();
     recount();
+    saveHash();
   });
   onlyIn.addEventListener('change', () => score.setCut(onlyIn.checked ? cut() : 0));
   scopeEl.addEventListener('click', (e) => {
@@ -1097,11 +1269,178 @@ const config = {
     if (!b) return;
     scope = b.dataset.scope as 'region' | 'view';
     for (const x of scopeEl.querySelectorAll('button')) x.setAttribute('aria-checked', String(x === b));
+    if (scope === 'view') recountView();
     showNumbers();
   });
-  // "This view" follows the map.
+  // "This view" follows the map; the whole area does not need recounting.
   map.on('moveend', () => {
-    if (items.length) recount();
+    if (scope === 'view') recountView();
+  });
+
+  keyEl.addEventListener('click', (e) => {
+    if ((e.target as HTMLElement).id !== 'solo-off') return;
+    solo = -1;
+    render();
+    push();
+  });
+
+  // ---- A link to this model --------------------------------------------------
+  // The whole model -- layers, thresholds, weights, how they combine, the
+  // two-score names and breaks, the cut-off -- lives in the address, so a
+  // link reopens exactly what was on screen. Written as the model changes
+  // (replacing, not adding to, the history), read once on opening.
+  type Saved = {
+    v: 1;
+    m: Mode;
+    o: Op;
+    a: [string, string];
+    b: [[number, number], [number, number]];
+    c: number;
+    i: [string, number, number, number, 0 | 1, Record<number, number>?][];
+  };
+  const r4 = (v: number) => Number(v.toPrecision(4));
+  let hashTimer = 0;
+  function saveHash() {
+    clearTimeout(hashTimer);
+    hashTimer = window.setTimeout(() => {
+      if (!items.length) {
+        history.replaceState(null, '', location.pathname + location.search);
+        return;
+      }
+      const saved: Saved = {
+        v: 1,
+        m: mode,
+        o: op,
+        a: axisNames,
+        b: breaks,
+        c: Number(cutIn.value),
+        i: items.map((it) => [it.id, it.weight, r4(it.bad), r4(it.good), it.axis, ...(it.scores ? [it.scores] : [])] as Saved['i'][number]),
+      };
+      const json = JSON.stringify(saved);
+      const b64 = btoa(String.fromCharCode(...new TextEncoder().encode(json))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      history.replaceState(null, '', `${location.pathname}${location.search}#m=${b64}`);
+    }, 250);
+  }
+  function loadHash() {
+    const m = location.hash.match(/^#m=([A-Za-z0-9_-]+)/);
+    if (!m) return false;
+    try {
+      const bin = atob(m[1].replace(/-/g, '+').replace(/_/g, '/'));
+      const saved = JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, (ch) => ch.charCodeAt(0)))) as Saved;
+      if (saved.v !== 1) return false;
+      items = saved.i
+        .filter(([id]) => byId.has(id))
+        .slice(0, MAX_CRITERIA)
+        .map(([id, weight, bad, good, axis, scores]) => ({ id, weight, bad, good, axis, scores }));
+      mode = saved.m === 'two' ? 'two' : 'one';
+      op = (['mean', 'and', 'or'] as Op[]).includes(saved.o) ? saved.o : 'mean';
+      axisNames = [String(saved.a?.[0] ?? AXIS_NAMES[0]).slice(0, 24), String(saved.a?.[1] ?? AXIS_NAMES[1]).slice(0, 24)];
+      if (Array.isArray(saved.b)) breaks = saved.b;
+      if (saved.c) cutIn.value = String(saved.c);
+      return items.length > 0;
+    } catch {
+      return false;
+    }
+  }
+  document.getElementById('share')!.addEventListener('click', async () => {
+    saveHash();
+    await new Promise((r) => setTimeout(r, 300));
+    try {
+      await navigator.clipboard.writeText(location.href);
+      say(items.length ? 'Link copied: it opens this exact model.' : 'Link copied.');
+    } catch {
+      say('Copy the address bar to share this model.');
+    }
+  });
+
+  // ---- Taking it away ---------------------------------------------------------
+  // The map as an image, and the numbers as a table -- for a report or a
+  // meeting. The image is the map as drawn, with the key and the model under
+  // it, so it stands on its own.
+  const loadingBar = document.getElementById('loading-bar')!;
+  map.on('render', () => loadingBar.classList.toggle('on', items.length > 0 && score.pending > 0));
+
+  const download = (name: string, href: string) => {
+    const a = document.createElement('a');
+    a.href = href;
+    a.download = name;
+    a.click();
+  };
+  const stamp = () => new Date().toISOString().slice(0, 10);
+  /** One line per layer, as the panel has it. */
+  const modelLines = () =>
+    criteria().map((c) => {
+      const l = byId.get(c.layer.id)!;
+      const how = c.scores
+        ? 'scored by kind'
+        : `poor at ${fmt(l, c.bad)}, best at ${fmt(l, c.good)}`;
+      const wt = op === 'mean' && !soloing() ? `, ×${c.weight}` : '';
+      const axis = effectiveMode() === 'two' ? `[${axisNames[c.axis ?? 0]}] ` : '';
+      return `${axis}${l.name}: ${how}${wt}`;
+    });
+
+  document.getElementById('save-png')!.addEventListener('click', () => {
+    if (!items.length) return say('Add a layer first.');
+    // The canvas is only readable during a render: ask for one and copy it then.
+    map.once('render', () => {
+      const src = map.getCanvas();
+      const dpr = src.width / el.clientWidth;
+      const lines = modelLines();
+      const headline =
+        effectiveMode() === 'two'
+          ? `${biPct.textContent} ${biKm.textContent?.replace(/\s+/g, ' ')}`
+          : `${pctEl.textContent} (${kmEl.textContent?.replace(/\s+/g, ' ')})`;
+      const pad = 18 * dpr, line = 17 * dpr, foot = pad * 2 + line * (lines.length + 3);
+      const out = document.createElement('canvas');
+      out.width = src.width;
+      out.height = src.height + foot;
+      const ctx = out.getContext('2d')!;
+      ctx.fillStyle = '#0d1210';
+      ctx.fillRect(0, 0, out.width, out.height);
+      ctx.drawImage(src, 0, 0);
+      ctx.fillStyle = '#eef2ee';
+      ctx.font = `600 ${14 * dpr}px system-ui, sans-serif`;
+      let y = src.height + pad + line * 0.8;
+      ctx.fillText(`EcoScapes planning support: ${headline}`, pad, y);
+      ctx.font = `${12 * dpr}px system-ui, sans-serif`;
+      ctx.fillStyle = '#9aa79f';
+      y += line * 1.2;
+      ctx.fillText(`Combined by: ${OP_NAMES[op]}. ${scope === 'view' ? 'Numbers for the view.' : 'Numbers for the whole study area.'} ${stamp()}`, pad, y);
+      for (const l of lines) ctx.fillText(l, pad, (y += line));
+      download(`ecoscapes-planning-${stamp()}.png`, out.toDataURL('image/png'));
+    });
+    map.triggerRepaint();
+  });
+
+  document.getElementById('save-csv')!.addEventListener('click', () => {
+    const t = last ? (scope === 'view' ? last.view : last.region) : null;
+    if (!items.length || !t) return say('Add a layer first.');
+    const q = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+    const rows: (string | number)[][] = [
+      ['EcoScapes planning support', stamp()],
+      ['Area', scope === 'view' ? 'the view' : 'the whole study area'],
+      ['Combined by', OP_NAMES[op]],
+      [],
+      ['Layer', 'Group', 'Poor at', 'Best at', 'Weight'],
+      ...criteria().map((c) => {
+        const l = byId.get(c.layer.id)!;
+        return [l.name, effectiveMode() === 'two' ? axisNames[c.axis ?? 0] : '', c.scores ? 'by kind' : fmt(l, c.bad), c.scores ? 'by kind' : fmt(l, c.good), c.weight];
+      }),
+      [],
+      ['Area covered by these layers (km²)', t.total.toFixed(1)],
+    ];
+    if (effectiveMode() === 'two') {
+      rows.push([], ['Cell', 'Area (km²)', 'Share (%)']);
+      for (let c = 8; c >= 0; c--) rows.push([cellName(c), t.cells[c].toFixed(1), ((t.cells[c] / t.total) * 100).toFixed(2)]);
+    } else {
+      rows.push([`Scoring ${Math.round(cut() * 100)} or more (km²)`, t.above.toFixed(1)], ['Average score', (t.mean * 100).toFixed(1)]);
+      rows.push([], ['Score from', 'Score to', 'Area (km²)', 'Share (%)']);
+      t.hist.forEach((a, i) =>
+        rows.push([(i * 100) / t.hist.length, ((i + 1) * 100) / t.hist.length, a.toFixed(1), ((a / t.total) * 100).toFixed(2)]),
+      );
+    }
+    const csv = rows.map((r) => r.map(q).join(',')).join('\r\n');
+    download(`ecoscapes-planning-${stamp()}.csv`, URL.createObjectURL(new Blob([csv], { type: 'text/csv' })));
   });
 
   const opacity = document.getElementById('opacity') as HTMLInputElement;
@@ -1114,6 +1453,7 @@ const config = {
     fold.setAttribute('aria-expanded', String(open));
     fold.setAttribute('aria-label', open ? 'Fold the panel' : 'Open the panel');
     panelBody.hidden = !open;
+    if (scope === 'view') recountView();
   });
 
   // ---- Why this place --------------------------------------------------------
@@ -1155,7 +1495,10 @@ const config = {
     popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
   });
 
-  // Opens empty: the map and the choice are the visitor's.
+  // Opens empty -- the map and the choice are the visitor's -- unless the
+  // address carries a model (a shared link).
+  const shared = loadHash();
   render();
   showNumbers();
+  if (shared) push();
 </script>

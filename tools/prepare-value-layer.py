@@ -3,7 +3,7 @@
 One layer's *values*, not its colours, as a PMTiles file the decision-support
 page (/ecoscapes-dst/) can score in the browser.
 
-  tools/prepare-value-layer.py <input.tif> <id> [--classes] [--lo N --hi N] [--valid MIN MAX]
+  tools/prepare-value-layer.py <input.tif> <id> [--classes] [--lo N --hi N] [--valid MIN MAX] [--mask other.tif]
 
   tools/prepare-value-layer.py ~/Drive/.../cumulative-impacts_2022.tif cumulative-impacts
   tools/prepare-value-layer.py ~/Drive/.../wildfire-hazardr.tif wildfire-hazard --classes
@@ -22,16 +22,21 @@ finer than any threshold anyone sets on these layers, and a byte per pixel is
 what keeps the files small. Greyscale, lossless WebP: a value must come back
 exactly as written, so nothing lossy anywhere.
 
-The deepest zoom is z12 (TerrAdapt's ~24 m grid at this latitude). Shallower
-zooms are made here, not by GDAL's overviews, since they have to be made from
-values: a mean of each 2x2 block for a continuous surface, or with --classes
-the block's top-left value, which never invents a class that is not there.
+The deepest zoom is z12 (TerrAdapt's ~24 m grid at this latitude). Each
+shallower zoom keeps one real pixel of every 2x2 block below it -- never an
+average. The page scores pixels against thresholds, and a threshold applied to
+an average is not the average of the thresholded pixels: a block half
+excellent and half cleared would average to "moderate" and score as moderate
+everywhere. A kept pixel is a true full-detail value, so a zoomed-out view is a
+fair sample of the detail -- the eye averages its grain into the true share,
+and it agrees with the area counts. (--classes is still accepted; every layer
+is now treated this way.)
 
 Input can be the Drive originals as they are: any CRS, any numeric type, its
 own NoData. Needs GDAL and the pmtiles CLI (brew install gdal pmtiles), numpy
 and Pillow.
 """
-import argparse, io, json, math, os, sqlite3, subprocess, sys, tempfile, warnings
+import argparse, io, json, math, os, sqlite3, subprocess, sys, tempfile
 import numpy as np
 from PIL import Image
 
@@ -40,9 +45,11 @@ MAXZ, MINZ, TILE = 12, 6, 256
 LIMIT = (-124.69, 48.94, -121.43, 51.26)
 HALF = 20037508.342789244
 # The area sample: one z12 pixel in every SAMPLE along each axis -- about
-# every 100 m here, some six million real 24 m values across the study area.
+# every 200 m here, some 1.5 million real 24 m values across the study area.
 # Taken, not averaged, so an area counted from it is the area at full detail.
-SAMPLE = 4
+# Measured against every 100 m on six layers: the study area's shares agree to
+# within 0.02 percentage points, for a quarter of the download and the count.
+SAMPLE = 8
 
 
 def tile_x(lon, z):
@@ -78,6 +85,8 @@ def main():
     ap.add_argument("--hi", type=float)
     ap.add_argument("--valid", type=float, nargs=2, metavar=("MIN", "MAX"),
                     help="values outside this range are no data (codes such as -1 for water)")
+    ap.add_argument("--mask", help="another raster: no data wherever it has none (for a layer that fills "
+                    "past its real edge with zeros)")
     ap.add_argument("--out", default="public/tiles/dst")
     a = ap.parse_args()
 
@@ -109,6 +118,16 @@ def main():
             "-of", "ENVI", "-wo", "NUM_THREADS=ALL_CPUS", "-multi", a.input, raw,
         ])
         v = np.fromfile(raw, dtype=np.float32).reshape(H, W)
+        if a.mask:
+            # Onto the same grid, and no data wherever the mask has none.
+            mraw = os.path.join(tmp, "m.bin")
+            subprocess.check_call([
+                "gdalwarp", "-q", "-overwrite", "-t_srs", "EPSG:3857",
+                "-te", *map(str, te), "-ts", str(W), str(H),
+                "-r", "near", "-ot", "Float32", "-dstnodata", "nan",
+                "-of", "ENVI", "-wo", "NUM_THREADS=ALL_CPUS", "-multi", a.mask, mraw,
+            ])
+            v[~np.isfinite(np.fromfile(mraw, dtype=np.float32).reshape(H, W))] = np.nan
         if a.valid:
             v[(v < a.valid[0]) | (v > a.valid[1])] = np.nan
 
@@ -162,19 +181,12 @@ def main():
                     if not t.any():
                         continue
                     buf = io.BytesIO()
-                    Image.fromarray(t, "L").save(buf, "WEBP", lossless=True, method=4)
+                    Image.fromarray(t, "L").save(buf, "WEBP", lossless=True, method=6)
                     x, y = x0 // f + tx, y0 // f + ty
                     db.execute("insert into tiles values (?, ?, ?, ?)", (z, x, 2**z - 1 - y, buf.getvalue()))
                     count += 1
             if z > MINZ:
-                h2, w2 = level.shape[0] // 2, level.shape[1] // 2
-                if a.classes:
-                    level = level[::2, ::2]
-                else:
-                    blocks = level.reshape(h2, 2, w2, 2)
-                    with warnings.catch_warnings():
-                        warnings.simplefilter("ignore", RuntimeWarning)
-                        level = np.nanmean(blocks, axis=(1, 3)).astype(np.float32)
+                level = level[::2, ::2]
         db.commit()
         db.close()
 

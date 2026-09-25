@@ -1,63 +1,81 @@
 import type { CustomLayerInterface, CustomRenderMethodInput, Map as MlMap } from 'maplibre-gl';
-import { PMTiles } from 'pmtiles';
+import { MAX_CRITERIA, combineScores, criterionLut, valueOf, type Bivariate, type Criterion, type Op } from './model';
+import type { TileReply, TileRequest } from './tile-worker';
 
-/** The decision-support map's scored surface: a MapLibre custom layer that
- *  reads each criterion's value tiles (tools/prepare-value-layer.py -- one
- *  byte a pixel, 0 for no data) and scores every pixel on the GPU. The value
- *  tiles are fetched once; a slider only changes the uniforms, so the map
- *  recolours on the next frame with no fetch and no re-decode -- the same
- *  promise as the RRN demo's paint expressions, on a 24 m grid rather than
- *  hexagons. Mercator only. */
+export { MAX_CRITERIA, combineScores, scoreOf, criterionLut, band, valueOf } from './model';
+export type { Bivariate, Criterion, Op, ValueLayer } from './model';
 
-export type Op = 'mean' | 'and' | 'or';
-export type ValueLayer = { id: string; src: string; lo: number; hi: number };
-/** `axis` only matters in two-score mode: which of the two scores a layer
- *  feeds (0 across, 1 up). */
-export type Criterion = { layer: ValueLayer; weight: number; good: number; bad: number; axis?: 0 | 1 };
-/** Two-score (bivariate) settings: where each axis breaks into low / middle /
- *  high (0..1), the nine colours (row = second axis, low to high; column =
- *  first), and one cell to show alone, or -1. */
-export type Bivariate = { breaks: [[number, number], [number, number]]; palette: string[]; only: number };
+/** The planning map's scored surface: a MapLibre custom layer that scores
+ *  every pixel of up to eight layers' value tiles on the GPU.
+ *
+ *  - Each layer's tiles are fetched and decoded in a worker (tile-worker.ts)
+ *    and kept as one small texture per layer per tile. Adding, removing or
+ *    re-weighting a layer never touches the others' textures.
+ *  - Each criterion's scoring is a 256-entry lookup table (model.ts), one row
+ *    of a small texture. A slider changes that row and some uniforms: the map
+ *    recolours on the next frame with no fetch and no decode.
+ *  - A tile not yet loaded is drawn from the nearest ancestor that is, per
+ *    layer, over just its own square -- never a blank while panning, and
+ *    never two layers of colour on one spot. A tile is drawn only once every
+ *    layer has something for it, so a half-loaded model never shows a score
+ *    it does not have.
+ *  - Requests are made nearest the middle of the view first, and dropped when
+ *    the view moves on before they are answered.
+ *
+ *  Mercator only. */
 
 const TILE = 256;
 const MINZ = 6;
 const MAXZ = 12;
-/** Criteria the shader takes at once. WebGL2 guarantees far more texture
- *  layers than this; the limit is what a person can weigh against each other. */
-export const MAX_CRITERIA = 8;
+/** Requests in flight to the tile worker at once. */
+const INFLIGHT = 24;
+/** Textures kept (64 KB each on the GPU); the least recently drawn go first. */
+const KEEP = 700;
+
+type Want = { key: string; src: string; z: number; x: number; y: number };
 
 const VERT = `#version 300 es
 uniform mat4 u_matrix;
 uniform vec3 u_tile;   // mercator x, y, size
-uniform vec3 u_uv;     // texture u, v, size (a sub-rect when drawing an ancestor)
 in vec2 a_pos;
-out vec2 v_uv;
+out vec2 v_pos;
 void main() {
-  v_uv = u_uv.xy + a_pos * u_uv.z;
+  v_pos = a_pos;
   gl_Position = u_matrix * vec4(u_tile.xy + a_pos * u_tile.z, 0.0, 1.0);
 }`;
 
-// Scores in byte space: a threshold is turned into the byte it would be
-// stored as, so the shader never needs a layer's range. Same ramp as RRN's
-// fuzzyConvert -- 0 at \`bad\`, 1 at \`good\`, straight between, clamped; a
-// good below bad simply means lower is better.
+// One block per layer, written out rather than looped: GLSL ES 3.00 only
+// indexes an array of samplers with a constant.
+const slot = (i: number) => `
+  if (u_n > ${i}) {
+    float b = floor(texture(u_v[${i}], u_uv[${i}].xy + v_pos * u_uv[${i}].z).r * 255.0 + 0.5);
+    if (b > 0.5) {
+      float s = texelFetch(u_lut, ivec2(int(b), ${i}), 0).r;
+      int k = u_mode == 1 && u_axis[${i}] > 0.5 ? 1 : 0;
+      sum[k] += s * u_w[${i}];
+      wsum[k] += u_w[${i}];
+      lo[k] = min(lo[k], s);
+      hi[k] = max(hi[k], s);
+      seen[k]++;
+    }
+  }`;
+
 const FRAG = `#version 300 es
 precision highp float;
-precision highp sampler2DArray;
-uniform sampler2DArray u_vals;
+uniform sampler2D u_v[${MAX_CRITERIA}];
+uniform sampler2D u_lut;       // 256 x ${MAX_CRITERIA}: each criterion's score for each byte
+uniform vec3 u_uv[${MAX_CRITERIA}];     // where in its texture this tile's square is
 uniform int u_n;
 uniform int u_op;              // 0 weighted mean, 1 and (min), 2 or (max)
 uniform float u_w[${MAX_CRITERIA}];
-uniform float u_bad[${MAX_CRITERIA}];
-uniform float u_good[${MAX_CRITERIA}];
-uniform float u_opacity;
-uniform float u_cut;           // below this score, nothing drawn (0 = all)
-uniform int u_mode;            // 0 one score, 1 two scores (bivariate)
 uniform float u_axis[${MAX_CRITERIA}];
+uniform float u_opacity;
+uniform float u_cut;           // one score: below this, nothing drawn (0 = all)
+uniform int u_mode;            // 0 one score, 1 two scores (bivariate)
 uniform vec4 u_brk;            // first axis low/high break, second axis low/high
 uniform vec3 u_pal[9];
 uniform int u_only;            // two scores: the one cell to draw, or -1
-in vec2 v_uv;
+in vec2 v_pos;
 out vec4 frag;
 vec3 ramp(float s) {
   // One hue, amber, from near the ground's own dark to bright: a low score
@@ -80,23 +98,11 @@ int band(float s, float lo, float hi) {
   return s < lo ? 0 : s < hi ? 1 : 2;
 }
 void main() {
-  // Both scores in one pass; in one-score mode everything counts as the first.
+  // Both scores in one pass; with one score everything counts as the first.
   float sum[2] = float[2](0.0, 0.0), wsum[2] = float[2](0.0, 0.0);
   float lo[2] = float[2](1.0, 1.0), hi[2] = float[2](0.0, 0.0);
   int seen[2] = int[2](0, 0);
-  for (int i = 0; i < ${MAX_CRITERIA}; i++) {
-    if (i >= u_n) break;
-    float b = floor(texture(u_vals, vec3(v_uv, float(i))).r * 255.0 + 0.5);
-    if (b < 0.5) continue;                       // no data: left out
-    float d = u_good[i] - u_bad[i];
-    float s = abs(d) < 1e-4 ? step(u_good[i], b) : clamp((b - u_bad[i]) / d, 0.0, 1.0);
-    int k = u_mode == 1 && u_axis[i] > 0.5 ? 1 : 0;
-    sum[k] += s * u_w[i];
-    wsum[k] += u_w[i];
-    lo[k] = min(lo[k], s);
-    hi[k] = max(hi[k], s);
-    seen[k]++;
-  }
+${Array.from({ length: MAX_CRITERIA }, (_, i) => slot(i)).join('')}
   if (u_mode == 1) {
     // A place needs both scores to have a cell.
     if (seen[0] == 0 || seen[1] == 0) discard;
@@ -114,7 +120,7 @@ void main() {
   frag = vec4(ramp(score) * a, a);
 }`;
 
-type GpuTile = { tex: WebGLTexture; sig: string; used: number };
+type Tex = { tex: WebGLTexture; used: number };
 
 export class ScoreLayer implements CustomLayerInterface {
   id: string;
@@ -124,8 +130,10 @@ export class ScoreLayer implements CustomLayerInterface {
   private map!: MlMap;
   private gl!: WebGL2RenderingContext;
   private prog!: WebGLProgram;
-  private buf!: WebGLBuffer;
   private vao!: WebGLVertexArrayObject;
+  private buf!: WebGLBuffer;
+  private lutTex!: WebGLTexture;
+  private empty!: WebGLTexture;
   private loc: Record<string, WebGLUniformLocation | null> = {};
 
   private criteria: Criterion[] = [];
@@ -133,31 +141,40 @@ export class ScoreLayer implements CustomLayerInterface {
   private opacity = 0.85;
   private cut = 0;
   private bi: Bivariate | null = null;
+  private lut = new Uint8Array(256 * MAX_CRITERIA);
+  private lutDirty = true;
 
-  private archives = new Map<string, PMTiles>();
-  /** Decoded value tiles, per layer and tile: shared by the GPU upload and
-   *  by explaining a point. */
-  private values = new Map<string, Promise<Uint8Array | null>>();
-  private gpu = new Map<string, GpuTile>();
-  private building = new Set<string>();
+  private worker = new Worker(new URL('./tile-worker.ts', import.meta.url), { type: 'module' });
+  /** Textures by `layer id/z/x/y`; a tile with no data shares `empty`. */
+  private textures = new Map<string, Tex>();
+  /** Requests in flight, by key, with the id the worker knows them by. */
+  private inflight = new Map<string, number>();
+  private queue: Want[] = [];
+  private nextId = 1;
+  private byId = new Map<number, { key: string; resolve?: (b: number) => void }>();
   private frame = 0;
 
   constructor(id: string) {
     this.id = id;
+    this.worker.onmessage = (e: MessageEvent<TileReply>) => this.reply(e.data);
   }
 
   // ---- State ---------------------------------------------------------------
-  /** Two scores (bivariate) with these settings, or one score with null. */
-  setBivariate(bi: Bivariate | null) {
-    this.bi = bi;
-    this.map?.triggerRepaint();
+  /** Tiles still to come for the current view: 0 once everything is drawn. */
+  get pending() {
+    return this.inflight.size + this.queue.length;
   }
 
   setModel(criteria: Criterion[], op: Op) {
-    const sig = (cs: Criterion[]) => cs.map((c) => c.layer.id).join(',');
-    if (sig(criteria) !== sig(this.criteria)) this.dropGpu();
     this.criteria = criteria.slice(0, MAX_CRITERIA);
     this.op = op;
+    this.criteria.forEach((c, i) => this.lut.set(criterionLut(c), i * 256));
+    this.lutDirty = true;
+    this.map?.triggerRepaint();
+  }
+  /** Two scores (bivariate) with these settings, or one score with null. */
+  setBivariate(bi: Bivariate | null) {
+    this.bi = bi;
     this.map?.triggerRepaint();
   }
   setOpacity(o: number) {
@@ -170,47 +187,87 @@ export class ScoreLayer implements CustomLayerInterface {
     this.map?.triggerRepaint();
   }
 
-  // ---- Values --------------------------------------------------------------
-  private archive(layer: ValueLayer) {
-    let a = this.archives.get(layer.id);
-    if (!a) this.archives.set(layer.id, (a = new PMTiles(new URL(layer.src, location.href).href)));
-    return a;
+  // ---- Tiles ---------------------------------------------------------------
+  private post(m: TileRequest) {
+    this.worker.postMessage(m);
   }
 
-  /** One layer's bytes for one tile, 256x256, or null where it has no data. */
-  tileValues(layer: ValueLayer, z: number, x: number, y: number): Promise<Uint8Array | null> {
-    const key = `${layer.id}/${z}/${x}/${y}`;
-    let p = this.values.get(key);
-    if (!p) {
-      p = (async () => {
-        const t = await this.archive(layer).getZxy(z, x, y);
-        if (!t) return null;
-        // Straight bytes out: no colour management, no premultiplying. The
-        // tiles are greyscale with no alpha, so R is the value.
-        const bmp = await createImageBitmap(new Blob([t.data], { type: 'image/webp' }), {
-          colorSpaceConversion: 'none',
-          premultiplyAlpha: 'none',
-        });
-        const c = new OffscreenCanvas(TILE, TILE);
-        const ctx = c.getContext('2d', { willReadFrequently: true })!;
-        ctx.drawImage(bmp, 0, 0);
-        bmp.close();
-        const rgba = ctx.getImageData(0, 0, TILE, TILE).data;
-        const out = new Uint8Array(TILE * TILE);
-        for (let i = 0; i < out.length; i++) out[i] = rgba[i * 4];
-        return out;
-      })().catch(() => null);
-      this.values.set(key, p);
-      // A soft cap: about 25 MB of decoded tiles.
-      if (this.values.size > 400) this.values.delete(this.values.keys().next().value!);
+  private reply(m: TileReply) {
+    const r = this.byId.get(m.id);
+    this.byId.delete(m.id);
+    if (!r) return;
+    if (m.type === 'value') {
+      r.resolve?.(m.byte);
+      return;
     }
-    return p;
+    this.inflight.delete(r.key);
+    if (!this.gl) return;
+    this.textures.set(r.key, { tex: m.data ? this.upload(m.data) : this.empty, used: this.frame });
+    this.pump();
+    this.map.triggerRepaint();
   }
 
-  /** Every criterion's value and score at a point, and the combined score --
-   *  the same arithmetic as the shader, for saying why a place scored what it
-   *  did. */
-  async explain(lng: number, lat: number) {
+  private upload(data: Uint8Array) {
+    const gl = this.gl;
+    const tex = gl.createTexture()!;
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, TILE, TILE, 0, gl.RED, gl.UNSIGNED_BYTE, data);
+    this.nearest();
+    return tex;
+  }
+
+  private nearest() {
+    const gl = this.gl;
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  }
+
+  /** Send queued requests, nearest the middle first, up to the limit. */
+  private pump() {
+    while (this.inflight.size < INFLIGHT && this.queue.length) {
+      const q = this.queue.shift()!;
+      if (this.textures.has(q.key) || this.inflight.has(q.key)) continue;
+      const id = this.nextId++;
+      this.inflight.set(q.key, id);
+      this.byId.set(id, { key: q.key });
+      this.post({ type: 'tile', id, src: q.src, z: q.z, x: q.x, y: q.y });
+    }
+  }
+
+  /** The tiles this view wants, in order: the queue is rebuilt from them, and
+   *  anything in flight they no longer include is called off. */
+  private want(list: Want[]) {
+    const keys = new Set(list.map((q) => q.key));
+    const drop: number[] = [];
+    for (const [key, id] of this.inflight)
+      if (!keys.has(key)) {
+        drop.push(id);
+        this.inflight.delete(key);
+        this.byId.delete(id);
+      }
+    if (drop.length) this.post({ type: 'cancel', ids: drop });
+    this.queue = list.filter((q) => !this.textures.has(q.key) && !this.inflight.has(q.key));
+    this.pump();
+  }
+
+  /** The best texture for a layer's tile: its own, or the nearest ancestor's
+   *  with where in it this tile sits. */
+  private find(layerId: string, z: number, x: number, y: number) {
+    for (let az = z, ax = x, ay = y; az >= MINZ; az--, ax >>= 1, ay >>= 1) {
+      const t = this.textures.get(`${layerId}/${az}/${ax}/${ay}`);
+      if (t) {
+        const k = 2 ** (z - az);
+        return { t, u: (x - ax * k) / k, v: (y - ay * k) / k, s: 1 / k };
+      }
+    }
+    return null;
+  }
+
+  // ---- Explaining a point ------------------------------------------------------
+  private byteAt(src: string, lng: number, lat: number) {
     const n = 2 ** MAXZ;
     const fx = ((lng + 180) / 360) * n;
     const r = (lat * Math.PI) / 180;
@@ -218,16 +275,27 @@ export class ScoreLayer implements CustomLayerInterface {
     const x = Math.floor(fx), y = Math.floor(fy);
     const px = Math.min(TILE - 1, Math.floor((fx - x) * TILE));
     const py = Math.min(TILE - 1, Math.floor((fy - y) * TILE));
+    return new Promise<number>((resolve) => {
+      const id = this.nextId++;
+      this.byId.set(id, { key: '', resolve });
+      this.post({ type: 'value', id, src, z: MAXZ, x, y, px, py });
+    });
+  }
+
+  /** Every criterion's value and score at a point at full detail, and the
+   *  combined score -- from the same lookup tables as the map, so the number
+   *  a tap gives is the one the map draws. */
+  async explain(lng: number, lat: number) {
+    const cs = this.criteria;
+    const lut = this.lut.slice();
     const rows = await Promise.all(
-      this.criteria.map(async (c) => {
-        const v = await this.tileValues(c.layer, MAXZ, x, y);
-        const b = v ? v[py * TILE + px] : 0;
+      cs.map(async (c, i) => {
+        const b = await this.byteAt(c.layer.src, lng, lat);
         if (!b) return { c, value: null as number | null, score: null as number | null };
-        const value = c.layer.lo + ((b - 1) / 254) * (c.layer.hi - c.layer.lo);
-        return { c, value, score: scoreOf(c, value) };
+        return { c, value: valueOf(c.layer, b), score: lut[i * 256 + b] / 255 };
       }),
     );
-    // One score, or in two-score mode one for each axis.
+    // One score, or with two scores one for each axis.
     const total = (axis?: 0 | 1) =>
       combineScores(
         rows
@@ -241,7 +309,7 @@ export class ScoreLayer implements CustomLayerInterface {
   // ---- GL ------------------------------------------------------------------
   onAdd(map: MlMap, context: WebGLRenderingContext | WebGL2RenderingContext) {
     this.map = map;
-    if (!('texStorage3D' in context)) throw new Error('The decision-support map needs WebGL2');
+    if (!('texStorage3D' in context)) throw new Error('The planning map needs WebGL2');
     const gl = (this.gl = context);
     const sh = (type: number, src: string) => {
       const s = gl.createShader(type)!;
@@ -256,8 +324,10 @@ export class ScoreLayer implements CustomLayerInterface {
     gl.linkProgram(p);
     if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p) ?? 'link');
     this.prog = p;
-    for (const u of ['u_matrix', 'u_tile', 'u_uv', 'u_vals', 'u_n', 'u_op', 'u_w', 'u_bad', 'u_good', 'u_opacity', 'u_cut', 'u_mode', 'u_axis', 'u_brk', 'u_pal', 'u_only'])
+    for (const u of ['u_matrix', 'u_tile', 'u_v', 'u_lut', 'u_uv', 'u_n', 'u_op', 'u_w', 'u_axis', 'u_opacity',
+      'u_cut', 'u_mode', 'u_brk', 'u_pal', 'u_only'])
       this.loc[u] = gl.getUniformLocation(p, u);
+
     // Its own vertex array, so nothing here touches MapLibre's.
     this.vao = gl.createVertexArray()!;
     gl.bindVertexArray(this.vao);
@@ -268,87 +338,88 @@ export class ScoreLayer implements CustomLayerInterface {
     gl.enableVertexAttribArray(aPos);
     gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
     gl.bindVertexArray(null);
+
+    // The lookup tables, and one pixel of "no data" for tiles that have none.
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    this.lutTex = gl.createTexture()!;
+    gl.bindTexture(gl.TEXTURE_2D, this.lutTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, 256, MAX_CRITERIA, 0, gl.RED, gl.UNSIGNED_BYTE, this.lut);
+    this.nearest();
+    this.empty = gl.createTexture()!;
+    gl.bindTexture(gl.TEXTURE_2D, this.empty);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, 1, 1, 0, gl.RED, gl.UNSIGNED_BYTE, new Uint8Array(1));
+    this.nearest();
   }
 
   onRemove() {
-    this.dropGpu();
-    this.gl.deleteProgram(this.prog);
-    this.gl.deleteBuffer(this.buf);
-    this.gl.deleteVertexArray(this.vao);
+    const gl = this.gl;
+    for (const t of this.textures.values()) if (t.tex !== this.empty) gl.deleteTexture(t.tex);
+    this.textures.clear();
+    gl.deleteTexture(this.lutTex);
+    gl.deleteTexture(this.empty);
+    gl.deleteProgram(this.prog);
+    gl.deleteBuffer(this.buf);
+    gl.deleteVertexArray(this.vao);
+    this.worker.terminate();
   }
 
-  private dropGpu() {
-    for (const t of this.gpu.values()) this.gl?.deleteTexture(t.tex);
-    this.gpu.clear();
-    this.building.clear();
-  }
-
-  private sig() {
-    return this.criteria.map((c) => c.layer.id).join(',');
-  }
-
-  /** One tile's criteria as a texture array, built once they have all
-   *  arrived. */
-  private build(z: number, x: number, y: number) {
-    const sig = this.sig();
-    const key = `${z}/${x}/${y}|${sig}`;
-    if (this.building.has(key) || this.gpu.has(key)) return;
-    this.building.add(key);
-    const cs = this.criteria;
-    Promise.all(cs.map((c) => this.tileValues(c.layer, z, x, y))).then((vals) => {
-      if (!this.building.delete(key) || sig !== this.sig()) return;
-      const gl = this.gl;
-      const tex = gl.createTexture()!;
-      gl.bindTexture(gl.TEXTURE_2D_ARRAY, tex);
-      gl.texStorage3D(gl.TEXTURE_2D_ARRAY, 1, gl.R8, TILE, TILE, Math.max(1, cs.length));
-      gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
-      const empty = new Uint8Array(TILE * TILE);
-      vals.forEach((v, i) =>
-        gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, i, TILE, TILE, 1, gl.RED, gl.UNSIGNED_BYTE, v ?? empty),
-      );
-      for (const [p, v] of [
-        [gl.TEXTURE_MIN_FILTER, gl.NEAREST],
-        [gl.TEXTURE_MAG_FILTER, gl.NEAREST],
-        [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE],
-        [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE],
-      ])
-        gl.texParameteri(gl.TEXTURE_2D_ARRAY, p, v);
-      this.gpu.set(key, { tex, sig, used: this.frame });
-      // Keep the GPU side bounded: the least recently drawn go first.
-      if (this.gpu.size > 160) {
-        const old = [...this.gpu.entries()].sort((a, b) => a[1].used - b[1].used).slice(0, 40);
-        for (const [k, t] of old) {
-          gl.deleteTexture(t.tex);
-          this.gpu.delete(k);
-        }
-      }
-      this.map.triggerRepaint();
-    });
+  /** Least recently drawn textures go once there are too many. */
+  private evict() {
+    if (this.textures.size <= KEEP) return;
+    const old = [...this.textures.entries()]
+      .filter(([, t]) => t.used < this.frame)
+      .sort((a, b) => a[1].used - b[1].used)
+      .slice(0, this.textures.size - KEEP + 100);
+    for (const [k, t] of old) {
+      if (t.tex !== this.empty) this.gl.deleteTexture(t.tex);
+      this.textures.delete(k);
+    }
   }
 
   render(gl: WebGLRenderingContext | WebGL2RenderingContext, opts: CustomRenderMethodInput) {
     const g = gl as WebGL2RenderingContext;
     const cs = this.criteria;
-    if (!cs.length) return;
+    if (!cs.length) {
+      this.want([]);
+      return;
+    }
     this.frame++;
-    const sig = this.sig();
     const tiles = this.map.coveringTiles({ tileSize: TILE, minzoom: MINZ, maxzoom: MAXZ });
 
+    // What this view needs, nearest the middle first.
+    const c = this.map.getCenter();
+    const n = 2 ** (tiles[0]?.canonical.z ?? MINZ);
+    const mx = ((c.lng + 180) / 360) * n;
+    const lat = (c.lat * Math.PI) / 180;
+    const my = ((1 - Math.log(Math.tan(lat) + 1 / Math.cos(lat)) / Math.PI) / 2) * n;
+    const dist = (t: (typeof tiles)[number]) => (t.canonical.x + 0.5 - mx) ** 2 + (t.canonical.y + 0.5 - my) ** 2;
+    const list: Want[] = [];
+    for (const t of [...tiles].sort((a, b) => dist(a) - dist(b))) {
+      const { z, x, y } = t.canonical;
+      for (const cr of cs) list.push({ key: `${cr.layer.id}/${z}/${x}/${y}`, src: cr.layer.src, z, x, y });
+    }
+    this.want(list);
+
     g.useProgram(this.prog);
+    g.activeTexture(g.TEXTURE0 + MAX_CRITERIA);
+    g.bindTexture(g.TEXTURE_2D, this.lutTex);
+    if (this.lutDirty) {
+      g.pixelStorei(g.UNPACK_ALIGNMENT, 1);
+      g.texSubImage2D(g.TEXTURE_2D, 0, 0, 0, 256, MAX_CRITERIA, g.RED, g.UNSIGNED_BYTE, this.lut);
+      this.lutDirty = false;
+    }
     g.uniformMatrix4fv(this.loc.u_matrix, false, opts.defaultProjectionData.mainMatrix as Float32Array);
-    g.uniform1i(this.loc.u_vals, 0);
+    g.uniform1iv(this.loc.u_v, UNITS);
+    g.uniform1i(this.loc.u_lut, MAX_CRITERIA);
     g.uniform1i(this.loc.u_n, cs.length);
     g.uniform1i(this.loc.u_op, this.op === 'and' ? 1 : this.op === 'or' ? 2 : 0);
-    const code = (c: Criterion, t: number) => thresholdByte(c.layer, t);
     const pad = (a: number[]) => [...a, ...Array(MAX_CRITERIA - a.length).fill(0)];
     g.uniform1fv(this.loc.u_w, pad(cs.map((c) => c.weight)));
-    g.uniform1fv(this.loc.u_bad, pad(cs.map((c) => code(c, c.bad))));
-    g.uniform1fv(this.loc.u_good, pad(cs.map((c) => code(c, c.good))));
+    g.uniform1fv(this.loc.u_axis, pad(cs.map((c) => c.axis ?? 0)));
     g.uniform1f(this.loc.u_opacity, this.opacity);
     g.uniform1f(this.loc.u_cut, this.cut);
     const bi = this.bi;
     g.uniform1i(this.loc.u_mode, bi ? 1 : 0);
-    g.uniform1fv(this.loc.u_axis, pad(cs.map((c) => c.axis ?? 0)));
     if (bi) {
       g.uniform4f(this.loc.u_brk, bi.breaks[0][0], bi.breaks[0][1], bi.breaks[1][0], bi.breaks[1][1]);
       g.uniform3fv(this.loc.u_pal, bi.palette.flatMap(rgb01));
@@ -360,56 +431,36 @@ export class ScoreLayer implements CustomLayerInterface {
     g.blendFunc(g.ONE, g.ONE_MINUS_SRC_ALPHA);
     g.disable(g.DEPTH_TEST);
     g.disable(g.STENCIL_TEST);
-    g.activeTexture(g.TEXTURE0);
 
-    for (const id of tiles) {
+    const uv = new Float32Array(3 * MAX_CRITERIA);
+    tile: for (const id of tiles) {
       const { z, x, y } = id.canonical;
-      const size = 1 / 2 ** z;
-      // The world copy this tile is drawn in.
-      const mx = x * size + id.wrap;
-      const my = y * size;
-      this.build(z, x, y);
-      // Its own texture if ready, otherwise the nearest ancestor's, drawn
-      // over just this tile's square -- never a blank while panning, and
-      // never two layers of colour on one spot.
-      let tex: GpuTile | undefined;
-      let az = z, ax = x, ay = y;
-      for (; az >= MINZ; az--, ax >>= 1, ay >>= 1) {
-        tex = this.gpu.get(`${az}/${ax}/${ay}|${sig}`);
-        if (tex) break;
+      for (let i = 0; i < cs.length; i++) {
+        const f = this.find(cs[i].layer.id, z, x, y);
+        // Every layer needs something here before the tile is drawn.
+        if (!f) continue tile;
+        f.t.used = this.frame;
+        g.activeTexture(g.TEXTURE0 + i);
+        g.bindTexture(g.TEXTURE_2D, f.t.tex);
+        uv[i * 3] = f.u;
+        uv[i * 3 + 1] = f.v;
+        uv[i * 3 + 2] = f.s;
       }
-      if (!tex) continue;
-      tex.used = this.frame;
-      const k = 2 ** (z - az);
-      g.bindTexture(g.TEXTURE_2D_ARRAY, tex.tex);
-      g.uniform3f(this.loc.u_tile, mx, my, size);
-      g.uniform3f(this.loc.u_uv, (x - ax * k) / k, (y - ay * k) / k, 1 / k);
+      const size = 1 / 2 ** z;
+      g.uniform3fv(this.loc.u_uv, uv);
+      g.uniform3f(this.loc.u_tile, x * size + id.wrap, y * size, size);
       g.drawArrays(g.TRIANGLE_STRIP, 0, 4);
     }
     g.bindVertexArray(null);
+    g.activeTexture(g.TEXTURE0);
+    this.evict();
   }
 }
 
+const UNITS = Array.from({ length: MAX_CRITERIA }, (_, i) => i);
 const rgb01 = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
 
-/** Combine 0..1 scores the way the shader does. */
-export function combineScores(scores: { score: number; weight: number }[], op: Op) {
-  if (!scores.length) return null;
-  if (op === 'and') return Math.min(...scores.map((r) => r.score));
-  if (op === 'or') return Math.max(...scores.map((r) => r.score));
-  const w = scores.reduce((s, r) => s + r.weight, 0);
-  return w ? scores.reduce((s, r) => s + r.score * r.weight, 0) / w : 0;
-}
-
-/** A threshold in a layer's own units as the byte it would be stored as --
- *  what the shader and the area count both compare against. */
-export function thresholdByte(layer: ValueLayer, t: number) {
+/** A threshold in a layer's own units as the byte it would be stored as. */
+export function thresholdByte(layer: { lo: number; hi: number }, t: number) {
   return 1 + ((t - layer.lo) / (layer.hi - layer.lo || 1)) * 254;
-}
-
-/** A criterion's 0..1 score for a real value. */
-export function scoreOf(c: Criterion, value: number) {
-  const d = c.good - c.bad;
-  if (Math.abs(d) < 1e-9) return value >= c.good ? 1 : 0;
-  return Math.min(1, Math.max(0, (value - c.bad) / d));
 }

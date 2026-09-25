@@ -5,6 +5,7 @@ tools/dst-catalogue.json to public/tiles/dst/ and src/data/dst-layers.json.
 
   tools/build-dst.py                  # build what is missing, list everything
   tools/build-dst.py --force a b      # rebuild layers a and b
+  tools/build-dst.py --all            # rebuild every layer
   tools/build-dst.py --list-only      # just rewrite dst-layers.json
 
 A catalogue entry names where a layer's values come from:
@@ -12,7 +13,8 @@ A catalogue entry names where a layer's values come from:
   "source": {"drive": "<path under the EcoScapes Drive archive>"}
   "source": {"felt": "<pipeline_dataset_id in archive/felt_layers_full.json>"}
 
-A Drive layer is read as it is. A Felt layer's values are fetched first
+A Drive layer is read as it is. `"mask": {"drive": ...}` clips a layer to
+another's footprint -- for the few that fill past their real edge with zeros. A Felt layer's values are fetched first
 (tools/fetch-felt-layer.py, cached under --work, so a rebuild never refetches);
 archive/felt_layers_full.json comes from tools/felt-layers.py. Either way the
 values go through tools/prepare-value-layer.py, with the entry's `classes`
@@ -40,6 +42,7 @@ def main():
     ap.add_argument("--drive", default=os.environ.get("ECOSCAPES_DRIVE", DRIVE))
     ap.add_argument("--work", default=os.path.expanduser("~/.cache/ecoscapes-dst"))
     ap.add_argument("--force", nargs="*", default=[])
+    ap.add_argument("--all", action="store_true", help="rebuild every layer")
     ap.add_argument("--list-only", action="store_true")
     a = ap.parse_args()
 
@@ -47,13 +50,15 @@ def main():
     listed = []
     for e in cat:
         out = os.path.join(OUT, f"{e['id']}.pmtiles")
-        if not a.list_only and (e["id"] in a.force or not os.path.exists(out) or not sampled(out)):
+        if not a.list_only and (a.all or e["id"] in a.force or not os.path.exists(out) or not sampled(out)):
             src = source(e, a)
             cmd = ["python3", "tools/prepare-value-layer.py", src, e["id"]]
             if e.get("classes"):
                 cmd.append("--classes")
             if e.get("valid"):
                 cmd += ["--valid", *map(str, e["valid"])]
+            if e.get("mask"):
+                cmd += ["--mask", source({"source": e["mask"]}, a)]
             subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL)
         if not os.path.exists(out):
             print(f"  - {e['id']}: not built, left off the list", file=sys.stderr)
@@ -77,6 +82,8 @@ def main():
         }
         if e.get("labels"):
             layer["classes"] = e["labels"]
+        if e.get("categorical"):
+            layer["categorical"] = True
         listed.append(layer)
 
     json.dump(listed, open("src/data/dst-layers.json", "w"), indent=1)

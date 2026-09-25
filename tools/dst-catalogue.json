@@ -69,7 +69,96 @@
   "source": {
    "felt": "06912663-93a6-4eb7-a5c2-461300004453"
   },
-  "about": "Where restoring damaged habitat would do the most good for wildlife."
+  "about": "Where restoring damaged habitat would do the most good for wildlife.",
+  "mask": {
+   "drive": "2_Ecosystem Health/Values/TALandCover_2022.tif"
+  }
+ },
+ {
+  "id": "landcover",
+  "name": "Land cover",
+  "group": "Land cover",
+  "higher": "better",
+  "classes": true,
+  "categorical": true,
+  "source": {
+   "drive": "2_Ecosystem Health/Values/TALandCover_2022.tif"
+  },
+  "labels": [
+   {
+    "value": 1,
+    "label": "Unlabelled (class 1)"
+   },
+   {
+    "value": 2,
+    "label": "Water"
+   },
+   {
+    "value": 3,
+    "label": "Snow & ice"
+   },
+   {
+    "value": 4,
+    "label": "Freshwater emergent wetland"
+   },
+   {
+    "value": 5,
+    "label": "Saltwater emergent wetland"
+   },
+   {
+    "value": 6,
+    "label": "Woody wetland"
+   },
+   {
+    "value": 7,
+    "label": "Mesic grass & forbs"
+   },
+   {
+    "value": 8,
+    "label": "Xeric grass & forbs"
+   },
+   {
+    "value": 9,
+    "label": "Mesic shrub"
+   },
+   {
+    "value": 10,
+    "label": "Xeric shrub"
+   },
+   {
+    "value": 11,
+    "label": "Deciduous forest"
+   },
+   {
+    "value": 12,
+    "label": "Coniferous forest"
+   },
+   {
+    "value": 13,
+    "label": "Pasture & planted grass"
+   },
+   {
+    "value": 14,
+    "label": "Row crops"
+   },
+   {
+    "value": 15,
+    "label": "Cereal crops"
+   },
+   {
+    "value": 16,
+    "label": "Orchard & vineyard"
+   },
+   {
+    "value": 17,
+    "label": "Fallow crops"
+   },
+   {
+    "value": 18,
+    "label": "Built environment"
+   }
+  ],
+  "about": "What covers the ground here, from forest and wetland to crops and towns (2022)."
  },
  {
   "id": "cumulative-impacts",
@@ -332,7 +421,10 @@
   "source": {
    "felt": "f848bdea-311d-5b47-ab4d-a6ff00004453"
   },
-  "about": "How well the land suits the wolverine."
+  "about": "How well the land suits the wolverine.",
+  "mask": {
+   "drive": "2_Ecosystem Health/Values/TALandCover_2022.tif"
+  }
  },
  {
   "id": "habitat-canada-lynx",

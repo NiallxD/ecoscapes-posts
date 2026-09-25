@@ -77,11 +77,11 @@
   ],
   "sampleSrc": "/tiles/dst/habitat-suitability.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   }
  },
@@ -163,11 +163,11 @@
   ],
   "sampleSrc": "/tiles/dst/habitat-permeability.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   }
  },
@@ -249,11 +249,11 @@
   ],
   "sampleSrc": "/tiles/dst/ecosystem-resilience.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   }
  },
@@ -335,11 +335,11 @@
   ],
   "sampleSrc": "/tiles/dst/ecosystem-services.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   }
  },
@@ -421,11 +421,11 @@
   ],
   "sampleSrc": "/tiles/dst/biodiversity-index.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   }
  },
@@ -507,11 +507,11 @@
   ],
   "sampleSrc": "/tiles/dst/cdc-ecosystem-vulnerability.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   }
  },
@@ -526,7 +526,7 @@
   "higher": "better",
   "about": "Where restoring damaged habitat would do the most good for wildlife.",
   "hist": [
-   100711828,
+   45356416,
    0,
    0,
    0,
@@ -536,18 +536,7 @@
    0,
    0,
    0,
-   150103,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   321814,
+   150090,
    0,
    0,
    0,
@@ -558,17 +547,7 @@
    0,
    0,
    0,
-   426440,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   675197,
+   321801,
    0,
    0,
    0,
@@ -579,7 +558,7 @@
    0,
    0,
    0,
-   998991,
+   426417,
    0,
    0,
    0,
@@ -589,17 +568,199 @@
    0,
    0,
    0,
-   1311083
+   675164,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   998952,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   1311018
   ],
   "sampleSrc": "/tiles/dst/conservation-priorities.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   }
+ },
+ {
+  "id": "landcover",
+  "name": "Land cover",
+  "group": "Land cover",
+  "src": "/tiles/dst/landcover.pmtiles",
+  "lo": 1.0,
+  "hi": 18.0,
+  "unit": "",
+  "higher": "better",
+  "about": "What covers the ground here, from forest and wetland to crops and towns (2022).",
+  "hist": [
+   1047668,
+   0,
+   0,
+   3569020,
+   0,
+   0,
+   0,
+   6890990,
+   0,
+   0,
+   0,
+   434344,
+   0,
+   0,
+   0,
+   36573,
+   0,
+   0,
+   2140835,
+   0,
+   0,
+   0,
+   3206816,
+   0,
+   0,
+   0,
+   1267604,
+   0,
+   0,
+   0,
+   2300054,
+   0,
+   0,
+   1356779,
+   0,
+   0,
+   0,
+   1799992,
+   0,
+   0,
+   0,
+   23674242,
+   0,
+   0,
+   0,
+   174840,
+   0,
+   0,
+   80824,
+   0,
+   0,
+   0,
+   16047,
+   0,
+   0,
+   0,
+   168886,
+   0,
+   0,
+   0,
+   924,
+   0,
+   0,
+   1073420
+  ],
+  "sampleSrc": "/tiles/dst/landcover.sample.webp",
+  "sample": {
+   "x0": 161096,
+   "y0": 349832,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
+   "z": 12
+  },
+  "classes": [
+   {
+    "value": 1,
+    "label": "Unlabelled (class 1)"
+   },
+   {
+    "value": 2,
+    "label": "Water"
+   },
+   {
+    "value": 3,
+    "label": "Snow & ice"
+   },
+   {
+    "value": 4,
+    "label": "Freshwater emergent wetland"
+   },
+   {
+    "value": 5,
+    "label": "Saltwater emergent wetland"
+   },
+   {
+    "value": 6,
+    "label": "Woody wetland"
+   },
+   {
+    "value": 7,
+    "label": "Mesic grass & forbs"
+   },
+   {
+    "value": 8,
+    "label": "Xeric grass & forbs"
+   },
+   {
+    "value": 9,
+    "label": "Mesic shrub"
+   },
+   {
+    "value": 10,
+    "label": "Xeric shrub"
+   },
+   {
+    "value": 11,
+    "label": "Deciduous forest"
+   },
+   {
+    "value": 12,
+    "label": "Coniferous forest"
+   },
+   {
+    "value": 13,
+    "label": "Pasture & planted grass"
+   },
+   {
+    "value": 14,
+    "label": "Row crops"
+   },
+   {
+    "value": 15,
+    "label": "Cereal crops"
+   },
+   {
+    "value": 16,
+    "label": "Orchard & vineyard"
+   },
+   {
+    "value": 17,
+    "label": "Fallow crops"
+   },
+   {
+    "value": 18,
+    "label": "Built environment"
+   }
+  ],
+  "categorical": true
  },
  {
   "id": "cumulative-impacts",
@@ -679,11 +840,11 @@
   ],
   "sampleSrc": "/tiles/dst/cumulative-impacts.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   }
  },
@@ -765,11 +926,11 @@
   ],
   "sampleSrc": "/tiles/dst/human-footprint-change.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   }
  },
@@ -851,11 +1012,11 @@
   ],
   "sampleSrc": "/tiles/dst/built-up-density.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   }
  },
@@ -937,11 +1098,11 @@
   ],
   "sampleSrc": "/tiles/dst/distance-to-trails.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   }
  },
@@ -1023,11 +1184,11 @@
   ],
   "sampleSrc": "/tiles/dst/wildfire-hazard.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   },
   "classes": [
@@ -1151,11 +1312,11 @@
   ],
   "sampleSrc": "/tiles/dst/forest-change.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   },
   "classes": [
@@ -1251,11 +1412,11 @@
   ],
   "sampleSrc": "/tiles/dst/riparian-change.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   },
   "classes": [
@@ -1351,11 +1512,11 @@
   ],
   "sampleSrc": "/tiles/dst/mesic-change.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   },
   "classes": [
@@ -1451,11 +1612,11 @@
   ],
   "sampleSrc": "/tiles/dst/xeric-change.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   },
   "classes": [
@@ -1551,11 +1712,11 @@
   ],
   "sampleSrc": "/tiles/dst/climate-macrorefugia.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   }
  },
@@ -1637,11 +1798,11 @@
   ],
   "sampleSrc": "/tiles/dst/climate-microrefugia.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   }
  },
@@ -1723,11 +1884,11 @@
   ],
   "sampleSrc": "/tiles/dst/climate-conservation.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   }
  },
@@ -1809,11 +1970,11 @@
   ],
   "sampleSrc": "/tiles/dst/climate-restoration.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   }
  },
@@ -1895,11 +2056,11 @@
   ],
   "sampleSrc": "/tiles/dst/connectivity-linkages.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   }
  },
@@ -1981,11 +2142,11 @@
   ],
   "sampleSrc": "/tiles/dst/habitat-grizzly-bear.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   }
  },
@@ -2000,78 +2161,78 @@
   "higher": "better",
   "about": "How well the land suits the wolverine.",
   "hist": [
-   71016705,
-   821317,
-   296988,
-   464693,
-   194023,
-   343085,
-   147160,
-   268188,
-   123405,
-   235758,
-   221141,
+   15663060,
+   821269,
+   296976,
+   464662,
+   194016,
+   343072,
+   147156,
+   268171,
+   123400,
+   235749,
+   221123,
    105843,
-   206250,
-   96656,
-   189770,
-   91508,
-   176945,
-   85701,
-   170444,
-   81861,
-   164464,
-   165301,
-   81861,
-   162315,
+   206241,
+   96647,
+   189757,
+   91497,
+   176918,
+   85699,
+   170438,
+   81855,
+   164442,
+   165293,
+   81853,
+   162296,
    81226,
-   161127,
-   81614,
-   161271,
-   81458,
-   160844,
-   82131,
-   168189,
-   167709,
-   83301,
-   173868,
-   90004,
-   182033,
-   92319,
-   191463,
-   96003,
-   200293,
+   161109,
+   81601,
+   161249,
+   81439,
+   160830,
+   82120,
+   168166,
+   167698,
+   83300,
+   173859,
+   89999,
+   182026,
+   92317,
+   191448,
+   95999,
+   200282,
    102175,
-   209820,
-   219198,
+   209805,
+   219186,
    117580,
-   247907,
-   132499,
-   285029,
-   148151,
-   319128,
-   170694,
-   372643,
-   202564,
-   459184,
-   545879,
-   308786,
-   754794,
-   462736,
-   1129161,
-   721995,
-   1934259,
-   1417397,
-   5276151,
-   10891491
+   247892,
+   132495,
+   285014,
+   148138,
+   319111,
+   170662,
+   372617,
+   202546,
+   459153,
+   545809,
+   308755,
+   754735,
+   462686,
+   1129015,
+   721907,
+   1934097,
+   1417258,
+   5275819,
+   10891302
   ],
   "sampleSrc": "/tiles/dst/habitat-wolverine.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   }
  },
@@ -2153,11 +2314,11 @@
   ],
   "sampleSrc": "/tiles/dst/habitat-canada-lynx.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   }
  },
@@ -2239,11 +2400,11 @@
   ],
   "sampleSrc": "/tiles/dst/habitat-pacific-fisher.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   }
  },
@@ -2325,11 +2486,11 @@
   ],
   "sampleSrc": "/tiles/dst/habitat-hoary-marmot.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   }
  },
@@ -2411,11 +2572,11 @@
   ],
   "sampleSrc": "/tiles/dst/habitat-coyote.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   }
  },
@@ -2497,11 +2658,11 @@
   ],
   "sampleSrc": "/tiles/dst/habitat-douglas-squirrel.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   }
  },
@@ -2583,11 +2744,11 @@
   ],
   "sampleSrc": "/tiles/dst/habitat-yellow-pine-chipmunk.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   }
  },
@@ -2669,11 +2830,11 @@
   ],
   "sampleSrc": "/tiles/dst/habitat-beaver.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   }
  },
@@ -2755,11 +2916,11 @@
   ],
   "sampleSrc": "/tiles/dst/habitat-mink.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   }
  },
@@ -2841,11 +3002,11 @@
   ],
   "sampleSrc": "/tiles/dst/habitat-northern-red-legged-frog.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   }
  },
@@ -2927,11 +3088,11 @@
   ],
   "sampleSrc": "/tiles/dst/habitat-western-toad.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   }
  },
@@ -3013,11 +3174,11 @@
   ],
   "sampleSrc": "/tiles/dst/habitat-pacific-tree-frog.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   }
  },
@@ -3099,11 +3260,11 @@
   ],
   "sampleSrc": "/tiles/dst/habitat-ensatina-salamander.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   }
  },
@@ -3185,11 +3346,11 @@
   ],
   "sampleSrc": "/tiles/dst/habitat-northwestern-salamander.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   }
  },
@@ -3271,11 +3432,11 @@
   ],
   "sampleSrc": "/tiles/dst/habitat-long-toed-salamander.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   }
  },
@@ -3357,11 +3518,11 @@
   ],
   "sampleSrc": "/tiles/dst/habitat-northern-alligator-lizard.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   }
  },
@@ -3443,11 +3604,11 @@
   ],
   "sampleSrc": "/tiles/dst/habitat-garter-snake.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   }
  },
@@ -3529,11 +3690,11 @@
   ],
   "sampleSrc": "/tiles/dst/habitat-black-bear-fall.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   }
  },
@@ -3615,11 +3776,11 @@
   ],
   "sampleSrc": "/tiles/dst/habitat-black-bear-summer.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   }
  },
@@ -3701,11 +3862,11 @@
   ],
   "sampleSrc": "/tiles/dst/habitat-black-tailed-deer-a.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   }
  },
@@ -3787,11 +3948,11 @@
   ],
   "sampleSrc": "/tiles/dst/habitat-black-tailed-deer-b.sample.webp",
   "sample": {
-   "x0": 161100,
+   "x0": 161096,
    "y0": 349832,
-   "w": 2375,
-   "h": 2635,
-   "step": 4,
+   "w": 1188,
+   "h": 1318,
+   "step": 8,
    "z": 12
   }
  }
