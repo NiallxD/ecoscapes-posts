@@ -1,21 +1,27 @@
 ---
-import { getEntry } from 'astro:content';
+import { getCollection, getEntry } from 'astro:content';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import Shell from '../layouts/Shell.astro';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import AnimalButton from '../components/AnimalButton.astro';
 import { asset } from '../lib/paths';
-import layersData from '../data/ecoscapes-layers.json';
-import themesData from '../data/ecoscapes-themes.json';
 
-/** The EcoScapes map: a friendly front door onto the map portal's own
- *  layers, sat between this site and the technical portal itself. A
- *  skeleton for now -- the layers, grouped by theme and subtheme, with a
- *  switch and an opacity slider each, and a legend that reads whatever is
- *  on. The clever way of finding a layer (filters, perspectives) is designed
- *  separately; this page only has to hold all of them, correctly, in one
- *  place a future interface can drive. */
-const entry = await getEntry('ecoscapes', 'sea-to-sky');
-if (!entry) throw new Error('src/content/ecoscapes/sea-to-sky.md is missing');
+/** The Bear's map: the whole corridor, where you are on it, the map portal's
+ *  layers over it, and pins for the things worth noticing. Not a page of any
+ *  one post's story -- it sits beside all of them. */
+const entry = await getEntry('map', 'sea-to-sky');
+if (!entry) throw new Error('src/content/map/sea-to-sky.md is missing');
 const { data } = entry;
+
+const posts = (await getCollection('locations')).map((loc) => ({
+  href: asset(`/p/${loc.id}/`),
+  title: loc.data.title,
+  place: loc.data.place,
+  lat: loc.data.lat,
+  lng: loc.data.lng,
+  image: asset(loc.data.pano.card ?? loc.data.pano.src),
+}));
 
 // Everything the script needs, with every path already through asset() so the
 // map works under a GitHub Pages project path as well as at a root.
@@ -23,19 +29,31 @@ const config = {
   bounds: data.bounds,
   limit: data.limit,
   declination: data.declination,
-  basemap: asset(data.basemap),
+  basemap: asset('/tiles/basemap.pmtiles'),
   glyphs: asset('/tiles/fonts/{fontstack}/{range}.pbf'),
-  // Map-portal layers, generated outside this file (src/data/ecoscapes-layers.json).
-  layers: layersData.map((l) => ({ ...l, src: asset(l.src) })),
-  // Grouping for the layers sheet: theme -> subtheme -> layers.
-  themes: themesData,
+  layers: data.layers.map((l) => ({ ...l, src: asset(l.src) })),
+  callouts: data.callouts.map((c) => ({ ...c, image: c.image ? asset(c.image) : undefined })),
+  posts,
+  // Opened in the sheet, like a story, rather than as a full-screen animal
+  // page: the map stays in view beside it. The picture only once it exists.
+  bear: {
+    title: data.bear.title,
+    body: data.bear.body,
+    image: data.bear.image && existsSync(join(process.cwd(), 'public', data.bear.image)) ? asset(data.bear.image) : undefined,
+  },
 };
 ---
-<Shell title="EcoScapes map" description={data.intro}>
+<Shell title={`${data.title} map · EcoScapes`} description="The Sea-to-Sky corridor, where you are on it, and what the land around you holds.">
   <main class="map-page">
     <div class="map" id="map" data-config={JSON.stringify(config)}></div>
 
+    <!-- Appears once the map knows where you are and there is something close. -->
+    <button class="chip nearby" id="nearby" type="button" hidden></button>
+
     <p class="toast" id="toast" role="status" aria-live="polite" hidden></p>
+
+
+    <AnimalButton animal="bear" />
 
     <!-- What the layers that are on mean, for as long as they are on. Folded
          to its title on a phone, where the map is short of room. -->
@@ -47,14 +65,23 @@ const config = {
       <div class="legend-body" id="legend-body"></div>
     </aside>
 
-    <!-- The page's controls, in a column in the far corner as on the other
-         map. -->
+    <!-- The page's controls, in a column in the far corner as on the story
+         pages. -->
     <div class="map-side">
-      <button class="step" id="layers-btn" type="button" aria-label="Layers" aria-expanded="false" aria-controls="sheet">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true">
-          <path d="M12 3.5l8.5 4.5-8.5 4.5L3.5 8z" /><path d="M3.5 12l8.5 4.5 8.5-4.5" /><path d="M3.5 16l8.5 4.5 8.5-4.5" />
+      <!-- Only with ?at in the address: arm it, then tap the map to be put
+           there. For trying the map anywhere without going there. -->
+      <button class="step place-me" id="place-me" type="button" aria-label="Put me here: tap, then tap the map" aria-pressed="false" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+          <path d="M12 21s6.5-5.2 6.5-10.5a6.5 6.5 0 10-13 0C5.5 15.8 12 21 12 21z" /><path d="M12 7.5v6M9 10.5h6" />
         </svg>
       </button>
+      {data.layers.length > 0 && (
+        <button class="step" id="layers-btn" type="button" aria-label="Layers" aria-expanded="false" aria-controls="sheet">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3.5l8.5 4.5-8.5 4.5L3.5 8z" /><path d="M3.5 12l8.5 4.5 8.5-4.5" /><path d="M3.5 16l8.5 4.5 8.5-4.5" />
+          </svg>
+        </button>
+      )}
       <!-- Where you are, in three: off, following you, following you with the
            compass. Each tap steps on; after a drag it takes hold again first. -->
       <button class="step" id="locate" type="button" aria-label="Follow me" data-mode="off">
@@ -73,9 +100,9 @@ const config = {
       </a>
     </div>
 
-    <!-- One sheet for everything that opens over the map: a post, or the
-         layers. Up from the foot on a phone, a card on the left on a wider
-         screen. Filled by the script. -->
+    <!-- One sheet for everything that opens over the map: a pin, the layers,
+         the list of what is near. Up from the foot on a phone, a card on the
+         left on a wider screen. Filled by the script. -->
     <section class="sheet" id="sheet" aria-labelledby="sheet-title" hidden>
       <button class="sheet-close" id="sheet-close" type="button" aria-label="Close">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
@@ -90,7 +117,7 @@ const config = {
   .map-page { position: relative; height: 100dvh; overflow: hidden; }
   .map { position: absolute; inset: 0; background: var(--bg); }
 
-  /* The control column: bottom right. */
+  /* The control column: bottom right, level with the Bear's pill opposite. */
   .map-side {
     position: absolute;
     z-index: 4;
@@ -100,20 +127,21 @@ const config = {
     flex-direction: column;
     gap: 0.6rem;
   }
+  .map-page :global(.animal-btn) { bottom: calc(1rem + var(--foot)); }
   /* A phone's sheet covers the foot of the screen, controls and all: they go
      rather than show through it. */
   @media (max-width: 47.99rem) {
-    .map-side, .legend { transition: opacity 0.18s; }
-    .sheet-open .map-side, .sheet-open .legend { opacity: 0; pointer-events: none; }
+    .map-side, .map-page :global(.animal-btn), .legend { transition: opacity 0.18s; }
+    .sheet-open .map-side, .sheet-open :global(.animal-btn), .sheet-open .legend { opacity: 0; pointer-events: none; }
   }
 
-  /* The legend: bottom left, level with the controls opposite. */
+  /* The legend: at the foot, between the Bear's pill and the controls. */
   .legend {
     position: absolute;
     z-index: 4;
-    left: 0.9rem;
+    left: calc(0.9rem + 46px + 0.6rem);
     bottom: calc(1rem + var(--foot));
-    width: min(17rem, calc(100% - 2 * 0.9rem - 46px));
+    width: min(17rem, calc(100% - 2 * (0.9rem + 46px + 0.6rem)));
     border-radius: 16px;
     border: 1px solid var(--line);
     background: rgba(13, 18, 16, 0.9);
@@ -134,10 +162,14 @@ const config = {
     }
     .legend.tucked { opacity: 0; pointer-events: none; }
   }
-  /* On a phone: a pill of its own -- the key slides out to the right of it,
-     clear of the controls. */
+  /* On a phone: a pill of its own, stood on the Bear's -- the same shape, its
+     name up the side and the colours of what is on under it -- and opened,
+     the key slides out to the right of it, clear of the controls. */
   @media (max-width: 47.99rem) {
     .legend {
+      left: 0.9rem;
+      /* The Bear's pill is measured by the script into --pill-h. */
+      bottom: calc(1rem + var(--foot) + var(--pill-h, 112px) + 0.6rem);
       width: 46px;
       border: 0;
       background: none;
@@ -167,6 +199,7 @@ const config = {
       position: absolute;
       left: calc(100% + 0.6rem);
       bottom: 0;
+      /* Up to the control column on the right, with a gap either side. */
       width: min(17rem, calc(100vw - 2 * (0.9rem + 46px + 0.6rem)));
       padding: 0.75rem 0.85rem;
       border-radius: 16px;
@@ -209,15 +242,12 @@ const config = {
   .legend-body[hidden] { display: none; }
   .legend-body :global(b) { display: block; font-size: 0.82rem; font-weight: 600; }
   .legend-body :global(p) { margin: 0.15rem 0 0.4rem; font-size: 0.74rem; line-height: 1.4; color: var(--ink-dim); }
-  /* Classes or a continuous surface, weakest to strongest: a ramp with its
-     ends named. */
+  /* Classes of one thing, weakest to strongest: a ramp with its ends named. */
   .legend-body :global(.lg-ramp) { display: flex; height: 9px; border-radius: 3px; overflow: hidden; }
   .legend-body :global(.lg-ramp i) { flex: 1; }
   .legend-body :global(.lg-ends) { display: flex; justify-content: space-between; margin-top: 0.25rem; font-size: 0.7rem; color: var(--ink-dim); }
   .legend-body :global(.lg-one) { display: flex; align-items: center; gap: 0.45rem; font-size: 0.74rem; }
   .legend-body :global(.lg-one i) { width: 12px; height: 12px; border-radius: 3px; flex: none; }
-  /* Categories: no order between them, so a swatch list rather than a ramp. */
-  .legend-body :global(.lg-cats) { display: grid; gap: 0.35rem; margin-top: 0.15rem; }
   /* One icon a mode. Lit while following; the icon alone stays lit when a
      drag has paused it, so the mode it will resume is still shown. */
   #locate svg { display: none; }
@@ -226,7 +256,60 @@ const config = {
   #locate[data-mode='compass'] .loc-compass { display: block; }
   #locate:not([data-mode='off']) { color: var(--accent); }
   #locate[data-following] { border-color: var(--accent); }
+  /* A tool rather than a control: dashed, so it does not read as part of the
+     page a visitor would see. */
+  .place-me { border-style: dashed; }
+  .place-me[aria-pressed='true'] { color: var(--bg); background: var(--accent); border-color: var(--accent); }
+  .placing :global(.maplibregl-canvas) { cursor: crosshair; }
   #layers-btn[aria-expanded='true'] { color: var(--accent); border-color: var(--accent); }
+
+  /* Under the top edge, centred: the one thing that is news. */
+  .nearby {
+    position: absolute;
+    z-index: 4;
+    top: calc(var(--safe-t) + 0.9rem);
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+  }
+  .nearby::before {
+    content: '';
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    margin-right: 0.5rem;
+    display: inline-block;
+    vertical-align: 0.08em;
+  }
+
+  /* Beside your dot, when the ground under you is in a layer that asks: a
+     small tag naming it, which opens the card. */
+  :global(.here-tag) {
+    appearance: none;
+    -webkit-appearance: none;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.32rem 0.7rem 0.32rem 0.55rem;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: rgba(13, 18, 16, 0.88);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    color: var(--ink);
+    font: 600 0.74rem/1.2 ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+    white-space: nowrap;
+    cursor: pointer;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+    -webkit-tap-highlight-color: transparent;
+    animation: tag-in 0.25s ease-out;
+  }
+  @keyframes tag-in { from { opacity: 0; } }
+  :global(.here-tag i) { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+  :global(.here-tag .sep) { color: var(--ink-dim); font-weight: 400; }
+  :global(.here-tag:focus) { outline: none; }
+  :global(.here-tag:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
 
   .toast {
     position: absolute;
@@ -283,7 +366,6 @@ const config = {
       animation-name: sheet-in;
     }
     @keyframes sheet-in { from { transform: translateX(-12px); opacity: 0; } }
-    .sheet.sheet-narrow { width: 20rem; }
   }
   .sheet-close {
     position: sticky;
@@ -314,41 +396,72 @@ const config = {
     margin: 0.4rem 0 0.9rem;
     background: var(--bg-lift);
   }
+  /* The layers are a list of switches: narrower than a story's panel. */
+  @media (min-width: 48rem) {
+    .sheet.sheet-narrow { width: 19rem; }
+  }
 
-  /* Layer groups: a theme, collapsible, holding its subthemes. Native
-     <details> for now -- plain, keyboard-workable, and easy to replace once
-     the real interface arrives. */
-  .sheet :global(.theme-group) { border-top: 1px solid var(--line); padding: 0.2rem 0; }
-  .sheet :global(.theme-group:first-of-type) { border-top: 0; }
-  .sheet :global(.theme-group summary) {
-    padding: 0.65rem 0;
-    font-size: 0.95rem;
-    font-weight: 600;
-    cursor: pointer;
-    list-style: none;
+  /* The Bear: as its page is on the story -- the animal full bleed, a dark
+     rising from the foot, and its words laid over that. A tall sheet on a
+     phone; on a wider screen the panel runs the height of the window. */
+  .sheet.sheet-hero {
+    padding: 0;
+    overflow: hidden;
+    height: min(72dvh, 40rem);
+    max-height: none;
+    /* Until there is a picture: a little of the accent in the dark, as the
+       animal pages do. */
+    background:
+      radial-gradient(120% 70% at 50% 28%, rgba(127, 209, 166, 0.16), rgba(127, 209, 166, 0) 70%),
+      var(--bg);
   }
-  .sheet :global(.theme-group summary::-webkit-details-marker) { display: none; }
-  .sheet :global(.theme-group summary::before) {
-    content: '▸';
-    display: inline-block;
-    margin-right: 0.5rem;
-    color: var(--ink-dim);
-    transition: transform 0.15s;
+  @media (min-width: 48rem) {
+    .sheet.sheet-hero { height: auto; bottom: calc(1rem + var(--foot)); }
   }
-  .sheet :global(.theme-group[open] summary::before) { transform: rotate(90deg); }
-  .sheet :global(.subtheme) { margin: 0 0 0.6rem; }
-  .sheet :global(.subtheme h3) {
-    font-size: 0.7rem;
-    font-weight: 600;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--ink-dim);
-    margin: 0 0 0.3rem;
+  .sheet-hero .sheet-close {
+    position: absolute;
+    z-index: 2;
+    top: 1rem;
+    right: 1rem;
+    margin: 0;
+    float: none;
+    background: rgba(13, 18, 16, 0.55);
+    border-color: rgba(255, 255, 255, 0.25);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
   }
+  .sheet-hero .sheet-body { position: absolute; inset: 0; }
+  .sheet :global(.hero-img) { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .sheet :global(.hero-dim) {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      to top,
+      rgba(6, 10, 9, 0.9) 0%,
+      rgba(6, 10, 9, 0.8) 24%,
+      rgba(6, 10, 9, 0.5) 46%,
+      rgba(6, 10, 9, 0.14) 70%,
+      rgba(6, 10, 9, 0) 84%
+    );
+  }
+  .sheet :global(.hero-copy) {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 0 1.4rem calc(1.5rem + var(--foot));
+  }
+  .sheet :global(.hero-copy h2) { font-size: clamp(1.9rem, 7vw, 2.4rem); line-height: 1.08; margin: 0.4rem 0 0.7rem; }
+  .sheet :global(.hero-copy p:not(.eyebrow)) { margin: 0; font-size: 1rem; line-height: 1.55; }
+  @media (min-width: 48rem) {
+    .sheet :global(.hero-copy) { padding-bottom: 1.6rem; }
+  }
+  .sheet :global(.dim) { color: var(--ink-dim); font-size: 0.8rem; }
+  .sheet :global(.sheet-go) { margin-top: 0.3rem; }
 
   /* Layers: a row each, the switch on the right, the rest under it while on. */
-  .sheet :global(.layer) { padding: 0.7rem 0; border-top: 1px solid var(--line); }
-  .sheet :global(.subtheme .layer:first-of-type) { border-top: 0; }
+  .sheet :global(.layer) { padding: 0.85rem 0; border-top: 1px solid var(--line); }
+  .sheet :global(.layer:first-of-type) { border-top: 0; }
   .sheet :global(.layer-head) { display: flex; align-items: center; gap: 0.8rem; cursor: pointer; }
   .sheet :global(.layer-name) { flex: 1; min-width: 0; }
   .sheet :global(.layer-name b) { display: block; font-weight: 600; font-size: 0.95rem; }
@@ -379,9 +492,104 @@ const config = {
   .sheet :global(.layer input[type='checkbox']:checked) { background: var(--accent); }
   .sheet :global(.layer input[type='checkbox']:checked)::after { transform: translateX(18px); background: var(--bg); }
   .sheet :global(.layer input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .sheet :global(.layer-more) { display: none; margin-top: 0.6rem; }
+  .sheet :global(.layer-more) { display: none; margin-top: 0.7rem; }
   .sheet :global(.layer.on .layer-more) { display: block; }
-  .sheet :global(.layer input[type='range']) { width: 100%; accent-color: var(--accent); margin: 0; }
+  .sheet :global(.layer input[type='range']) { width: 100%; accent-color: var(--accent); margin: 0 0 0.5rem; }
+  .sheet :global(.legend) { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.3rem; font-size: 0.8rem; }
+  .sheet :global(.legend i) {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    margin-right: 0.5rem;
+    vertical-align: -0.1em;
+  }
+
+  /* Where you are: when you are in more than one layer, a pill switcher
+     between them, one panel each. */
+  .sheet :global(.pills) {
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    margin: 0.2rem 0 0.9rem;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--bg-lift);
+  }
+  .sheet :global(.pills button) {
+    appearance: none;
+    -webkit-appearance: none;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.4rem 0.85rem;
+    border: 0;
+    border-radius: 999px;
+    background: none;
+    color: var(--ink-dim);
+    font-size: 0.82rem;
+    font-weight: 500;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.18s, color 0.18s;
+  }
+  .sheet :global(.pills button[aria-selected='true']) { background: var(--ink); color: var(--bg); }
+  .sheet :global(.pills button:focus) { outline: none; }
+  .sheet :global(.pills button:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .sheet :global(.pills i), .sheet :global(.here-swatch) {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    border-radius: 2px;
+    flex: none;
+  }
+  .sheet :global(.here-swatch) { margin-right: 0.45rem; vertical-align: 0.05em; }
+
+  .sheet :global(.here-panels) { display: grid; }
+  .sheet :global(.here-panels > div) { grid-area: 1 / 1; }
+  .sheet :global(.here-panels > [data-off]) { visibility: hidden; }
+
+  /* Things to look for: a short list under a layer's words. */
+  .sheet :global(.look-title) {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    margin: 1.1rem 0 0.5rem;
+  }
+  .sheet :global(.look) { list-style: none; margin: 0 0 1rem; padding: 0; display: grid; gap: 0.45rem; }
+  .sheet :global(.look li) { position: relative; padding-left: 1.1rem; font-size: 0.9rem; line-height: 1.45; }
+  .sheet :global(.look li::before) {
+    content: '';
+    position: absolute;
+    left: 0.15rem;
+    top: 0.55em;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  /* Near you: a list of pins, nearest first. */
+  .sheet :global(.near) { list-style: none; padding: 0; margin: 0; }
+  .sheet :global(.near button) {
+    appearance: none;
+    -webkit-appearance: none;
+    display: flex;
+    width: 100%;
+    gap: 0.8rem;
+    align-items: baseline;
+    text-align: left;
+    background: none;
+    border: 0;
+    border-top: 1px solid var(--line);
+    padding: 0.8rem 0;
+    cursor: pointer;
+  }
+  .sheet :global(.near li:first-child button) { border-top: 0; }
+  .sheet :global(.near b) { flex: 1; font-weight: 500; }
+  .sheet :global(.near span) { color: var(--ink-dim); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
 
   /* ---- Pins -------------------------------------------------------------- */
   :global(.pin) {
@@ -410,6 +618,13 @@ const config = {
   }
   :global(.pin:hover::before), :global(.pin.on::before) { transform: scale(1.25); }
   :global(.pin.on::before) { background: var(--accent); box-shadow: 0 0 0 1.5px var(--accent), 0 2px 8px rgba(0, 0, 0, 0.5); }
+  /* A post: square, in the accent -- a thing you can walk up to. */
+  :global(.pin-post::before) { border-radius: 4px; background: var(--accent); box-shadow: 0 0 0 1.5px var(--accent), 0 2px 8px rgba(0, 0, 0, 0.5); }
+  /* Posts over stories where they meet. */
+  :global(.pin-post) { z-index: 1; }
+  /* Zoomed out to the corridor, stories crowd onto the posts beside them and
+     onto each other: only the posts show until you are in closer. */
+  .map.far :global(.pin-callout) { visibility: hidden; }
   :global(.pin:focus) { outline: none; }
   :global(.pin:focus-visible::before) { outline: 2px solid var(--accent); outline-offset: 3px; }
   /* You. A solid dot and a slow ring, so it reads as live rather than as
@@ -421,6 +636,7 @@ const config = {
     position: absolute;
     left: 50%;
     top: 50%;
+    /* Long enough to reach out past the tag above the dot. */
     width: 176px;
     height: 176px;
     margin: -88px 0 0 -88px;
@@ -463,30 +679,24 @@ const config = {
   // MapLibre looks for its worker beside its own module, which is not where
   // the bundler puts either of them; handing it the emitted file's URL is.
   import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
-  import { Protocol } from 'pmtiles';
+  import { PMTiles, Protocol, TileType } from 'pmtiles';
   import { layers as basemapLayers, namedFlavor } from '@protomaps/basemaps';
   import { headingOf as compassHeading, requestCompass, hasCompassApi, needsTap, ORIENTATION_EVENTS } from '../lib/compass';
 
-  type Legend = { colour: string; label: string };
   type Layer = {
     id: string;
     name: string;
     src: string;
     source?: string;
     opacity: number;
+    on: boolean;
     resampling: 'nearest' | 'linear';
-    /** How the legend reads: classes and a continuous surface both draw as a
-     *  ramp, weakest to strongest, lowest class first; categories have no
-     *  order between them, so a swatch list instead. */
-    kind: 'classes' | 'categories' | 'continuous';
-    legend: Legend[];
-    indicators: string[];
-    theme: string;
-    subtheme: string;
+    legend?: { colour: string; label: string }[];
     about?: string;
+    here?: { label: string; what: string; body: string; look?: string[] };
   };
-  type Subtheme = { id: string; name: string; description: string };
-  type Theme = { id: string; name: string; description: string; subthemes: Subtheme[] };
+  type Callout = { title: string; lat: number; lng: number; body: string; image?: string; layer?: string };
+  type Post = { href: string; title: string; place: string; lat: number; lng: number; image: string };
   type LngLat = [number, number];
   type Config = {
     bounds: [LngLat, LngLat];
@@ -495,7 +705,9 @@ const config = {
     basemap: string;
     glyphs: string;
     layers: Layer[];
-    themes: Theme[];
+    callouts: Callout[];
+    posts: Post[];
+    bear: { title: string; body: string; image?: string };
   };
 
   const el = document.getElementById('map')!;
@@ -512,6 +724,15 @@ const config = {
 
   const protocol = new Protocol();
   maplibregl.addProtocol('pmtiles', protocol.tile);
+  // Each layer's file, opened once and shared with the map, so asking what is
+  // under you reads the tiles the map has already fetched.
+  const archives = new Map(
+    config.layers.map((l) => {
+      const pm = new PMTiles(abs(l.src));
+      protocol.add(pm);
+      return [l.id, pm] as const;
+    }),
+  );
 
   // The Protomaps dark style, taken toward the site's own greens. Contrast
   // comes from a dark ground with bright things on it -- deep blue water, pale
@@ -592,7 +813,7 @@ const config = {
           (l) => l.type !== 'symbol' && !l.id.startsWith('boundaries'),
         ),
         // The towns, and nothing else written on the map: enough to tell
-        // where you are across the area. Cities and towns always; villages
+        // where you are along the corridor. Cities and towns always; villages
         // (Britannia Beach, Lions Bay, Líl̓wat / Mount Currie...) once you are
         // in close enough for them to have room. Last, so over any layer.
         {
@@ -654,24 +875,24 @@ const config = {
   });
   map.touchZoomRotate.disableRotation();
   map.addControl(new maplibregl.AttributionControl({ compact: true }), 'top-right');
-  // Compact still opens expanded on a narrow screen. Folded to its (i) until
-  // asked.
+  // Compact still opens expanded on a narrow screen, across the top where the
+  // near-you chip is. Folded to its (i) until asked.
   map.once('load', () => el.querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show'));
 
-  // ---- Layers ----------------------------------------------------------
-  // One place the layer state lives -- on and opacity, per id -- so the
-  // sheet, the legend and (later) whatever interface replaces the sheet all
-  // read and write the same thing. A sensible single default rather than
-  // everything at once, which would be a wall of colour on load.
-  const state = new Map(config.layers.map((l, i) => [l.id, { on: i === 0, opacity: l.opacity }]));
+  // Stories show from about the scale of a town; see the .far rule.
+  const STORY_ZOOM = 11;
+  const syncFar = () => el.classList.toggle('far', map.getZoom() < STORY_ZOOM);
+  map.on('zoom', syncFar);
+  syncFar();
+
+  // ---- Layers --------------------------------------------------------------
+  const state = new Map(config.layers.map((l) => [l.id, { on: l.on, opacity: l.opacity }]));
 
   map.on('load', () => {
     // Over the land and water, under the road network, so the roads are
     // still there to find your way by. (Runways and taxiways, also named
     // roads_*, come earlier and stay underneath.)
     const firstRoad = map.getStyle().layers.find((l) => l.id.startsWith('roads_tunnels'))?.id;
-    // All of them added now: the portal has a few dozen, not the thousands
-    // that would make lazy-adding sources worth the complexity.
     for (const layer of config.layers) {
       map.addSource(layer.id, {
         type: 'raster',
@@ -684,31 +905,28 @@ const config = {
           id: layer.id,
           type: 'raster',
           source: layer.id,
-          // From the live state, not the config: a switch touched while the
-          // map was still loading has already had its say.
+          // From the live state, not the config: a switch or slider touched
+          // while the map was still loading has already had its say.
           layout: { visibility: state.get(layer.id)!.on ? 'visible' : 'none' },
           paint: { 'raster-opacity': state.get(layer.id)!.opacity, 'raster-resampling': layer.resampling, 'raster-fade-duration': 150 },
         },
         firstRoad,
       );
     }
+    syncCallouts();
   });
 
   const setLayer = (id: string, on: boolean) => {
     state.get(id)!.on = on;
     if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none');
+    syncCallouts();
     renderLegend();
   };
-  const setOpacity = (id: string, opacity: number) => {
-    state.get(id)!.opacity = opacity;
-    if (map.getLayer(id)) map.setPaintProperty(id, 'raster-opacity', opacity);
-  };
 
-  // ---- The legend ------------------------------------------------------
+  // ---- The legend ----------------------------------------------------------
   // Every layer that is on, top of the stack first: its name, a line saying
-  // what it is, and its key -- a ramp, lowest class first, for classes or a
-  // continuous surface; a swatch list for categories, which have no order
-  // between them.
+  // what it is, and its key -- a ramp, weakest to strongest, for a layer in
+  // classes; a single swatch for one that is simply there or not.
   const legendEl = document.getElementById('legend')!;
   const legendBody = document.getElementById('legend-body')!;
   const legendToggle = document.getElementById('legend-toggle')!;
@@ -716,18 +934,22 @@ const config = {
   function renderLegend() {
     const on = config.layers.filter((l) => state.get(l.id)?.on && l.legend?.length).reverse();
     legendEl.hidden = on.length === 0;
-    legendDots.innerHTML = on.map((l) => `<i style="background:${esc(l.legend[0].colour)}"></i>`).join('');
+    legendDots.innerHTML = on.map((l) => `<i style="background:${esc(l.legend![0].colour)}"></i>`).join('');
     legendBody.innerHTML = on
       .map((l) => {
-        const key = l.legend;
-        const body =
-          l.kind === 'categories'
-            ? `<div class="lg-cats">${key.map((k) => `<div class="lg-one"><i style="background:${esc(k.colour)}"></i>${esc(k.label)}</div>`).join('')}</div>`
-            : key.length > 1
-              ? `<div class="lg-ramp">${key.map((k) => `<i style="background:${esc(k.colour)}" title="${esc(k.label)}"></i>`).join('')}</div>` +
-                `<div class="lg-ends"><span>${esc(key[0].label)}</span><span>${esc(key.at(-1)!.label)}</span></div>`
-              : `<div class="lg-one"><i style="background:${esc(key[0].colour)}"></i>${esc(key[0].label)}</div>`;
-        return `<div><b>${esc(l.name)}</b>` + (l.about ? `<p>${esc(l.about)}</p>` : '') + body + `</div>`;
+        const key = l.legend!;
+        // Listed strongest first in the content; drawn left to right, weakest
+        // to strongest, so the dark end is where "High" is written.
+        const ramp = [...key].reverse();
+        return (
+          `<div><b>${esc(l.name)}</b>` +
+          (l.about ? `<p>${esc(l.about)}</p>` : '') +
+          (key.length > 1
+            ? `<div class="lg-ramp">${ramp.map((k) => `<i style="background:${esc(k.colour)}" title="${esc(k.label)}"></i>`).join('')}</div>` +
+              `<div class="lg-ends"><span>${esc(ramp[0].label)}</span><span>${esc(ramp.at(-1)!.label)}</span></div>`
+            : `<div class="lg-one"><i style="background:${esc(key[0].colour)}"></i>${esc(key[0].label)}</div>`) +
+          `</div>`
+        );
       })
       .join('');
   }
@@ -755,9 +977,18 @@ const config = {
   // Not placed yet: at this point the sheet is further down the script, and
   // shut in any case.
   foldLegend(matchMedia('(min-width: 48rem)').matches, false);
+  // On a phone the legend's pill stands on the Bear's, however tall that is.
+  const bearPill = document.querySelector<HTMLElement>('.animal-btn');
+  const measurePill = () => bearPill && legendEl.style.setProperty('--pill-h', `${bearPill.offsetHeight}px`);
+  measurePill();
+  addEventListener('resize', measurePill);
   renderLegend();
+  const setOpacity = (id: string, opacity: number) => {
+    state.get(id)!.opacity = opacity;
+    if (map.getLayer(id)) map.setPaintProperty(id, 'raster-opacity', opacity);
+  };
 
-  // ---- The sheet ---------------------------------------------------------
+  // ---- The sheet -----------------------------------------------------------
   const main = el.parentElement!;
   const sheet = document.getElementById('sheet')!;
   const body = document.getElementById('sheet-body')!;
@@ -765,11 +996,14 @@ const config = {
   let sheetFor: string | null = null;
   let activePin: HTMLElement | null = null;
 
+
   const openSheet = (key: string, html: string) => {
     sheetFor = key;
     body.innerHTML = html;
     sheet.hidden = false;
     sheet.scrollTop = 0;
+    // The Bear's is a picture with its words laid over, not a card.
+    sheet.classList.toggle('sheet-hero', key === 'bear');
     sheet.classList.toggle('sheet-narrow', key === 'layers');
     // Once it has its size.
     requestAnimationFrame(placeLegend);
@@ -792,8 +1026,8 @@ const config = {
   // It is a map for walking with: once it knows where you are it keeps you in
   // view as you go -- in the middle of the screen, or of the map a sheet
   // leaves showing. Dragging the map lets go, to look about; the locate button
-  // takes hold again (it shows lit while following). Tapping a post lets go
-  // too, so the map is not pulled out from under what you are reading.
+  // takes hold again (it shows lit while following). Tapping a story or a post
+  // lets go too, so the map is not pulled out from under what you are reading.
   let following = false;
   type Mode = 'off' | 'track' | 'compass';
   let mode: Mode = 'off';
@@ -807,7 +1041,7 @@ const config = {
     locateBtn.toggleAttribute('data-following', following);
     locateBtn.setAttribute('aria-label', following || mode === 'off' ? LABELS[mode] : 'Paused. Tap to follow you again');
   };
-  /** Following on or off, keeping the mode: a drag or a post pauses it. On
+  /** Following on or off, keeping the mode: a drag or a story pauses it. On
    *  from off means tracking. */
   const setFollowing = (on: boolean) => {
     following = on;
@@ -839,6 +1073,7 @@ const config = {
   map.on('dragstart', () => setFollowing(false));
   document.getElementById('sheet-close')!.addEventListener('click', closeSheet);
   addEventListener('keydown', (e) => {
+    // The Bear's page closes itself first, on the capture phase.
     if (e.key === 'Escape' && !sheet.hidden) closeSheet();
   });
   // A tap on the map itself, not on a pin, puts the sheet away.
@@ -869,50 +1104,73 @@ const config = {
     });
   };
 
+  const showCallout = (c: Callout, pin: HTMLElement, zoom?: number) => {
+    setFollowing(false);
+    openSheet(
+      `callout:${c.title}`,
+      `<p class="eyebrow">Story</p><h2 id="sheet-title">${esc(c.title)}</h2>` +
+        (c.image ? `<img class="sheet-img" src="${esc(c.image)}" alt="">` : '') +
+        `<p>${esc(c.body)}</p>${distanceLine(c.lat, c.lng)}`,
+    );
+    selectPin(pin);
+    reveal([c.lng, c.lat], zoom);
+  };
+  const showPost = (p: Post, pin: HTMLElement) => {
+    setFollowing(false);
+    openSheet(
+      `post:${p.href}`,
+      `<p class="eyebrow">Field post · ${esc(p.place)}</p><h2 id="sheet-title">${esc(p.title)}</h2>` +
+        `<img class="sheet-img" src="${esc(p.image)}" alt="">` +
+        distanceLine(p.lat, p.lng) +
+        `<a class="chip sheet-go" href="${esc(p.href)}">Open this post</a>`,
+    );
+    selectPin(pin);
+    reveal([p.lng, p.lat]);
+  };
   const selectPin = (pin: HTMLElement) => {
     activePin?.classList.remove('on');
     activePin = pin;
     pin.classList.add('on');
   };
 
-  // ---- The layers sheet ----------------------------------------------------
-  // Grouped by theme, then subtheme, in the order src/data/ecoscapes-themes.json
-  // lists them; a theme or subtheme with nothing on this map is left out.
-  const layerRow = (l: Layer) => {
-    const s = state.get(l.id)!;
-    return (
-      `<div class="layer${s.on ? ' on' : ''}" data-layer="${esc(l.id)}">` +
-      `<label class="layer-head"><span class="layer-name"><b>${esc(l.name)}</b>` +
-      (l.source ? `<span class="dim">${esc(l.source)}</span>` : '') +
-      `</span><input type="checkbox"${s.on ? ' checked' : ''} aria-label="Show ${esc(l.name)}"></label>` +
-      `<div class="layer-more"><input type="range" min="0.1" max="1" step="0.05" value="${s.opacity}" aria-label="${esc(l.name)} opacity"></div>` +
-      `</div>`
+  // The Bear's pill: its way of looking, in the same sheet as everything else.
+  const bearBtn = document.querySelector<HTMLElement>('[data-animal="bear"]');
+  bearBtn?.setAttribute('aria-controls', 'sheet');
+  bearBtn?.addEventListener('click', () => {
+    if (sheetFor === 'bear') return closeSheet();
+    activePin?.classList.remove('on');
+    activePin = null;
+    const b = config.bear;
+    openSheet(
+      'bear',
+      (b.image ? `<img class="hero-img" src="${esc(b.image)}" alt="">` : '') +
+        `<div class="hero-dim" aria-hidden="true"></div>` +
+        `<div class="hero-copy"><p class="eyebrow">Explore</p><h2 id="sheet-title">${esc(b.title)}</h2><p>${esc(b.body)}</p></div>`,
     );
-  };
-  const layersHtml = () =>
-    config.themes
-      .map((t) => ({
-        t,
-        subthemes: t.subthemes
-          .map((s) => ({ s, layers: config.layers.filter((l) => l.theme === t.id && l.subtheme === s.id) }))
-          .filter((g) => g.layers.length > 0),
-      }))
-      .filter((g) => g.subthemes.length > 0)
-      .map(
-        (g) =>
-          `<details class="theme-group" open><summary>${esc(g.t.name)}</summary>` +
-          g.subthemes
-            .map((sg) => `<div class="subtheme"><h3>${esc(sg.s.name)}</h3>${sg.layers.map(layerRow).join('')}</div>`)
-            .join('') +
-          `</details>`,
-      )
-      .join('');
+  });
 
   layersBtn?.addEventListener('click', () => {
     if (sheetFor === 'layers') return closeSheet();
     activePin?.classList.remove('on');
     activePin = null;
-    openSheet('layers', `<h2 id="sheet-title">Layers</h2>${layersHtml()}`);
+    openSheet(
+      'layers',
+      `<h2 id="sheet-title">Layers</h2>` +
+        config.layers
+          .map((l) => {
+            const s = state.get(l.id)!;
+            return (
+              `<div class="layer${s.on ? ' on' : ''}" data-layer="${esc(l.id)}">` +
+              `<label class="layer-head"><span class="layer-name"><b>${esc(l.name)}</b>` +
+              (l.source ? `<span class="dim">${esc(l.source)}</span>` : '') +
+              `</span><input type="checkbox"${s.on ? ' checked' : ''} aria-label="Show ${esc(l.name)}"></label>` +
+              // Its key is in the legend on the map while it is on.
+              `<div class="layer-more"><input type="range" min="0.1" max="1" step="0.05" value="${s.opacity}" aria-label="${esc(l.name)} opacity">` +
+              `</div></div>`
+            );
+          })
+          .join(''),
+    );
   });
   body.addEventListener('change', (e) => {
     const input = e.target as HTMLInputElement;
@@ -926,6 +1184,42 @@ const config = {
     const row = input.closest<HTMLElement>('[data-layer]');
     if (row && input.type === 'range') setOpacity(row.dataset.layer!, Number(input.value));
   });
+
+  // ---- Pins ----------------------------------------------------------------
+  const pin = (label: string, kind: 'post' | 'callout') => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = `pin pin-${kind}`;
+    b.setAttribute('aria-label', label);
+    return b;
+  };
+
+  const calloutMarkers = config.callouts.map((c) => {
+    const b = pin(c.title, 'callout');
+    b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showCallout(c, b);
+    });
+    return { c, marker: new maplibregl.Marker({ element: b }).setLngLat([c.lng, c.lat]) };
+  });
+  // A callout tied to a layer shows only while that layer is on.
+  const visible = (c: Callout) => !c.layer || state.get(c.layer)?.on === true;
+  function syncCallouts() {
+    for (const { c, marker } of calloutMarkers) {
+      if (visible(c)) marker.addTo(map);
+      else marker.remove();
+    }
+    updateNearby();
+  }
+
+  for (const p of config.posts) {
+    const b = pin(p.title, 'post');
+    b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showPost(p, b);
+    });
+    new maplibregl.Marker({ element: b }).setLngLat([p.lng, p.lat]).addTo(map);
+  }
 
   // ---- Where you are -------------------------------------------------------
   let here: LngLat | null = null;
@@ -960,7 +1254,19 @@ const config = {
     return lng >= w && lng <= e && lat >= s && lat <= n;
   };
 
-  /** You, at a new position: the dot, and the first flight to you. */
+  // ?at stands in for the device: the map never asks where you are. Instead
+  // a "put me here" button appears -- tap it, then the map -- and your dot can
+  // be dragged about; ?at=lat,lng also starts you somewhere. For trying the
+  // tag, the card and near-you anywhere without walking there.
+  //   /explore/?at                 /explore/?at=49.62,-122.85
+  const spoofing = new URLSearchParams(location.search).has('at');
+  const spoof = (() => {
+    const m = /^(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)$/.exec(new URLSearchParams(location.search).get('at') ?? '');
+    return m ? ([Number(m[2]), Number(m[1])] as LngLat) : null;
+  })();
+
+  /** You, at a new position: the dot, the first flight to you, and everything
+   *  that depends on where you are. */
   const place = (at: LngLat) => {
     here = at;
     if (!me) {
@@ -981,12 +1287,25 @@ const config = {
         `</radialGradient></defs>` +
         `<path d="M0 0 L${-x} ${y} A${R} ${R} 0 0 1 ${x} ${y} Z" fill="url(#cone-fade)"/>` +
         `</svg><div class="me"></div>`;
-      me = new maplibregl.Marker({ element: wrap });
+      me = new maplibregl.Marker({ element: wrap, draggable: spoofing });
+      if (spoofing) {
+        // Dragged: the tag keeps up with the dot as it goes, and the answers
+        // follow once it is let go -- a tile read per frame would be waste.
+        me.on('drag', () => {
+          const { lng, lat } = me!.getLngLat();
+          here = [lng, lat];
+          tag?.setLngLat(here);
+        });
+        me.on('dragend', () => {
+          const { lng, lat } = me!.getLngLat();
+          place([lng, lat]);
+        });
+      }
     }
     me.setLngLat(here);
     // Onto the map once. addTo on a marker already there takes its element
     // out and puts it back, which restarts its animations -- on an iPhone,
-    // reporting about once a second, that made the dot blink.
+    // reporting about once a second, that made the tag blink.
     if (inside(here) && !meOn) {
       me.addTo(map);
       meOn = true;
@@ -1002,12 +1321,14 @@ const config = {
           if (following && here) recentre();
         });
         setFollowing(true);
-      } else say('You are outside the EcoScapes area, so the map stays where it is.');
-    } else if (following && !arriving && inside(here) && sheet.hidden) {
-      // Walking: keep up. Not while the sheet is open over the map -- the
-      // next fix after it closes brings you back.
+      } else say('You are outside the Sea-to-Sky, so the map stays on the corridor.');
+    } else if (following && !arriving && inside(here) && (sheet.hidden || sheetFor === 'here')) {
+      // Walking: keep up. Not while a story or the layers are open over the
+      // map -- the next fix after they close brings you back.
       recentre();
     }
+    updateNearby();
+    updateHere();
   };
 
   /** The button: start finding you; or, once you are found, take hold again
@@ -1025,6 +1346,14 @@ const config = {
   };
 
   const locate = () => {
+    if (spoofing) {
+      if (here) {
+        setFollowing(true);
+        recentre(Math.max(map.getZoom(), HERE_ZOOM));
+      } else if (spoof) place(spoof);
+      else say('Tap the pin button, then tap the map, to put yourself somewhere.');
+      return;
+    }
     if (!('geolocation' in navigator)) return say('This browser cannot say where you are.');
     if (watch !== null) {
       // Already watching: the button brings you back into view and follows.
@@ -1032,7 +1361,7 @@ const config = {
         setFollowing(true);
         recentre(Math.max(map.getZoom(), HERE_ZOOM));
       }
-      else if (here) say('You are outside the EcoScapes area, so the map stays where it is.');
+      else if (here) say('You are outside the Sea-to-Sky, so the map stays on the corridor.');
       return;
     }
     // Asked for, so followed: the first fix after this brings you to the middle.
@@ -1064,9 +1393,40 @@ const config = {
   };
   locateBtn.addEventListener('click', onLocate);
 
+  // Put me here: armed by the button, spent by the next tap on the map.
+  const placeBtn = document.getElementById('place-me')!;
+  let placing = false;
+  const arm = (on: boolean) => {
+    placing = on;
+    placeBtn.setAttribute('aria-pressed', String(on));
+    el.classList.toggle('placing', on);
+    if (on) say('Tap the map to put yourself there.');
+  };
+  if (spoofing) {
+    placeBtn.hidden = false;
+    placeBtn.addEventListener('click', () => arm(!placing));
+    map.on('click', (e) => {
+      if (!placing) return;
+      arm(false);
+      toast.hidden = true;
+      place([e.lngLat.lng, e.lngLat.lat]);
+    });
+    addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && placing) arm(false);
+    });
+  }
+
   // Asked for on arrival, since being placed on the map is the point of it --
   // unless the answer is already no, in which case the button is there.
   (async () => {
+    // Not before the rest of this script has run: placing you reaches the
+    // near-you list and the tag, which are set up further down. The real
+    // position is always a wait away; the ?at one is not.
+    await Promise.resolve();
+    if (spoofing) {
+      if (spoof) place(spoof);
+      return;
+    }
     try {
       const status = await navigator.permissions?.query({ name: 'geolocation' });
       if (status?.state === 'denied') return;
@@ -1075,6 +1435,232 @@ const config = {
     }
     locate();
   })();
+
+  // ---- Near you ------------------------------------------------------------
+  // Stories within this distance count as near.
+  const NEAR_KM = 15;
+  const nearbyBtn = document.getElementById('nearby')!;
+  const nearest = () =>
+    here
+      ? calloutMarkers
+          .filter(({ c }) => visible(c))
+          .map(({ c, marker }) => ({ c, marker, d: km(here!, [c.lng, c.lat]) }))
+          .sort((a, b) => a.d - b.d)
+      : [];
+  function updateNearby() {
+    const near = nearest().filter((n) => n.d <= NEAR_KM);
+    nearbyBtn.hidden = near.length === 0;
+    nearbyBtn.textContent = `${near.length} ${near.length === 1 ? 'story' : 'stories'} near you`;
+  }
+  nearbyBtn.addEventListener('click', () => {
+    const list = nearest().filter((n) => n.d <= NEAR_KM);
+    openSheet(
+      'nearby',
+      `<h2 id="sheet-title">Near you</h2><ul class="near">` +
+        list.map((n, i) => `<li><button type="button" data-i="${i}"><b>${esc(n.c.title)}</b><span>${formatKm(n.d)}</span></button></li>`).join('') +
+        `</ul>`,
+    );
+    body.querySelectorAll<HTMLButtonElement>('.near button').forEach((b) =>
+      b.addEventListener('click', () => {
+        const n = list[Number(b.dataset.i)];
+        showCallout(n.c, n.marker.getElement(), Math.max(map.getZoom(), 14));
+      }),
+    );
+  });
+
+  // ---- What is under you ---------------------------------------------------
+  // Read straight off each layer's own tiles: the pixel under you at the
+  // layer's deepest zoom, painted or clear. Nearest resampling and lossless
+  // PNG mean a painted pixel is exactly a pixel of the data, so no colour
+  // matching is needed -- any alpha is a yes. It reads the file rather than
+  // the rendered map, so it answers with a layer switched off too.
+  const hereLayers = config.layers.filter((l) => l.here);
+
+  // The last tile decoded for each layer: walking about, you stay on the same
+  // one for a long time, and decoding it again for every fix would be waste.
+  const decoded = new Map<string, { key: string; pixels: Uint8ClampedArray; size: number } | null>();
+
+  // PNG when a layer was built that way, WebP for the lossless-recompressed
+  // ones -- read off the archive's own header rather than assumed, so this
+  // keeps working whichever way a layer was last rebuilt.
+  const tileMime: Partial<Record<TileType, string>> = {
+    [TileType.Png]: 'image/png',
+    [TileType.Webp]: 'image/webp',
+    [TileType.Jpeg]: 'image/jpeg',
+    [TileType.Avif]: 'image/avif',
+  };
+
+  const decode = async (data: ArrayBuffer, mime: string) => {
+    const bitmap = await createImageBitmap(new Blob([data], { type: mime }));
+    const canvas = document.createElement('canvas');
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
+    ctx.drawImage(bitmap, 0, 0);
+    bitmap.close();
+    return { pixels: ctx.getImageData(0, 0, canvas.width, canvas.height).data, size: canvas.width };
+  };
+
+  /** Whether the layer has data painted at this point. */
+  const under = async (layer: Layer, [lng, lat]: LngLat) => {
+    const pm = archives.get(layer.id)!;
+    const h = await pm.getHeader();
+    if (lng < h.minLon || lng > h.maxLon || lat < h.minLat || lat > h.maxLat) return false;
+    const z = h.maxZoom;
+    const n = 2 ** z;
+    const fx = ((lng + 180) / 360) * n;
+    const fy = ((1 - Math.asinh(Math.tan((lat * Math.PI) / 180)) / Math.PI) / 2) * n;
+    const x = Math.floor(fx);
+    const y = Math.floor(fy);
+    const key = `${z}/${x}/${y}`;
+    let tile = decoded.get(layer.id);
+    if (tile?.key !== key) {
+      const res = await pm.getZxy(z, x, y);
+      // No tile at all: nothing of the layer anywhere in that square.
+      const mime = tileMime[h.tileType] ?? 'image/png';
+      tile = res ? { key, ...(await decode(res.data, mime)) } : { key, pixels: new Uint8ClampedArray(), size: 0 };
+      decoded.set(layer.id, tile);
+    }
+    if (!tile.size) return false;
+    const px = Math.min(tile.size - 1, Math.floor((fx - x) * tile.size));
+    const py = Math.min(tile.size - 1, Math.floor((fy - y) * tile.size));
+    return tile.pixels[(py * tile.size + px) * 4 + 3] > 0;
+  };
+
+  // Fixes can land faster than tiles decode: only the latest one writes.
+  let asked = 0;
+  // The layers you are standing in, as of the latest fix.
+  let inLayers: Layer[] = [];
+  let tag: maplibregl.Marker | null = null;
+  let tagShown = false;
+  let pendingKey: string | null = null;
+  const swatch = (l: Layer) => l.legend?.[0]?.colour ?? 'var(--ink)';
+
+  async function updateHere() {
+    const at = here;
+    const ask = ++asked;
+    const answers = at && inside(at) ? await Promise.all(hereLayers.map((l) => under(l, at).catch(() => null))) : [];
+    if (ask !== asked) return;
+    // A read that failed keeps the answer it had, rather than counting as out.
+    const inNow = (l: Layer, i: number) => (answers[i] === null ? inLayers.includes(l) : Boolean(answers[i]));
+    // Top of the stack first: the layer drawn over the others is the one named
+    // first (a habitat core before the linkage it sits in).
+    const now = hereLayers.filter((l, i) => inNow(l, i)).reverse();
+    const key = now.map((l) => l.id).join();
+    const changed = key !== inLayers.map((l) => l.id).join();
+    // Walking along an edge, fixes a few metres apart land either side of it.
+    // A change is only taken once two readings in a row agree -- except the
+    // first answer, and a placed (?at) position, which only reads once.
+    if (changed && tagShown && !spoofing && pendingKey !== key) {
+      pendingKey = key;
+      return;
+    }
+    pendingKey = null;
+    inLayers = now;
+
+    if (!at || !inLayers.length) {
+      tag?.remove();
+      tag = null;
+      tagShown = false;
+      if (sheetFor === 'here') closeSheet();
+      return;
+    }
+    if (!tag) {
+      const el = document.createElement('button');
+      el.type = 'button';
+      el.className = 'here-tag';
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (sheetFor === 'here') return closeSheet();
+        showHere();
+        // Opening what is under you is looking at where you are: follow.
+        setFollowing(true);
+        if (here) reveal(here);
+      });
+      // Just above the dot, not over it -- the dot is what you are -- and
+      // centred on it, since the map centres on you and there is room either
+      // side for two names where there is not to one side.
+      tag = new maplibregl.Marker({ element: el, anchor: 'bottom', offset: [0, -16] });
+    }
+    const el = tag.getElement();
+    if (changed || !el.childElementCount) {
+      el.innerHTML = inLayers
+        .map((l) => `<i style="background:${esc(swatch(l))}"></i>${esc(l.here!.label)}`)
+        .join('<span class="sep">·</span>');
+      el.setAttribute('aria-label', `Where you are: ${inLayers.map((l) => l.here!.label).join(' and ')}`);
+      if (sheetFor === 'here') showHere();
+    }
+    tag.setLngLat(at);
+    if (!tagShown) {
+      tag.addTo(map);
+      tagShown = true;
+    }
+  }
+
+  /** The card: what you are standing in. One heading for all of it --
+   *  "You're in a habitat core and a wildlife corridor" -- then, when there is
+   *  more than one, a pill for each, switching between their words. */
+  const showHere = (open = 0) => {
+    activePin?.classList.remove('on');
+    activePin = null;
+    const tabs = inLayers.length > 1;
+    const whats = inLayers.map((l) => l.here!.what);
+    const headline = `You're in ${whats.length > 1 ? `${whats.slice(0, -1).join(', ')} and ${whats.at(-1)}` : whats[0]}`;
+    openSheet(
+      'here',
+      `<p class="eyebrow">Where you are</p>` +
+        `<h2 id="sheet-title">${tabs ? '' : `<span class="here-swatch" style="background:${esc(swatch(inLayers[0]))}"></span>`}${esc(headline)}</h2>` +
+        (tabs
+          ? `<div class="pills" role="tablist" aria-label="What you are standing in">` +
+            inLayers
+              .map(
+                (l, i) =>
+                  `<button type="button" role="tab" id="here-tab-${i}" aria-controls="here-panel-${i}" aria-selected="${i === open}" tabindex="${i === open ? 0 : -1}">` +
+                  `<i style="background:${esc(swatch(l))}"></i>${esc(l.here!.label)}</button>`,
+              )
+              .join('') +
+            `</div>`
+          : '') +
+        // Stacked in one cell, the unselected ones invisible rather than
+        // gone: the card is always as tall as its tallest panel, so switching
+        // pills never makes it jump.
+        `<div class="here-panels">` +
+        inLayers
+          .map(
+            (l, i) =>
+              `<div${tabs ? ` role="tabpanel" id="here-panel-${i}" aria-labelledby="here-tab-${i}"` : ''}${i === open ? '' : ' data-off'}>` +
+              `<p>${esc(l.here!.body)}</p>` +
+              (l.here!.look?.length
+                ? `<h3 class="look-title">Things to look for</h3><ul class="look">` +
+                  l.here!.look.map((t) => `<li>${esc(t)}</li>`).join('') +
+                  `</ul>`
+                : '') +
+              (l.source ? `<p class="dim">${esc(l.source)}</p>` : '') +
+              `</div>`,
+          )
+          .join('') +
+        `</div>`,
+    );
+    if (!tabs) return;
+    const tabEls = [...body.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
+    const select = (i: number) => {
+      tabEls.forEach((t, j) => {
+        t.setAttribute('aria-selected', String(i === j));
+        t.tabIndex = i === j ? 0 : -1;
+        document.getElementById(`here-panel-${j}`)!.toggleAttribute('data-off', i !== j);
+      });
+    };
+    tabEls.forEach((t, i) => {
+      t.addEventListener('click', () => select(i));
+      // Arrow keys move between tabs, as a tab list should.
+      t.addEventListener('keydown', (e) => {
+        if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+        const j = (i + (e.key === 'ArrowRight' ? 1 : tabEls.length - 1)) % tabEls.length;
+        select(j);
+        tabEls[j].focus();
+      });
+    });
+  };
 
   // ---- Which way you face --------------------------------------------------
   // The phone's compass turns a cone on your dot. As on the panorama: iOS

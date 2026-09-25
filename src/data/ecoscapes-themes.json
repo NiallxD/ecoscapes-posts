@@ -1,0 +1,102 @@
+[
+  {
+    "id": "01-biodiversity-conservation",
+    "name": "Biodiversity Conservation",
+    "description": "Canada\u2019s 2030 Nature Strategy provides a roadmap to halt and reverse biodiversity loss through a \"whole-of-society\" approach. It emphasizes shifting from isolated protection to integrated, resilient landscapes by conserving 30% of lands and waters and restoring 30% of degraded ecosystems by 2030. On-the-ground implementation prioritizes Indigenous-led conservation and nature-based solutions, such as wetland restoration and broader ecological connectivity networks that link existing protected areas with remaining critical wildlife habitat. Embedding these solutions into local land-use planning enhances ecosystem health and resilience for the benefit of both wildlife and people.",
+    "subthemes": [
+      {
+        "id": "01-01-ecosystem-resilience",
+        "name": "Ecosystem Resilience",
+        "description": "The ability of an ecosystem to withstand the direct and indirect impacts of natural or human-made disturbances by resisting damage and recovering without losing its core functions and structure. A key characteristic of a resilient ecosystem is high biodiversity, which enables it to adapt more effectively to change. Monitoring changes in adaptive capacity helps identify and prioritize areas in need of habitat protection and restoration."
+      },
+      {
+        "id": "01-02-ecosystem-risk",
+        "name": "Ecosystem Risk",
+        "description": "Environmental risk is the potential for ecosystem collapse and biodiversity loss arising from the cumulative impacts of natural and human disturbances, as well as habitat shifts driven by climate change. This includes both the direct physical impacts of habitat loss and fragmentation on specific ecosystems and species caused by urban development, resource extraction, and outdoor recreation activities, as well as the impacts of natural processes such as wildfires, invasive species, and pest infestations.  It also includes the indirect downstream consequences of these events, which undermine overall ecosystem health and the capacities needed to withstand and recover from ongoing landscape disturbances and climate change."
+      }
+    ]
+  },
+  {
+    "id": "02-ecosystem-integrity",
+    "name": "Ecosystem Integrity",
+    "description": "Terrestrial ecosystems are dynamic and constantly changing. Natural habitats disrupted by human activity and/or altered by changing environmental conditions will recover, depending on the intensity and frequency of landscape disturbances. Terrestrial ecosystems that become highly fragmented and/or sustain ongoing environmental degradation can collapse in areas where adaptive capacity to respond and recover is exceeded. Assessment criteria include levels of habitat connectivity (i.e., lack of fragmentation) and relative degrees of habitat suitability (i.e., biotic value) for representative terrestrial ecosystems at a given location.",
+    "subthemes": [
+      {
+        "id": "02-01-habitat-values",
+        "name": "Habitat Values",
+        "description": "An ecosystem's overall condition of health in relation to a natural or relatively undisturbed reference state. It is a measure of the ecosystem's capacity to maintain its biodiversity, ecological functions, and to cope with and adapt to environmental stressors over time. Losses in ecosystem health help identify areas in need of restoration. Gains in ecosystem health over time help identify areas that contribute to biodiversity and require protection."
+      },
+      {
+        "id": "02-02-habitat-threats",
+        "name": "Habitat Threats",
+        "description": "Factors or conditions that can cause harm and negatively impact the health and resilience of terrestrial and freshwater habitats. These include human activities that directly disturb the landscape (e.g., urbanization, infrastructure development, agricultural land use, and resource extraction), as well as natural hazard events like floods and wildfires. The cumulative effects of these processes lead to habitat loss and fragmentation, decreasing the natural ability of ecosystems and wildlife species to cope with and adapt to changes over time."
+      },
+      {
+        "id": "02-03-habitat-loss",
+        "name": "Habitat Loss",
+        "description": "Habitat loss and fragmentation are two related but distinct concepts in ecology that describe changes in the natural environment caused by the cumulative effects of landscape disturbance and climate change. Habitat loss refers to the permanent destruction, removal, or temporary degradation of terrestrial and freshwater ecosystems. Habitat fragmentation, however, involves breaking larger continuous habitats into smaller, isolated patches. Both habitat loss and fragmentation disrupt natural patterns of ecological connectivity and are the main causes of biodiversity loss."
+      }
+    ]
+  },
+  {
+    "id": "03-in-situ-biodiversity",
+    "name": "In Situ Biodiversity",
+    "description": "Measuring biodiversity \u201cin place\u201d involves a combination of direct observation and analytical techniques that assess characteristics of richness (number of species), abundance (number of individuals) how evenly these individuals are distributed across the landscape (evenness), and their vulnerability to population declines or local extinction (species risk). Our assessment of in-situ biodiversity for the southern Coast Mountains is based on a curated collection of than 130,000 research-grade observations of plants and animals, and a regional compilation of the ecological communities they are part of.",
+    "subthemes": [
+      {
+        "id": "03-01-forest-ecosystems",
+        "name": "Forest Ecosystems",
+        "description": "BC\u2019s Biogeoclimatic Ecosystem Classification (BEC) classifies broad forested landscapes and site-level vegetated areas based on similarities in climate, geography, and dominant plant and animal communities. Each regional zone reflects long-term interactions between climate and biology that shape the development of distinct habitats, ecological niches, and unique assemblages of plants and animals. In landscape ecology, they help organize the landscape into manageable areas for conservation planning and for understanding how climate change may shift ecosystems at both regional and global scales."
+      },
+      {
+        "id": "03-02-ecological-communities",
+        "name": "Ecological Communities",
+        "description": "The Site Level component of BC\u2019s Biogeoclimatic Ecosystem Classification (BEC) is defined by unique combinations of understory vegetation, soil characteristics (e.g., moisture and nutrient content), and physiographic features that influence the structure and composition of ecological communities during successional growth stages following episodes of landscape disturbance. Identifying and mapping the distribution of site-level vegetation is vital for practical conservation planning, as most on-the-ground management decisions, like tree species selection for reforestation or defining specific habitat management strategies, happen at this level."
+      },
+      {
+        "id": "03-03-species-at-risk",
+        "name": "Species-at-Risk",
+        "description": "Species-at-risk (SARs) are native plants and animals in B.C. or Canada that are threatened with extinction due to landscape disturbances that affect ecosystem health and adaptive capacity. Assessments follow NatureServe and COSEWIC standards, ranking species by relative threat. Key factors include total population size (abundance and trends), geographic range and habitat quality (distribution), and exposure to existing or potential environmental stressors. Risk levels range from extirpated or critically imperilled (Red List), highly vulnerable and of special concern (Blue List), to relatively stable with no immediate threats (Yellow List)."
+      }
+    ]
+  },
+  {
+    "id": "04-climate-change-refugia",
+    "name": "Climate Change Refugia",
+    "description": "Areas of the landscape that remain buffered from the most severe effects of climate change, enabling sensitive species to survive locally. They are characterized by stable microclimates, unique hydrological features, or protective topography that provides sanctuary. In the context of biodiversity and landscape ecology, refugia are vital for species survival, acting as \"arks\" that safeguard genetic diversity and ecological communities. They serve as source populations for future re-colonization of the surrounding landscape, thereby supporting ecosystem resilience and function.",
+    "subthemes": [
+      {
+        "id": "04-01-climate-refugia",
+        "name": "Climate Refugia",
+        "description": "Areas of the landscape that remain buffered from the most severe effects of climate change, enabling sensitive species to survive locally. They are characterized by stable microclimates, unique hydrological features, or protective topography that provides sanctuary. In the context of biodiversity and landscape ecology, refugia are vital for species survival, acting as \"arks\" that safeguard genetic diversity and ecological communities. They serve as source populations for future re-colonization of the surrounding landscape, thereby supporting ecosystem resilience and function."
+      }
+    ]
+  },
+  {
+    "id": "05-connectivity-network",
+    "name": "Connectivity Network",
+    "description": "An integrated system of core habitats (protected areas and other undisturbed natural regions) connected by wildlife corridors that are established through coordinated land-use policies to enable the unimpeded movement of species and the flow of natural processes. They are essential for maintaining and restoring ecological functions, halting current trends in biodiversity loss, and helping species adapt to changing environmental conditions in fragmented wildland habitats affected by landscape disturbance and climate change.",
+    "subthemes": [
+      {
+        "id": "05-02-priority-linkages",
+        "name": "Priority Linkages",
+        "description": "Modelled pathways of ecological connectivity that provide the most efficient movement corridors for wildlife and gene flow across the widest range of species. These pathways identify areas of least resistance for animals and plants to move between protected areas and other high-value habitats, including core and stepping-stone patches found in fragmented landscapes at lower elevations and in valley bottoms. Mapping these movement corridors helps guide the development of practical conservation solutions that deliver the greatest benefits for vulnerable plants and animals."
+      },
+      {
+        "id": "05-03-wildland-explorers",
+        "name": "Wildland Explorers",
+        "description": "Regional connectivity networks ensure landscape permeability for wide-ranging species that require vast territories to thrive. In the southern Coast Mountains, these include vulnerable populations of grizzly bears, wolverines, and Canada lynx that travel long distances within and between home ranges in search of food and mates. Grizzly bears are used as an \"umbrella species\" for assessing regional-scale connectivity. Where grizzlies can move safely, it is highly likely that other native species can as well. Focal species in this guild are highly sensitive to human presence. Highway 99 and many of the more popular forest service roads act as barriers to movement across valley bottoms, fracturing and isolating populations that once roamed the entire region."
+      },
+      {
+        "id": "05-04-forest-and-alpine-specialists",
+        "name": "Forest & Alpine Specialists",
+        "description": "Ecological connectivity networks at the watershed scale preserve vital linkages for species moving between forest habitats, from the valley bottom to higher elevations. In the rugged South Coast terrain, these include the Pacific fisher, black bear, mountain goat, hoary marmot, coyote, black-tailed deer, yellow-pine chipmunk, and Douglas\u2019s squirrel. These specialists serve as indicators of mature, high-canopy coniferous forest health and rugged escape terrain, where movement is dictated by \"stealth and slope\", the need for cover and certain terrain features, rather than distance. Conservation focuses on protecting remaining mature forest patches and restoring travel corridors to connect isolated populations."
+      },
+      {
+        "id": "05-05-valley-dwellers-and-commuters",
+        "name": "Valley Dwellers & Commuters",
+        "description": "Fine-scale connectivity is vital for low-mobility, semi-aquatic species such as beavers, mink, toads, frogs, and salamanders, which rely on riparian and neighbouring forest habitats for survival and on reliable water flow for movement. For these animals, the landscape is a series of \"hydrologic corridors\" where a dry ridge or a disconnected drainage can permanently halt population expansion. Conservation for this guild requires a \"watershed-scale\" approach that prioritizes restoring riparian corridors and tolerating beaver activity on the landscape. Protecting the beaver ensures the functional connectivity of the entire valley floor, keeping the landscape \"wet and connected\" for the region's most sensitive residents."
+      }
+    ]
+  }
+]

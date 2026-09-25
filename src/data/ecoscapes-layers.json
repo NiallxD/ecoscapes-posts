@@ -1,0 +1,1512 @@
+[
+  {
+    "id": "cumulative-impacts",
+    "name": "Cumulative human impacts",
+    "src": "/tiles/ecoscapes/cumulative-impacts.pmtiles",
+    "source": "TerrAdapt-Cascadia",
+    "opacity": 1,
+    "resampling": "nearest",
+    "kind": "classes",
+    "legend": [
+      {
+        "colour": "#f2f2f2",
+        "label": "Negligible"
+      },
+      {
+        "colour": "#f6e99e",
+        "label": "Very Low"
+      },
+      {
+        "colour": "#f0ed62",
+        "label": "Low"
+      },
+      {
+        "colour": "#e3e631",
+        "label": "Moderate"
+      },
+      {
+        "colour": "#dfc700",
+        "label": "High"
+      },
+      {
+        "colour": "#dd9200",
+        "label": "Very High"
+      },
+      {
+        "colour": "#df4321",
+        "label": "Extreme"
+      }
+    ],
+    "indicators": [
+      "01-01-01-adaptive-capacity",
+      "01-02-01-human-footprint"
+    ],
+    "theme": "01-biodiversity-conservation",
+    "subtheme": "01-01-ecosystem-resilience",
+    "about": "How strongly people have changed the land, from roads and towns to logging and mines, all added together."
+  },
+  {
+    "id": "ecosystem-resilience",
+    "name": "Ecosystem resilience",
+    "src": "/tiles/ecoscapes/ecosystem-resilience.pmtiles",
+    "source": "TerrAdapt-Cascadia",
+    "opacity": 0.9,
+    "resampling": "nearest",
+    "kind": "classes",
+    "legend": [
+      {
+        "colour": "#ece0d7",
+        "label": "Negligible"
+      },
+      {
+        "colour": "#cdc1a2",
+        "label": "Very Low"
+      },
+      {
+        "colour": "#a8a46c",
+        "label": "Low"
+      },
+      {
+        "colour": "#828836",
+        "label": "Moderate"
+      },
+      {
+        "colour": "#5d6c18",
+        "label": "Considerable"
+      },
+      {
+        "colour": "#3b510c",
+        "label": "High"
+      },
+      {
+        "colour": "#1b3600",
+        "label": "Very High"
+      }
+    ],
+    "indicators": [
+      "01-01-01-adaptive-capacity"
+    ],
+    "theme": "01-biodiversity-conservation",
+    "subtheme": "01-01-ecosystem-resilience",
+    "about": "How well the land here could absorb a disturbance, like a fire or a clearcut, and recover. Darker is more resilient."
+  },
+  {
+    "id": "conservation-priorities",
+    "name": "Conservation priorities",
+    "src": "/tiles/ecoscapes/conservation-priorities.pmtiles",
+    "source": "Nature Squamish",
+    "opacity": 1,
+    "resampling": "nearest",
+    "kind": "categories",
+    "legend": [
+      {
+        "colour": "#fbf59e",
+        "label": "Very Low"
+      },
+      {
+        "colour": "#f9d98e",
+        "label": "Low"
+      },
+      {
+        "colour": "#f8ba2a",
+        "label": "Moderate"
+      },
+      {
+        "colour": "#db827b",
+        "label": "High"
+      },
+      {
+        "colour": "#df2417",
+        "label": "Very High"
+      }
+    ],
+    "indicators": [
+      "01-01-03-habitat-restoration"
+    ],
+    "theme": "01-biodiversity-conservation",
+    "subtheme": "01-01-ecosystem-resilience",
+    "about": "Where restoring damaged habitat would do the most good for wildlife."
+  },
+  {
+    "id": "ecosystem-services",
+    "name": "Ecosystem services",
+    "src": "/tiles/ecoscapes/ecosystem-services.pmtiles",
+    "source": "Nature Squamish",
+    "opacity": 0.95,
+    "resampling": "nearest",
+    "kind": "classes",
+    "legend": [
+      {
+        "colour": "#f3dba7",
+        "label": "Barren"
+      },
+      {
+        "colour": "#f0cd76",
+        "label": "Very Low"
+      },
+      {
+        "colour": "#c6bc3f",
+        "label": "Low"
+      },
+      {
+        "colour": "#82a510",
+        "label": "Moderate"
+      },
+      {
+        "colour": "#3e8304",
+        "label": "High"
+      },
+      {
+        "colour": "#0e5808",
+        "label": "Very High"
+      },
+      {
+        "colour": "#002901",
+        "label": "Very High (replacement)"
+      }
+    ],
+    "indicators": [
+      "01-01-04-ecosystem-services"
+    ],
+    "theme": "01-biodiversity-conservation",
+    "subtheme": "01-01-ecosystem-resilience",
+    "about": "What nature here provides for free, such as clean water, flood protection and carbon storage, measured in dollars per hectare each year."
+  },
+  {
+    "id": "landcover-2022",
+    "name": "Land cover",
+    "src": "/tiles/ecoscapes/landcover-2022.pmtiles",
+    "source": "Gregory Kehm, GKA Geographic Solutions Inc.",
+    "opacity": 1,
+    "resampling": "nearest",
+    "kind": "categories",
+    "legend": [
+      {
+        "colour": "#418fbf",
+        "label": "Water"
+      },
+      {
+        "colour": "#72b5df",
+        "label": "Freshwater Emergent Wetland"
+      },
+      {
+        "colour": "#5d9bc1",
+        "label": "Saltwater Emergent Wetland"
+      },
+      {
+        "colour": "#07a5ab",
+        "label": "Woody Wetland"
+      },
+      {
+        "colour": "#4ed37a",
+        "label": "Mesic Grass/Forb"
+      },
+      {
+        "colour": "#f1e7be",
+        "label": "Xeric Grass/Forb"
+      },
+      {
+        "colour": "#4ed37a",
+        "label": "Mesic Shrub"
+      },
+      {
+        "colour": "#f3db79",
+        "label": "Xeric Shrub"
+      },
+      {
+        "colour": "#1bcb55",
+        "label": "Deciduous Forest"
+      },
+      {
+        "colour": "#169b42",
+        "label": "Coniferous Forest"
+      },
+      {
+        "colour": "#fe8d42",
+        "label": "Pasture & Planted Grass"
+      },
+      {
+        "colour": "#f9cb15",
+        "label": "Row Crops"
+      },
+      {
+        "colour": "#b8d39a",
+        "label": "Cereal Crops"
+      },
+      {
+        "colour": "#bce392",
+        "label": "Orchard & Vinyard"
+      },
+      {
+        "colour": "#93cf52",
+        "label": "Fallow Crops"
+      },
+      {
+        "colour": "#8d8d8d",
+        "label": "Built Environment"
+      }
+    ],
+    "indicators": [
+      "01-01-05-enduring-features",
+      "01-01-06-land-cover"
+    ],
+    "theme": "01-biodiversity-conservation",
+    "subtheme": "01-01-ecosystem-resilience",
+    "about": "What covers the ground, as seen from space in 2022: forest, wetland, shrub, water, farmland or town."
+  },
+  {
+    "id": "habitat-suitability-2022",
+    "name": "General habitat suitability (2022)",
+    "src": "/tiles/ecoscapes/habitat-suitability-2022.pmtiles",
+    "source": "Nature Squamish",
+    "opacity": 0.6,
+    "resampling": "nearest",
+    "kind": "classes",
+    "legend": [
+      {
+        "colour": "#f1e0bc",
+        "label": "Very Low"
+      },
+      {
+        "colour": "#dcc45b",
+        "label": "Low"
+      },
+      {
+        "colour": "#82a510",
+        "label": "Moderate"
+      },
+      {
+        "colour": "#35950c",
+        "label": "High"
+      },
+      {
+        "colour": "#086c0a",
+        "label": "Very High"
+      }
+    ],
+    "indicators": [
+      "01-02-03-biodiversity-hotspots",
+      "02-01-01-habitat-suitability",
+      "03-01-01-biogeoclimatic-zones",
+      "03-02-01-site-series",
+      "03-03-01-vascular-plants",
+      "03-03-02-mammals",
+      "03-03-03-herpetofauna"
+    ],
+    "theme": "01-biodiversity-conservation",
+    "subtheme": "01-02-ecosystem-risk",
+    "about": "How well the land suits the region's native plants and animals, across many species at once."
+  },
+  {
+    "id": "cdc-ecosystem-vulnerability",
+    "name": "Ecosystem vulnerability",
+    "src": "/tiles/ecoscapes/cdc-ecosystem-vulnerability.pmtiles",
+    "source": "Nature Squamish",
+    "opacity": 1,
+    "resampling": "nearest",
+    "kind": "classes",
+    "legend": [
+      {
+        "colour": "#f2f2f2",
+        "label": "Very low"
+      },
+      {
+        "colour": "#edb48e",
+        "label": "Low"
+      },
+      {
+        "colour": "#e9e623",
+        "label": "Moderate"
+      },
+      {
+        "colour": "#f7a823",
+        "label": "High"
+      },
+      {
+        "colour": "#e51818",
+        "label": "Very high"
+      }
+    ],
+    "indicators": [
+      "01-02-03-biodiversity-hotspots",
+      "03-03-01-vascular-plants"
+    ],
+    "theme": "01-biodiversity-conservation",
+    "subtheme": "01-02-ecosystem-risk",
+    "about": "Where rare ecological communities are most at risk from change."
+  },
+  {
+    "id": "biodiversity-index",
+    "name": "Biodiversity index",
+    "src": "/tiles/ecoscapes/biodiversity-index.pmtiles",
+    "source": "Nature Squamish",
+    "opacity": 1,
+    "resampling": "nearest",
+    "kind": "classes",
+    "legend": [
+      {
+        "colour": "#f2f2f2",
+        "label": "Very low"
+      },
+      {
+        "colour": "#edb48e",
+        "label": "Low"
+      },
+      {
+        "colour": "#e9e623",
+        "label": "Moderate"
+      },
+      {
+        "colour": "#f7a823",
+        "label": "High"
+      },
+      {
+        "colour": "#e51818",
+        "label": "Very high"
+      }
+    ],
+    "indicators": [
+      "01-02-03-biodiversity-hotspots",
+      "03-03-01-vascular-plants"
+    ],
+    "theme": "01-biodiversity-conservation",
+    "subtheme": "01-02-ecosystem-risk",
+    "about": "Where the greatest variety of rare plants and animals is found."
+  },
+  {
+    "id": "habitat-permeability-2022",
+    "name": "Landscape permeability",
+    "src": "/tiles/ecoscapes/habitat-permeability-2022.pmtiles",
+    "source": "TerrAdapt-Cascadia",
+    "opacity": 0.95,
+    "resampling": "nearest",
+    "kind": "classes",
+    "legend": [
+      {
+        "colour": "#f1e0bc",
+        "label": "Very Low"
+      },
+      {
+        "colour": "#dcc45b",
+        "label": "Low"
+      },
+      {
+        "colour": "#8fb316",
+        "label": "Moderate"
+      },
+      {
+        "colour": "#379d0c",
+        "label": "High"
+      },
+      {
+        "colour": "#086c0a",
+        "label": "Very High"
+      }
+    ],
+    "indicators": [
+      "02-01-02-landscape-permeability"
+    ],
+    "theme": "02-ecosystem-integrity",
+    "subtheme": "02-01-habitat-values",
+    "about": "How easily wildlife can move across the land. Roads, towns and clearings make it harder."
+  },
+  {
+    "id": "human-footprint-40yr",
+    "name": "Human footprint",
+    "src": "/tiles/ecoscapes/human-footprint-40yr.pmtiles",
+    "source": "Nature Squamish",
+    "opacity": 1,
+    "resampling": "nearest",
+    "kind": "classes",
+    "legend": [
+      {
+        "colour": "#d31f28",
+        "label": "Significant Gain"
+      },
+      {
+        "colour": "#f98328",
+        "label": "Moderate Gain"
+      },
+      {
+        "colour": "#fbd977",
+        "label": "Minor Gain"
+      },
+      {
+        "colour": "#aad2e3",
+        "label": "Minor Loss"
+      },
+      {
+        "colour": "#5ea4cf",
+        "label": "Moderate Loss"
+      },
+      {
+        "colour": "#2459a7",
+        "label": "Significant Loss"
+      }
+    ],
+    "indicators": [
+      "02-02-01-urbanization",
+      "02-02-02-linear-infrastructure",
+      "02-02-03-outdoor-recreation"
+    ],
+    "theme": "02-ecosystem-integrity",
+    "subtheme": "02-02-habitat-threats",
+    "about": "How the human footprint has changed over forty years: where it has grown, and where the land has recovered."
+  },
+  {
+    "id": "forest-change-40yr",
+    "name": "Forest change",
+    "src": "/tiles/ecoscapes/forest-change-40yr.pmtiles",
+    "source": "BC Cumulative Effects Framework (CEF-2023)",
+    "opacity": 1,
+    "resampling": "nearest",
+    "kind": "classes",
+    "legend": [
+      {
+        "colour": "#cf1d26",
+        "label": "Forest Loss"
+      },
+      {
+        "colour": "#3dcb0a",
+        "label": "Forest Gain"
+      }
+    ],
+    "indicators": [
+      "02-02-04-forest-harvest",
+      "02-03-01-forest-ecosystems"
+    ],
+    "theme": "02-ecosystem-integrity",
+    "subtheme": "02-02-habitat-threats",
+    "about": "Where forest has been lost or has grown back over forty years."
+  },
+  {
+    "id": "wildfire-hazards-current",
+    "name": "Wildfire hazard",
+    "src": "/tiles/ecoscapes/wildfire-hazards-current.pmtiles",
+    "source": "BC Wildfire Provincial Strategic Threat Analysis (PSTA-2025)",
+    "opacity": 1,
+    "resampling": "nearest",
+    "kind": "categories",
+    "legend": [
+      {
+        "colour": "#dde3f1",
+        "label": "Class 2"
+      },
+      {
+        "colour": "#b5dbf3",
+        "label": "Class 3"
+      },
+      {
+        "colour": "#3ce7ed",
+        "label": "Class 4"
+      },
+      {
+        "colour": "#e6f584",
+        "label": "Class 5"
+      },
+      {
+        "colour": "#e7fd77",
+        "label": "Class 6"
+      },
+      {
+        "colour": "#f3e908",
+        "label": "Class 7"
+      },
+      {
+        "colour": "#fdac62",
+        "label": "Class 8"
+      },
+      {
+        "colour": "#f38033",
+        "label": "Class 9"
+      },
+      {
+        "colour": "#cd2503",
+        "label": "Class 10"
+      }
+    ],
+    "indicators": [
+      "02-02-06-wildfire"
+    ],
+    "theme": "02-ecosystem-integrity",
+    "subtheme": "02-02-habitat-threats",
+    "about": "How intensely a wildfire could burn here today, given the forest, slope and weather. Higher classes burn hotter."
+  },
+  {
+    "id": "riparian-area-change-40yr",
+    "name": "Riparian area change",
+    "src": "/tiles/ecoscapes/riparian-area-change-40yr.pmtiles",
+    "source": "TerrAdapt-Cascadia",
+    "opacity": 1,
+    "resampling": "nearest",
+    "kind": "classes",
+    "legend": [
+      {
+        "colour": "#3dcb0a",
+        "label": "Riparian Area Gain"
+      },
+      {
+        "colour": "#cf1d26",
+        "label": "Riparian Area Loss"
+      }
+    ],
+    "indicators": [
+      "02-03-02-riparian-and-wetland-areas"
+    ],
+    "theme": "02-ecosystem-integrity",
+    "subtheme": "02-03-habitat-loss",
+    "about": "Where the green ground along streams, rivers and wetlands has been lost or has grown over forty years."
+  },
+  {
+    "id": "mesic-vegetation-change-40yr",
+    "name": "Mesic vegetation change",
+    "src": "/tiles/ecoscapes/mesic-vegetation-change-40yr.pmtiles",
+    "source": "TerrAdapt-Cascadia",
+    "opacity": 1,
+    "resampling": "nearest",
+    "kind": "classes",
+    "legend": [
+      {
+        "colour": "#cf1d26",
+        "label": "Mesic Vegetation Loss"
+      },
+      {
+        "colour": "#3dcb0a",
+        "label": "Mesic Vegetation Gain"
+      }
+    ],
+    "indicators": [
+      "02-03-03-mesic-vegetation"
+    ],
+    "theme": "02-ecosystem-integrity",
+    "subtheme": "02-03-habitat-loss",
+    "about": "Where plants of moist ground have been lost or have spread over forty years."
+  },
+  {
+    "id": "xeric-vegetation-change-40yr",
+    "name": "Xeric vegetation change",
+    "src": "/tiles/ecoscapes/xeric-vegetation-change-40yr.pmtiles",
+    "source": "TerrAdapt-Cascadia",
+    "opacity": 1,
+    "resampling": "nearest",
+    "kind": "classes",
+    "legend": [
+      {
+        "colour": "#cf1d26",
+        "label": "Xeric Vegetation Loss"
+      },
+      {
+        "colour": "#3dcb0a",
+        "label": "Xeric Vegetation Gain"
+      }
+    ],
+    "indicators": [
+      "02-03-04-xeric-vegetation"
+    ],
+    "theme": "02-ecosystem-integrity",
+    "subtheme": "02-03-habitat-loss",
+    "about": "Where plants of dry ground have been lost or have spread over forty years."
+  },
+  {
+    "id": "climate-refugia",
+    "name": "Climate refugia",
+    "src": "/tiles/ecoscapes/climate-refugia.pmtiles",
+    "source": "Jessica Stolar, et al.",
+    "opacity": 1,
+    "resampling": "nearest",
+    "kind": "continuous",
+    "legend": [
+      {
+        "colour": "#f5f4f2",
+        "label": "Low buffering"
+      },
+      {
+        "colour": "#baae9a",
+        "label": ""
+      },
+      {
+        "colour": "#c3a76b",
+        "label": ""
+      },
+      {
+        "colour": "#ded6a3",
+        "label": ""
+      },
+      {
+        "colour": "#d1d7ab",
+        "label": ""
+      },
+      {
+        "colour": "#acd0a5",
+        "label": ""
+      },
+      {
+        "colour": "#b9e3ff",
+        "label": ""
+      },
+      {
+        "colour": "#8dc1ea",
+        "label": ""
+      },
+      {
+        "colour": "#71abd8",
+        "label": "High buffering"
+      }
+    ],
+    "indicators": [
+      "04-01-01-climate-refugia",
+      "04-01-02-climate-corridors",
+      "04-01-03-climate-adaptation-priorities"
+    ],
+    "theme": "04-climate-change-refugia",
+    "subtheme": "04-01-climate-refugia",
+    "about": "Places sheltered from the worst of a warming climate, where plants and animals could hold on as conditions change."
+  },
+  {
+    "id": "connectivity-linkages",
+    "name": "Connectivity linkages",
+    "src": "/tiles/ecoscapes/connectivity-linkages.pmtiles",
+    "source": "Nature Squamish",
+    "opacity": 0.95,
+    "resampling": "nearest",
+    "kind": "classes",
+    "legend": [
+      {
+        "colour": "#d7d2e4",
+        "label": "Very Low"
+      },
+      {
+        "colour": "#b1aac7",
+        "label": "Low"
+      },
+      {
+        "colour": "#8f85a9",
+        "label": "Moderate"
+      },
+      {
+        "colour": "#6f6589",
+        "label": "High"
+      }
+    ],
+    "indicators": [
+      "05-02-01-priority-linkages"
+    ],
+    "theme": "05-connectivity-network",
+    "subtheme": "05-02-priority-linkages",
+    "about": "The easiest routes for wildlife to travel between areas of good habitat. Darker shades are the stronger links."
+  },
+  {
+    "id": "habitat-grizzly-bear",
+    "name": "Grizzly bear habitat",
+    "src": "/tiles/ecoscapes/habitat-grizzly-bear.pmtiles",
+    "source": "TerrAdapt-Cascadia and Nature Squamish",
+    "opacity": 0.95,
+    "resampling": "nearest",
+    "kind": "classes",
+    "legend": [
+      {
+        "colour": "#d7f9d0",
+        "label": "Very Low"
+      },
+      {
+        "colour": "#85c47b",
+        "label": "Low"
+      },
+      {
+        "colour": "#139550",
+        "label": "Moderate"
+      },
+      {
+        "colour": "#185b3b",
+        "label": "High"
+      },
+      {
+        "colour": "#122414",
+        "label": "Very High"
+      }
+    ],
+    "indicators": [
+      "05-03-01-grizzly-bear"
+    ],
+    "theme": "05-connectivity-network",
+    "subtheme": "05-03-wildland-explorers",
+    "about": "Where grizzly bears are most likely to find what they need to live: food, shelter and cover. Darker is better habitat."
+  },
+  {
+    "id": "habitat-wolverine",
+    "name": "Wolverine habitat",
+    "src": "/tiles/ecoscapes/habitat-wolverine.pmtiles",
+    "source": "TerrAdapt-Cascadia and Nature Squamish",
+    "opacity": 0.95,
+    "resampling": "nearest",
+    "kind": "classes",
+    "legend": [
+      {
+        "colour": "#d7f9d0",
+        "label": "Very low"
+      },
+      {
+        "colour": "#85c47b",
+        "label": "Low"
+      },
+      {
+        "colour": "#139550",
+        "label": "Moderate"
+      },
+      {
+        "colour": "#185b3b",
+        "label": "High"
+      },
+      {
+        "colour": "#122414",
+        "label": "Very high"
+      }
+    ],
+    "indicators": [
+      "05-03-02-wolverine"
+    ],
+    "theme": "05-connectivity-network",
+    "subtheme": "05-03-wildland-explorers",
+    "about": "Where wolverines are most likely to find what they need to live: food, shelter and cover. Darker is better habitat."
+  },
+  {
+    "id": "habitat-canada-lynx",
+    "name": "Canada lynx habitat",
+    "src": "/tiles/ecoscapes/habitat-canada-lynx.pmtiles",
+    "source": "TerrAdapt-Cascadia and Nature Squamish",
+    "opacity": 0.95,
+    "resampling": "nearest",
+    "kind": "classes",
+    "legend": [
+      {
+        "colour": "#d7f9d0",
+        "label": "Very Low"
+      },
+      {
+        "colour": "#85c47b",
+        "label": "Low"
+      },
+      {
+        "colour": "#139550",
+        "label": "Moderate"
+      },
+      {
+        "colour": "#185b3b",
+        "label": "High"
+      },
+      {
+        "colour": "#122414",
+        "label": "Very High"
+      }
+    ],
+    "indicators": [
+      "05-03-03-canada-lynx"
+    ],
+    "theme": "05-connectivity-network",
+    "subtheme": "05-03-wildland-explorers",
+    "about": "Where Canada lynx are most likely to find what they need to live: food, shelter and cover. Darker is better habitat."
+  },
+  {
+    "id": "habitat-pacific-fisher",
+    "name": "Pacific fisher habitat",
+    "src": "/tiles/ecoscapes/habitat-pacific-fisher.pmtiles",
+    "source": "TerrAdapt-Cascadia and Nature Squamish",
+    "opacity": 0.95,
+    "resampling": "nearest",
+    "kind": "classes",
+    "legend": [
+      {
+        "colour": "#d7f9d0",
+        "label": "Very Low"
+      },
+      {
+        "colour": "#85c47b",
+        "label": "Low"
+      },
+      {
+        "colour": "#139550",
+        "label": "Moderate"
+      },
+      {
+        "colour": "#185b3b",
+        "label": "High"
+      },
+      {
+        "colour": "#122414",
+        "label": "Very High"
+      }
+    ],
+    "indicators": [
+      "05-04-01-pacific-fisher"
+    ],
+    "theme": "05-connectivity-network",
+    "subtheme": "05-04-forest-and-alpine-specialists",
+    "about": "Where Pacific fishers are most likely to find what they need to live: food, shelter and cover. Darker is better habitat."
+  },
+  {
+    "id": "habitat-black-bear-fall",
+    "name": "Black bear habitat (fall)",
+    "src": "/tiles/ecoscapes/habitat-black-bear-fall.pmtiles",
+    "source": "Nature Squamish",
+    "opacity": 0.95,
+    "resampling": "nearest",
+    "kind": "classes",
+    "legend": [
+      {
+        "colour": "#d7f9d0",
+        "label": "Very Low"
+      },
+      {
+        "colour": "#85c47b",
+        "label": "Low"
+      },
+      {
+        "colour": "#139550",
+        "label": "Moderate"
+      },
+      {
+        "colour": "#185b3b",
+        "label": "High"
+      },
+      {
+        "colour": "#122414",
+        "label": "Very High"
+      }
+    ],
+    "indicators": [
+      "05-04-02-black-bear"
+    ],
+    "theme": "05-connectivity-network",
+    "subtheme": "05-04-forest-and-alpine-specialists",
+    "about": "Where black bears (in the fall) are most likely to find what they need to live: food, shelter and cover. Darker is better habitat."
+  },
+  {
+    "id": "habitat-black-bear-summer",
+    "name": "Black bear habitat (summer)",
+    "src": "/tiles/ecoscapes/habitat-black-bear-summer.pmtiles",
+    "source": "Nature Squamish",
+    "opacity": 0.95,
+    "resampling": "nearest",
+    "kind": "classes",
+    "legend": [
+      {
+        "colour": "#d7f9d0",
+        "label": "Very Low"
+      },
+      {
+        "colour": "#85c47b",
+        "label": "Low"
+      },
+      {
+        "colour": "#139550",
+        "label": "Moderate"
+      },
+      {
+        "colour": "#185b3b",
+        "label": "High"
+      },
+      {
+        "colour": "#122414",
+        "label": "Very High"
+      }
+    ],
+    "indicators": [
+      "05-04-02-black-bear"
+    ],
+    "theme": "05-connectivity-network",
+    "subtheme": "05-04-forest-and-alpine-specialists",
+    "about": "Where black bears (in summer) are most likely to find what they need to live: food, shelter and cover. Darker is better habitat."
+  },
+  {
+    "id": "habitat-hoary-marmot",
+    "name": "Hoary marmot habitat",
+    "src": "/tiles/ecoscapes/habitat-hoary-marmot.pmtiles",
+    "source": "Nature Squamish",
+    "opacity": 0.95,
+    "resampling": "nearest",
+    "kind": "classes",
+    "legend": [
+      {
+        "colour": "#d7f9d0",
+        "label": "Very Low"
+      },
+      {
+        "colour": "#85c47b",
+        "label": "Low"
+      },
+      {
+        "colour": "#139550",
+        "label": "Moderate"
+      },
+      {
+        "colour": "#185b3b",
+        "label": "High"
+      },
+      {
+        "colour": "#122414",
+        "label": "Very High"
+      }
+    ],
+    "indicators": [
+      "05-04-04-hoary-marmot"
+    ],
+    "theme": "05-connectivity-network",
+    "subtheme": "05-04-forest-and-alpine-specialists",
+    "about": "Where hoary marmots are most likely to find what they need to live: food, shelter and cover. Darker is better habitat."
+  },
+  {
+    "id": "habitat-black-tailed-deer-a",
+    "name": "Black-tailed deer habitat (A)",
+    "src": "/tiles/ecoscapes/habitat-black-tailed-deer-a.pmtiles",
+    "source": "Nature Squamish",
+    "opacity": 0.95,
+    "resampling": "nearest",
+    "kind": "classes",
+    "legend": [
+      {
+        "colour": "#d7f9d0",
+        "label": "Very Low"
+      },
+      {
+        "colour": "#85c47b",
+        "label": "Low"
+      },
+      {
+        "colour": "#139550",
+        "label": "Moderate"
+      },
+      {
+        "colour": "#185b3b",
+        "label": "High"
+      },
+      {
+        "colour": "#122414",
+        "label": "Very High"
+      }
+    ],
+    "indicators": [
+      "05-04-05-black-tailed-deer"
+    ],
+    "theme": "05-connectivity-network",
+    "subtheme": "05-04-forest-and-alpine-specialists",
+    "about": "Where black-tailed deer are most likely to find what they need to live: food, shelter and cover. Darker is better habitat."
+  },
+  {
+    "id": "habitat-black-tailed-deer-b",
+    "name": "Black-tailed deer habitat (B)",
+    "src": "/tiles/ecoscapes/habitat-black-tailed-deer-b.pmtiles",
+    "source": "Nature Squamish",
+    "opacity": 0.95,
+    "resampling": "nearest",
+    "kind": "classes",
+    "legend": [
+      {
+        "colour": "#d7f9d0",
+        "label": "Very Low"
+      },
+      {
+        "colour": "#85c47b",
+        "label": "Low"
+      },
+      {
+        "colour": "#139550",
+        "label": "Moderate"
+      },
+      {
+        "colour": "#185b3b",
+        "label": "High"
+      },
+      {
+        "colour": "#122414",
+        "label": "Very High"
+      }
+    ],
+    "indicators": [
+      "05-04-05-black-tailed-deer"
+    ],
+    "theme": "05-connectivity-network",
+    "subtheme": "05-04-forest-and-alpine-specialists",
+    "about": "Where black-tailed deer are most likely to find what they need to live: food, shelter and cover. Darker is better habitat."
+  },
+  {
+    "id": "habitat-coyote",
+    "name": "Coyote habitat",
+    "src": "/tiles/ecoscapes/habitat-coyote.pmtiles",
+    "source": "Nature Squamish",
+    "opacity": 0.95,
+    "resampling": "nearest",
+    "kind": "classes",
+    "legend": [
+      {
+        "colour": "#d7f9d0",
+        "label": "Very Low"
+      },
+      {
+        "colour": "#85c47b",
+        "label": "Low"
+      },
+      {
+        "colour": "#139550",
+        "label": "Moderate"
+      },
+      {
+        "colour": "#185b3b",
+        "label": "High"
+      },
+      {
+        "colour": "#122414",
+        "label": "Very High"
+      }
+    ],
+    "indicators": [
+      "05-04-06-coyote"
+    ],
+    "theme": "05-connectivity-network",
+    "subtheme": "05-04-forest-and-alpine-specialists",
+    "about": "Where coyotes are most likely to find what they need to live: food, shelter and cover. Darker is better habitat."
+  },
+  {
+    "id": "habitat-douglas-squirrel",
+    "name": "Douglas squirrel habitat",
+    "src": "/tiles/ecoscapes/habitat-douglas-squirrel.pmtiles",
+    "source": "Nature Squamish",
+    "opacity": 0.95,
+    "resampling": "nearest",
+    "kind": "classes",
+    "legend": [
+      {
+        "colour": "#d7f9d0",
+        "label": "Very Low"
+      },
+      {
+        "colour": "#85c47b",
+        "label": "Low"
+      },
+      {
+        "colour": "#139550",
+        "label": "Moderate"
+      },
+      {
+        "colour": "#185b3b",
+        "label": "High"
+      },
+      {
+        "colour": "#122414",
+        "label": "Very High"
+      }
+    ],
+    "indicators": [
+      "05-04-07-douglass-squirrel"
+    ],
+    "theme": "05-connectivity-network",
+    "subtheme": "05-04-forest-and-alpine-specialists",
+    "about": "Where Douglas squirrels are most likely to find what they need to live: food, shelter and cover. Darker is better habitat."
+  },
+  {
+    "id": "habitat-yellow-pine-chipmunk",
+    "name": "Yellow pine chipmunk habitat",
+    "src": "/tiles/ecoscapes/habitat-yellow-pine-chipmunk.pmtiles",
+    "source": "Nature Squamish",
+    "opacity": 0.95,
+    "resampling": "nearest",
+    "kind": "classes",
+    "legend": [
+      {
+        "colour": "#d7f9d0",
+        "label": "Very Low"
+      },
+      {
+        "colour": "#85c47b",
+        "label": "Low"
+      },
+      {
+        "colour": "#139550",
+        "label": "Moderate"
+      },
+      {
+        "colour": "#185b3b",
+        "label": "High"
+      },
+      {
+        "colour": "#122414",
+        "label": "Very High"
+      }
+    ],
+    "indicators": [
+      "05-04-08-yellow-pine-chipmunk"
+    ],
+    "theme": "05-connectivity-network",
+    "subtheme": "05-04-forest-and-alpine-specialists",
+    "about": "Where yellow pine chipmunks are most likely to find what they need to live: food, shelter and cover. Darker is better habitat."
+  },
+  {
+    "id": "habitat-beaver",
+    "name": "Beaver habitat",
+    "src": "/tiles/ecoscapes/habitat-beaver.pmtiles",
+    "source": "Nature Squamish",
+    "opacity": 0.95,
+    "resampling": "nearest",
+    "kind": "classes",
+    "legend": [
+      {
+        "colour": "#d7f9d0",
+        "label": "Very Low"
+      },
+      {
+        "colour": "#85c47b",
+        "label": "Low"
+      },
+      {
+        "colour": "#139550",
+        "label": "Moderate"
+      },
+      {
+        "colour": "#185b3b",
+        "label": "High"
+      },
+      {
+        "colour": "#122414",
+        "label": "Very High"
+      }
+    ],
+    "indicators": [
+      "05-05-01-beaver"
+    ],
+    "theme": "05-connectivity-network",
+    "subtheme": "05-05-valley-dwellers-and-commuters",
+    "about": "Where beavers are most likely to find what they need to live: food, shelter and cover. Darker is better habitat."
+  },
+  {
+    "id": "habitat-mink",
+    "name": "Mink habitat",
+    "src": "/tiles/ecoscapes/habitat-mink.pmtiles",
+    "source": "Nature Squamish",
+    "opacity": 0.95,
+    "resampling": "nearest",
+    "kind": "classes",
+    "legend": [
+      {
+        "colour": "#d7f9d0",
+        "label": "Very Low"
+      },
+      {
+        "colour": "#85c47b",
+        "label": "Low"
+      },
+      {
+        "colour": "#139550",
+        "label": "Moderate"
+      },
+      {
+        "colour": "#185b3b",
+        "label": "High"
+      },
+      {
+        "colour": "#122414",
+        "label": "Very High"
+      }
+    ],
+    "indicators": [
+      "05-05-02-mink"
+    ],
+    "theme": "05-connectivity-network",
+    "subtheme": "05-05-valley-dwellers-and-commuters",
+    "about": "Where mink are most likely to find what they need to live: food, shelter and cover. Darker is better habitat."
+  },
+  {
+    "id": "habitat-northern-red-legged-frog",
+    "name": "Northern red-legged frog habitat",
+    "src": "/tiles/ecoscapes/habitat-northern-red-legged-frog.pmtiles",
+    "source": "Nature Squamish",
+    "opacity": 0.95,
+    "resampling": "nearest",
+    "kind": "classes",
+    "legend": [
+      {
+        "colour": "#d7f9d0",
+        "label": "Very Low"
+      },
+      {
+        "colour": "#85c47b",
+        "label": "Low"
+      },
+      {
+        "colour": "#139550",
+        "label": "Moderate"
+      },
+      {
+        "colour": "#185b3b",
+        "label": "High"
+      },
+      {
+        "colour": "#122414",
+        "label": "Very High"
+      }
+    ],
+    "indicators": [
+      "05-05-03-northern-red-legged-frog"
+    ],
+    "theme": "05-connectivity-network",
+    "subtheme": "05-05-valley-dwellers-and-commuters",
+    "about": "Where northern red-legged frogs are most likely to find what they need to live: food, shelter and cover. Darker is better habitat."
+  },
+  {
+    "id": "habitat-western-toad",
+    "name": "Western toad habitat",
+    "src": "/tiles/ecoscapes/habitat-western-toad.pmtiles",
+    "source": "Nature Squamish",
+    "opacity": 0.95,
+    "resampling": "nearest",
+    "kind": "classes",
+    "legend": [
+      {
+        "colour": "#d7f9d0",
+        "label": "Very Low"
+      },
+      {
+        "colour": "#85c47b",
+        "label": "Low"
+      },
+      {
+        "colour": "#139550",
+        "label": "Moderate"
+      },
+      {
+        "colour": "#185b3b",
+        "label": "High"
+      },
+      {
+        "colour": "#122414",
+        "label": "Very High"
+      }
+    ],
+    "indicators": [
+      "05-05-04-western-toad"
+    ],
+    "theme": "05-connectivity-network",
+    "subtheme": "05-05-valley-dwellers-and-commuters",
+    "about": "Where western toads are most likely to find what they need to live: food, shelter and cover. Darker is better habitat."
+  },
+  {
+    "id": "habitat-pacific-tree-frog",
+    "name": "Pacific tree frog habitat",
+    "src": "/tiles/ecoscapes/habitat-pacific-tree-frog.pmtiles",
+    "source": "Nature Squamish",
+    "opacity": 0.95,
+    "resampling": "nearest",
+    "kind": "classes",
+    "legend": [
+      {
+        "colour": "#d7f9d0",
+        "label": "Very Low"
+      },
+      {
+        "colour": "#85c47b",
+        "label": "Low"
+      },
+      {
+        "colour": "#139550",
+        "label": "Moderate"
+      },
+      {
+        "colour": "#185b3b",
+        "label": "High"
+      },
+      {
+        "colour": "#122414",
+        "label": "Very High"
+      }
+    ],
+    "indicators": [
+      "05-05-05-pacific-tree-frog"
+    ],
+    "theme": "05-connectivity-network",
+    "subtheme": "05-05-valley-dwellers-and-commuters",
+    "about": "Where Pacific tree frogs are most likely to find what they need to live: food, shelter and cover. Darker is better habitat."
+  },
+  {
+    "id": "habitat-ensatina-salamander",
+    "name": "Ensatina salamander habitat",
+    "src": "/tiles/ecoscapes/habitat-ensatina-salamander.pmtiles",
+    "source": "Nature Squamish",
+    "opacity": 0.95,
+    "resampling": "nearest",
+    "kind": "classes",
+    "legend": [
+      {
+        "colour": "#d7f9d0",
+        "label": "Very Low"
+      },
+      {
+        "colour": "#85c47b",
+        "label": "Low"
+      },
+      {
+        "colour": "#139550",
+        "label": "Moderate"
+      },
+      {
+        "colour": "#185b3b",
+        "label": "High"
+      },
+      {
+        "colour": "#122414",
+        "label": "Very High"
+      }
+    ],
+    "indicators": [
+      "05-05-06-ensatina-salamander"
+    ],
+    "theme": "05-connectivity-network",
+    "subtheme": "05-05-valley-dwellers-and-commuters",
+    "about": "Where ensatina salamanders are most likely to find what they need to live: food, shelter and cover. Darker is better habitat."
+  },
+  {
+    "id": "habitat-northwestern-salamander",
+    "name": "Northwestern salamander habitat",
+    "src": "/tiles/ecoscapes/habitat-northwestern-salamander.pmtiles",
+    "source": "Nature Squamish",
+    "opacity": 0.95,
+    "resampling": "nearest",
+    "kind": "classes",
+    "legend": [
+      {
+        "colour": "#d7f9d0",
+        "label": "Very Low"
+      },
+      {
+        "colour": "#85c47b",
+        "label": "Low"
+      },
+      {
+        "colour": "#139550",
+        "label": "Moderate"
+      },
+      {
+        "colour": "#185b3b",
+        "label": "High"
+      },
+      {
+        "colour": "#122414",
+        "label": "Very High"
+      }
+    ],
+    "indicators": [
+      "05-05-07-northwestern-salamander"
+    ],
+    "theme": "05-connectivity-network",
+    "subtheme": "05-05-valley-dwellers-and-commuters",
+    "about": "Where northwestern salamanders are most likely to find what they need to live: food, shelter and cover. Darker is better habitat."
+  },
+  {
+    "id": "habitat-long-toed-salamander",
+    "name": "Long-toed salamander habitat",
+    "src": "/tiles/ecoscapes/habitat-long-toed-salamander.pmtiles",
+    "source": "Nature Squamish",
+    "opacity": 0.95,
+    "resampling": "nearest",
+    "kind": "classes",
+    "legend": [
+      {
+        "colour": "#d7f9d0",
+        "label": "Very Low"
+      },
+      {
+        "colour": "#85c47b",
+        "label": "Low"
+      },
+      {
+        "colour": "#139550",
+        "label": "Moderate"
+      },
+      {
+        "colour": "#185b3b",
+        "label": "High"
+      },
+      {
+        "colour": "#122414",
+        "label": "Very High"
+      }
+    ],
+    "indicators": [
+      "05-05-08-long-toed-salamander"
+    ],
+    "theme": "05-connectivity-network",
+    "subtheme": "05-05-valley-dwellers-and-commuters",
+    "about": "Where long-toed salamanders are most likely to find what they need to live: food, shelter and cover. Darker is better habitat."
+  },
+  {
+    "id": "habitat-northern-alligator-lizard",
+    "name": "Northern alligator lizard habitat",
+    "src": "/tiles/ecoscapes/habitat-northern-alligator-lizard.pmtiles",
+    "source": "Nature Squamish",
+    "opacity": 0.95,
+    "resampling": "nearest",
+    "kind": "classes",
+    "legend": [
+      {
+        "colour": "#d7f9d0",
+        "label": "Very Low"
+      },
+      {
+        "colour": "#85c47b",
+        "label": "Low"
+      },
+      {
+        "colour": "#139550",
+        "label": "Moderate"
+      },
+      {
+        "colour": "#185b3b",
+        "label": "High"
+      },
+      {
+        "colour": "#122414",
+        "label": "Very High"
+      }
+    ],
+    "indicators": [
+      "05-05-09-northern-alligator-lizard"
+    ],
+    "theme": "05-connectivity-network",
+    "subtheme": "05-05-valley-dwellers-and-commuters",
+    "about": "Where northern alligator lizards are most likely to find what they need to live: food, shelter and cover. Darker is better habitat."
+  },
+  {
+    "id": "habitat-garter-snake",
+    "name": "Common garter snake habitat",
+    "src": "/tiles/ecoscapes/habitat-garter-snake.pmtiles",
+    "source": "Nature Squamish",
+    "opacity": 0.95,
+    "resampling": "nearest",
+    "kind": "classes",
+    "legend": [
+      {
+        "colour": "#d7f9d0",
+        "label": "Very Low"
+      },
+      {
+        "colour": "#85c47b",
+        "label": "Low"
+      },
+      {
+        "colour": "#139550",
+        "label": "Moderate"
+      },
+      {
+        "colour": "#185b3b",
+        "label": "High"
+      },
+      {
+        "colour": "#122414",
+        "label": "Very High"
+      }
+    ],
+    "indicators": [
+      "05-05-10-garter-snake"
+    ],
+    "theme": "05-connectivity-network",
+    "subtheme": "05-05-valley-dwellers-and-commuters",
+    "about": "Where common garter snakes are most likely to find what they need to live: food, shelter and cover. Darker is better habitat."
+  }
+]

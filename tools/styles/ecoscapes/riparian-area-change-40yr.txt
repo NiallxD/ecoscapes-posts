@@ -1,0 +1,9 @@
+# Auto-generated from Felt style. See tools/gen-style.py.
+# value  R   G   B   A
+nv       0   0   0   0
+-1.0001       61 203 10 255
+-0.0001       61 203 10 255
+-7.9998e-05       0 0 0 0
+0.9999       0 0 0 0
+0.99992       207 29 38 255
+1.0003       207 29 38 255
