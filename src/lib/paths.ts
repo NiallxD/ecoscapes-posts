@@ -4,6 +4,14 @@ const root = import.meta.env.BASE_URL.replace(/\/$/, '');
  *  works at the domain root and under a GitHub Pages project path. */
 export const asset = (p: string) => `${root}/${p.replace(/^\//, '')}`;
 
+const tilesBase = (import.meta.env.PUBLIC_TILES_BASE ?? '').replace(/\/$/, '');
+
+/** A map file (a /tiles/... .pmtiles, or a planning layer's .sample.webp): from the tile host when
+ *  PUBLIC_TILES_BASE is set -- the R2 bucket, at the same path less /tiles
+ *  (tools/upload-tiles.sh) -- or from public/tiles on this site when not, as
+ *  in dev. Too big for GitHub Pages; the fonts stay on the site. */
+export const tile = (p: string) => (tilesBase && p.startsWith('/tiles/') ? `${tilesBase}/${p.slice('/tiles/'.length)}` : asset(p));
+
 type SeriesData = {
   dir?: string;
   ext: string;

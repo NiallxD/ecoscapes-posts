@@ -2,7 +2,7 @@
 import { getEntry } from 'astro:content';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import Shell from '../layouts/Shell.astro';
-import { asset } from '../lib/paths';
+import { asset, tile } from '../lib/paths';
 import layersData from '../data/dst-layers.json';
 
 /** Planning support: the RRN demo's weighted, fuzzy scoring, on this
@@ -18,10 +18,10 @@ const { data } = entry;
 const config = {
   bounds: data.bounds,
   limit: data.limit,
-  basemap: asset(data.basemap),
-  terrain: asset('/tiles/terrain.pmtiles'),
+  basemap: tile(data.basemap),
+  terrain: tile('/tiles/terrain.pmtiles'),
   glyphs: asset('/tiles/fonts/{fontstack}/{range}.pbf'),
-  layers: layersData.map((l) => ({ ...l, src: asset(l.src) })),
+  layers: layersData.map((l) => ({ ...l, src: tile(l.src), sampleSrc: tile(l.sampleSrc) })),
 };
 ---
 <Shell title="EcoScapes planning support" description="Choose what matters and how much, and see where across the Sea-to-Sky fits best.">
@@ -604,7 +604,7 @@ const config = {
   const byId = new Map(config.layers.map((l) => [l.id, l]));
   // Menu groups in catalogue order.
   const groups = [...new Set(config.layers.map((l) => l.group))];
-  const abs = (p: string) => location.origin + p;
+  const abs = (p: string) => (/^https?:/.test(p) ? p : location.origin + p);
   const esc = (s: string) =>
     s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 

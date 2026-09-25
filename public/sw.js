@@ -17,6 +17,9 @@
 // literals here are what dev and an unstamped build fall back to.
 const VERSION = 'v1';
 const TILES_VERSION = 't1';
+// Where the map files are when not on this site (the R2 bucket), or '' --
+// stamped from PUBLIC_TILES_BASE with the versions.
+const TILES_ORIGIN = '';
 const SHELL = `ecoscapes-shell-${VERSION}`;
 const MEDIA = `ecoscapes-media-${VERSION}`;
 const TILES = `ecoscapes-tiles-${TILES_VERSION}`;
@@ -179,6 +182,11 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
+  // The map files from the tile host: kept like the site's own.
+  if (TILES_ORIGIN && url.origin === TILES_ORIGIN) {
+    event.respondWith(tile(request));
+    return;
+  }
   if (url.origin !== self.location.origin) return;
 
   // Pages: fresh when there is signal, cached when there is not. Fresh means

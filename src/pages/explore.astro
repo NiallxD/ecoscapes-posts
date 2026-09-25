@@ -5,7 +5,7 @@ import Shell from '../layouts/Shell.astro';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import AnimalButton from '../components/AnimalButton.astro';
-import { asset } from '../lib/paths';
+import { asset, tile } from '../lib/paths';
 
 /** The Bear's map: the whole corridor, where you are on it, the map portal's
  *  layers over it, and pins for the things worth noticing. Not a page of any
@@ -29,12 +29,12 @@ const config = {
   bounds: data.bounds,
   limit: data.limit,
   declination: data.declination,
-  basemap: asset('/tiles/basemap.pmtiles'),
+  basemap: tile('/tiles/basemap.pmtiles'),
   // The study area's elevation, shared with /map/ and the planning map: the
   // corridor is inside it, and only the tiles in view are fetched.
-  terrain: asset('/tiles/terrain.pmtiles'),
+  terrain: tile('/tiles/terrain.pmtiles'),
   glyphs: asset('/tiles/fonts/{fontstack}/{range}.pbf'),
-  layers: data.layers.map((l) => ({ ...l, src: asset(l.src) })),
+  layers: data.layers.map((l) => ({ ...l, src: tile(l.src) })),
   callouts: data.callouts.map((c) => ({ ...c, image: c.image ? asset(c.image) : undefined })),
   posts,
   // Opened in the sheet, like a story, rather than as a full-screen animal
@@ -720,7 +720,7 @@ const config = {
   // MapLibre fetches tiles and glyphs from a worker, which has no page to
   // resolve a relative path against. Joined as strings: new URL() would escape
   // the {fontstack} and {range} placeholders in the glyphs template.
-  const abs = (p: string) => location.origin + p;
+  const abs = (p: string) => (/^https?:/.test(p) ? p : location.origin + p);
   // Anything from the content file that goes into markup built here.
   const esc = (s: string) =>
     s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);

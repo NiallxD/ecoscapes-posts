@@ -33,6 +33,8 @@ jobs:
           # works either way.
           PUBLIC_SITE_URL: ${{ steps.pages.outputs.origin }}
           PUBLIC_BASE_PATH: ${{ steps.pages.outputs.base_path }}
+          # The map files come from R2 (tools/upload-tiles.sh), not the site.
+          PUBLIC_TILES_BASE: https://tiles.niallbell.com
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

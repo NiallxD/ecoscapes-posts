@@ -2,7 +2,7 @@
 import { getEntry } from 'astro:content';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import Shell from '../layouts/Shell.astro';
-import { asset } from '../lib/paths';
+import { asset, tile } from '../lib/paths';
 import layersData from '../data/ecoscapes-layers.json';
 import themesData from '../data/ecoscapes-themes.json';
 
@@ -23,11 +23,11 @@ const config = {
   bounds: data.bounds,
   limit: data.limit,
   declination: data.declination,
-  basemap: asset(data.basemap),
-  terrain: asset('/tiles/terrain.pmtiles'),
+  basemap: tile(data.basemap),
+  terrain: tile('/tiles/terrain.pmtiles'),
   glyphs: asset('/tiles/fonts/{fontstack}/{range}.pbf'),
   // Map-portal layers, generated outside this file (src/data/ecoscapes-layers.json).
-  layers: layersData.map((l) => ({ ...l, src: asset(l.src) })),
+  layers: layersData.map((l) => ({ ...l, src: tile(l.src) })),
   // Grouping for the layers sheet: theme -> subtheme -> layers.
   themes: themesData,
 };
@@ -517,7 +517,7 @@ const config = {
   // MapLibre fetches tiles and glyphs from a worker, which has no page to
   // resolve a relative path against. Joined as strings: new URL() would escape
   // the {fontstack} and {range} placeholders in the glyphs template.
-  const abs = (p: string) => location.origin + p;
+  const abs = (p: string) => (/^https?:/.test(p) ? p : location.origin + p);
   // Anything from the content file that goes into markup built here.
   const esc = (s: string) =>
     s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
