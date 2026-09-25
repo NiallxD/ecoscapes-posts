@@ -38,6 +38,17 @@ const config = {
 
     <p class="toast" id="toast" role="status" aria-live="polite" hidden></p>
 
+    <!-- Wider screens: the layers as a pill in this corner, the list
+         dropping down beneath it and folding back up into it. A phone keeps
+         the button in the control column. -->
+    <button class="layers-pill" id="layers-pill" type="button" aria-expanded="false" aria-controls="sheet">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 3.5l8.5 4.5-8.5 4.5L3.5 8z" /><path d="M3.5 12l8.5 4.5 8.5-4.5" /><path d="M3.5 16l8.5 4.5 8.5-4.5" />
+      </svg>
+      <span>Layers</span>
+      <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+    </button>
+
     <!-- What the layers that are on mean, for as long as they are on. Folded
          to its title on a phone, where the map is short of room. -->
     <aside class="legend" id="legend" aria-label="Legend" hidden>
@@ -80,7 +91,7 @@ const config = {
           <path d="M12 3l5.5 16L12 15.5 6.5 19z" fill="currentColor" />
         </svg>
       </button>
-      <a class="step" href={asset('/')} aria-label="All the posts">
+      <a class="step" id="home" href={asset('/')} aria-label="All the posts">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5L12 4l8 6.5V19a1 1 0 01-1 1h-4.5v-5.5h-5V20H5a1 1 0 01-1-1z" /></svg>
       </a>
     </div>
@@ -468,6 +479,20 @@ const config = {
   .map :global(.maplibregl-ctrl-attrib a) { color: var(--ink-dim); }
   .map :global(.maplibregl-ctrl-attrib-button) { filter: invert(1); background-color: transparent; }
   .map :global(.maplibregl-ctrl-top-right) { top: var(--safe-t); }
+  /* Wider screens: the layers drop down from their pill in the top left, the
+     legend below the pill (and below the list, while it is open), and the
+     column keeps only what the pill does not do. */
+  @media (min-width: 48rem) {
+    #layers-btn { display: none; }
+    .legend { top: calc(var(--safe-t) + 1rem + 46px + 0.6rem); }
+    .sheet.sheet-narrow {
+      top: calc(var(--safe-t) + 1rem + 46px + 0.5rem);
+      max-height: calc(100dvh - var(--safe-t) - 2rem - 46px - 0.5rem);
+      animation-name: drop-down;
+    }
+    .sheet.sheet-narrow .sheet-close { display: none; }
+    @keyframes drop-down { from { transform: translateY(-8px); opacity: 0; } }
+  }
 </style>
 
 <script>
@@ -478,6 +503,7 @@ const config = {
   import { Protocol } from 'pmtiles';
   import { layers as basemapLayers, namedFlavor } from '@protomaps/basemaps';
   import { addRelief, addSky, flat, threeDButton } from '../lib/terrain';
+  import { confirmLeave } from '../lib/leave';
   import { headingOf as compassHeading, requestCompass, hasCompassApi, needsTap, ORIENTATION_EVENTS } from '../lib/compass';
 
   type Legend = { colour: string; label: string };
@@ -782,6 +808,7 @@ const config = {
   const sheet = document.getElementById('sheet')!;
   const body = document.getElementById('sheet-body')!;
   const layersBtn = document.getElementById('layers-btn');
+  const layersPill = document.getElementById('layers-pill');
   let sheetFor: string | null = null;
   let activePin: HTMLElement | null = null;
 
@@ -795,6 +822,7 @@ const config = {
     requestAnimationFrame(placeLegend);
     main.classList.add('sheet-open');
     layersBtn?.setAttribute('aria-expanded', String(key === 'layers'));
+    layersPill?.setAttribute('aria-expanded', String(key === 'layers'));
   };
   const closeSheet = () => {
     sheet.hidden = true;
@@ -803,6 +831,7 @@ const config = {
     activePin?.classList.remove('on');
     activePin = null;
     layersBtn?.setAttribute('aria-expanded', 'false');
+    layersPill?.setAttribute('aria-expanded', 'false');
     placeLegend();
     // Following you: with the sheet gone, back to the middle of the screen.
     if (following) recentre();
@@ -928,6 +957,10 @@ const config = {
       )
       .join('');
 
+  // The pill is the same button, where a wider screen has it.
+  layersPill?.addEventListener('click', () => layersBtn?.click());
+  // Home loses where you were on the map: asked first.
+  confirmLeave(document.querySelector<HTMLAnchorElement>('#home'));
   layersBtn?.addEventListener('click', () => {
     if (sheetFor === 'layers') return closeSheet();
     activePin?.classList.remove('on');

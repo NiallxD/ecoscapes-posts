@@ -80,7 +80,13 @@ const config = {
          of scores is drawn in the map's own ramp, so it is both. -->
     <aside class="key" aria-labelledby="key-title">
       <div class="key-head">
-        <h2 id="key-title">How much fits</h2>
+        <div class="key-title">
+          <h2 id="key-title">How much fits</h2>
+          <!-- Minimised to its title, out of the way of the map. -->
+          <button class="fold key-fold" id="key-fold" type="button" aria-expanded="true" aria-label="Minimise">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6-6 6 6" /></svg>
+          </button>
+        </div>
         <div class="seg seg-sm" id="scope" role="radiogroup" aria-label="Count across">
           <button type="button" role="radio" data-scope="region" aria-checked="true">Whole area</button>
           <button type="button" role="radio" data-scope="view" aria-checked="false">This view</button>
@@ -143,15 +149,28 @@ const config = {
         </label>
         <button class="step" id="three-d" type="button" aria-pressed="false" aria-label="3D view" title="3D view"><span class="step-text">3D</span></button>
       </div>
+      <!-- The colours the score is drawn in. -->
+      <div class="pal-wrap" id="pal-wrap">
+        <div class="pal-menu" id="pal-menu" role="radiogroup" aria-label="Colours" hidden></div>
+        <button class="step" id="pal-btn" type="button" aria-expanded="false" aria-controls="pal-menu" aria-label="Colours" title="Colours">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3a9 9 0 100 18c1 0 1.6-.8 1.6-1.7 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-.9.8-1.7 1.7-1.7H16a5 5 0 005-5C21 6.6 17 3 12 3z" />
+            <circle cx="7.5" cy="11" r="1.1" fill="currentColor" /><circle cx="10.5" cy="7.3" r="1.1" fill="currentColor" /><circle cx="15" cy="7.8" r="1.1" fill="currentColor" />
+          </svg>
+        </button>
+      </div>
       <button class="step" id="here" type="button" aria-label="Score where I am" title="Score where I am">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
           <circle cx="12" cy="12" r="4" /><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3" />
         </svg>
       </button>
-      <a class="step" href={asset('/map/')} aria-label="Back to the map">
+      <a class="step" id="to-map" href={asset('/map/')} aria-label="Back to the map">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true">
           <path d="M12 3.5l8.5 4.5-8.5 4.5L3.5 8z" /><path d="M3.5 12l8.5 4.5 8.5-4.5" /><path d="M3.5 16l8.5 4.5 8.5-4.5" />
         </svg>
+      </a>
+      <a class="step" id="home" href={asset('/')} aria-label="All the posts">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5L12 4l8 6.5V19a1 1 0 01-1 1h-4.5v-5.5h-5V20H5a1 1 0 01-1-1z" /></svg>
       </a>
     </div>
 
@@ -360,6 +379,11 @@ const config = {
     .key { top: calc(var(--safe-t) + 0.8rem); bottom: auto; left: 0.9rem; right: auto; width: 11rem; }
   }
   .key-head { display: grid; gap: 0.5rem; }
+  .key-title { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+  .key-fold { width: 28px; height: 28px; margin: -0.25rem -0.3rem -0.25rem 0; }
+  .key-fold svg { width: 14px; height: 14px; }
+  /* Minimised: the title and its button, nothing else. */
+  .key.folded > :not(.key-head), .key.folded .seg { display: none; }
   .key h2 { margin: 0; white-space: nowrap; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-dim); }
   .seg-sm { padding: 2px; border-radius: 9px; }
   .seg-sm button { padding: 0.28rem 0.55rem; font-size: 0.72rem; border-radius: 7px; }
@@ -458,7 +482,7 @@ const config = {
     cursor: pointer;
   }
   .best-list :global(button:hover), .best-list :global(button.on) { background: var(--bg-lift); }
-  .best-list :global(b) { display: grid; place-items: center; width: 1.3rem; height: 1.3rem; border-radius: 50%; background: #ffdd80; color: #1a140a; font-size: 0.7rem; }
+  .best-list :global(b) { display: grid; place-items: center; width: 1.3rem; height: 1.3rem; border-radius: 50%; background: var(--ramp-hi, #ffdd80); color: #1a140a; font-size: 0.7rem; }
   .best-list :global(em) { font-style: normal; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
   /* The pins: numbered, in the ramp's brightest colour. */
   :global(.best-pin) {
@@ -467,7 +491,7 @@ const config = {
     display: grid;
     place-items: center;
     border-radius: 50%;
-    background: #ffdd80;
+    background: var(--ramp-hi, #ffdd80);
     color: #1a140a;
     font: 700 12px/1 system-ui, sans-serif;
     box-shadow: 0 0 0 2px #0d1210, 0 2px 10px rgba(0, 0, 0, 0.6);
@@ -547,7 +571,7 @@ const config = {
   .map :global(.why-total b) { font-size: 1.4rem; font-variant-numeric: tabular-nums; }
   .map :global(.why-sw) { width: 22px; height: 22px; border-radius: 5px; flex: none; align-self: center; }
   .map :global(.why-total span b) { font-size: 0.85rem; }
-  .map :global(.why-title) { margin: 0 1.2rem 0.4rem 0; font-size: 0.78rem; font-weight: 600; color: #ffdd80; }
+  .map :global(.why-title) { margin: 0 1.2rem 0.4rem 0; font-size: 0.78rem; font-weight: 600; color: var(--ramp-hi, #ffdd80); }
   .map :global(.why-dot) { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 0.4rem; }
   .map :global(.why-total span) { font-size: 0.75rem; color: var(--ink-dim); }
   .map :global(.why) { width: 100%; border-collapse: collapse; font-size: 0.74rem; }
@@ -555,13 +579,61 @@ const config = {
   .map :global(.why td + td) { text-align: right; padding-left: 0.6rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .map :global(.why .dim) { color: var(--ink-dim); }
   .map :global(.why-bar) { display: block; height: 3px; margin-top: 3px; border-radius: 2px; background: var(--line); }
-  .map :global(.why-bar i) { display: block; height: 100%; border-radius: 2px; background: #e99e1f; }
+  .map :global(.why-bar i) { display: block; height: 100%; border-radius: 2px; background: var(--ramp-mid, #e99e1f); }
 
   .map :global(.maplibregl-ctrl-attrib) { background: rgba(13, 18, 16, 0.7); color: var(--ink-dim); font-size: 0.68rem; }
   .map :global(.maplibregl-ctrl-attrib a) { color: var(--ink-dim); }
   .map :global(.maplibregl-ctrl-attrib-button) { filter: invert(1); background-color: transparent; }
   .map :global(.maplibregl-ctrl-top-right) { top: var(--safe-t); }
   @media (min-width: 48rem) { .map :global(.maplibregl-ctrl-bottom-right) { bottom: 7rem; } }
+  /* The palette menu: out to the left of its button, swatches in a column. */
+  .pal-wrap { position: relative; }
+  .pal-menu {
+    position: absolute;
+    z-index: 5;
+    right: calc(100% + 0.6rem);
+    bottom: 0;
+    width: 12.5rem;
+    display: grid;
+    gap: 0.15rem;
+    padding: 0.4rem;
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    background: rgba(13, 18, 16, 0.94);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+  .pal-menu[hidden] { display: none; }
+  .pal-menu :global(button) {
+    appearance: none;
+    display: grid;
+    gap: 0.3rem;
+    padding: 0.45rem 0.55rem;
+    border-radius: 9px;
+    border: 1px solid transparent;
+    background: none;
+    color: var(--ink-dim);
+    font: inherit;
+    font-size: 0.74rem;
+    text-align: left;
+    cursor: pointer;
+  }
+  .pal-menu :global(button:hover) { background: var(--bg-lift); color: var(--ink); }
+  .pal-menu :global(button[aria-checked='true']) { border-color: var(--accent); color: var(--ink); }
+  .pal-menu :global(.pal-bar) { display: block; height: 8px; border-radius: 4px; }
+  #pal-btn[aria-expanded='true'] { border-color: var(--accent); color: var(--accent); }
+  /* Wider screens: the numbers in the top right corner, the controls in the
+     bottom right under them, and the attribution in the bottom left, just
+     clear of the panel. */
+  @media (min-width: 48rem) {
+    .key {
+      top: calc(var(--safe-t) + 1rem);
+      bottom: auto;
+      max-height: calc(100dvh - var(--safe-t) - 2rem - 16rem);
+    }
+    .map-side { top: auto; bottom: calc(1rem + var(--foot)); }
+    .map :global(.maplibregl-ctrl-bottom-left) { left: calc(1rem + 25rem + 0.4rem); }
+  }
 </style>
 
 <script>
@@ -570,6 +642,8 @@ const config = {
   import { Protocol } from 'pmtiles';
   import { studyStyle } from '../lib/study-style';
   import { addRelief, addSky, flat, threeDButton } from '../lib/terrain';
+  import { confirmLeave } from '../lib/leave';
+  import { PALETTES, paletteById, rgb } from '../lib/dst/palettes';
   import { ScoreLayer, MAX_CRITERIA, scoreOf, criterionLut, type Criterion, type Op } from '../lib/dst/score-layer';
   import type { Grid, StatsRequest, StatsResponse, Tally } from '../lib/dst/stats-worker';
 
@@ -801,7 +875,7 @@ const config = {
     style: studyStyle({ basemap: abs(config.basemap), glyphs: abs(config.glyphs), limit: config.limit }),
   });
   flat(map);
-  map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: 'TerrAdapt-Cascadia, Nature Squamish' }), 'top-right');
+  map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: 'TerrAdapt-Cascadia, Nature Squamish' }), 'bottom-left');
   map.once('load', () => el.querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show'));
 
   const score = new ScoreLayer('score');
@@ -904,9 +978,10 @@ const config = {
       })
       .join('');
     const mark = (v: number, c: string) => `<line x1="${x(v)}" x2="${x(v)}" y1="0" y2="${H}" stroke="${c}" stroke-width="2"/>`;
-    return `<svg class="hist" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${bars}${mark(it.bad, '#9aa79f')}${mark(it.good, '#ffdd80')}</svg>`;
+    return `<svg class="hist" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${bars}${mark(it.bad, '#9aa79f')}${mark(it.good, rgb(STOPS[4]))}</svg>`;
   }
-  const STOPS = [[45, 35, 24], [111, 71, 18], [180, 110, 15], [233, 158, 31], [255, 221, 128]];
+  /** The palette the score is drawn in (palettes.ts), for the key's charts. */
+  let STOPS: number[][] = PALETTES[0].stops;
   function rampCss(t: number) {
     const s = Math.min(1, Math.max(0, t)) * 4;
     const i = Math.min(3, Math.floor(s));
@@ -1165,6 +1240,64 @@ const config = {
   // as they are sure.
   const stats = new Worker(new URL('../lib/dst/stats-worker.ts', import.meta.url), { type: 'module' });
   const keyEl = document.querySelector<HTMLElement>('.key')!;
+  const keyFold = document.getElementById('key-fold')!;
+  keyFold.addEventListener('click', () => {
+    const open = keyFold.getAttribute('aria-expanded') !== 'true';
+    keyFold.setAttribute('aria-expanded', String(open));
+    keyFold.setAttribute('aria-label', open ? 'Minimise' : 'Open');
+    keyEl.classList.toggle('folded', !open);
+  });
+  // Either way off the page loses the model on the map: asked first. (The
+  // link button in the panel keeps it, for coming back to.)
+  confirmLeave(document.querySelector<HTMLAnchorElement>('#home'));
+  confirmLeave(document.querySelector<HTMLAnchorElement>('#to-map'));
+
+  // ---- Colours -------------------------------------------------------------
+  // The palette one score is drawn in: the map, the key's charts, the best
+  // places' pins. Kept in this browser for next time.
+  const palWrap = document.getElementById('pal-wrap')!;
+  const palBtn = document.getElementById('pal-btn')!;
+  const palMenu = document.getElementById('pal-menu')!;
+  function usePalette(id: string | null) {
+    const p = paletteById(id);
+    STOPS = p.stops;
+    score.setPalette(p.stops);
+    el.parentElement!.style.setProperty('--ramp-hi', rgb(p.stops[4]));
+    el.parentElement!.style.setProperty('--ramp-mid', rgb(p.stops[3]));
+    palMenu.innerHTML = PALETTES.map(
+      (q) =>
+        `<button type="button" role="radio" aria-checked="${q.id === p.id}" data-palette="${q.id}">` +
+        `<span>${q.name}</span><i class="pal-bar" style="background:linear-gradient(90deg,${q.stops.map(rgb).join(',')})"></i></button>`,
+    ).join('');
+    try {
+      localStorage.setItem('dst-palette', p.id);
+    } catch {}
+  }
+  usePalette((() => {
+    try {
+      return localStorage.getItem('dst-palette');
+    } catch {
+      return null;
+    }
+  })());
+  const showPalettes = (open: boolean) => {
+    palMenu.hidden = !open;
+    palBtn.setAttribute('aria-expanded', String(open));
+  };
+  palBtn.addEventListener('click', () => showPalettes(palMenu.hidden));
+  palMenu.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLElement>('[data-palette]');
+    if (!b) return;
+    usePalette(b.dataset.palette!);
+    render();
+    showNumbers();
+  });
+  document.addEventListener('click', (e) => {
+    if (!palMenu.hidden && !palWrap.contains(e.target as Node)) showPalettes(false);
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !palMenu.hidden) showPalettes(false);
+  });
   const pctEl = document.getElementById('pct')!;
   const kmEl = document.getElementById('km')!;
   const spreadEl = document.getElementById('spread')!;

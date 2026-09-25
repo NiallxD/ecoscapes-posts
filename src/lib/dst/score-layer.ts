@@ -1,6 +1,7 @@
 import type { CustomLayerInterface, CustomRenderMethodInput, Map as MlMap, OverscaledTileID } from 'maplibre-gl';
 import { MAX_CRITERIA, RUNS, VARIATIONS, combineScores, criterionLut, valueOf, type Bivariate, type Criterion, type Op } from './model';
 import type { TileReply, TileRequest } from './tile-worker';
+import { PALETTES } from './palettes';
 
 export { MAX_CRITERIA, combineScores, scoreOf, criterionLut, band, valueOf } from './model';
 export type { Bivariate, Criterion, Op, ValueLayer } from './model';
@@ -144,14 +145,11 @@ uniform float u_steadyCut;     // the cut-off each variation is judged against
 uniform vec4 u_var[${RUNS * 2}];       // the ${RUNS} weight variations, ${MAX_CRITERIA} a run in two vec4s
 in vec2 v_pos;
 out vec4 frag;
+uniform vec3 u_ramp[5];         // the palette (palettes.ts), low to high
 vec3 ramp(float s) {
-  // One hue, amber, from near the ground's own dark to bright: a low score
-  // recedes into the basemap, a high one stands out of it.
-  vec3 c0 = vec3(0.176, 0.137, 0.094);
-  vec3 c1 = vec3(0.435, 0.278, 0.071);
-  vec3 c2 = vec3(0.706, 0.431, 0.059);
-  vec3 c3 = vec3(0.914, 0.620, 0.122);
-  vec3 c4 = vec3(1.000, 0.867, 0.502);
+  // From near the ground's own dark to bright: a low score recedes into the
+  // basemap, a high one stands out of it.
+  vec3 c0 = u_ramp[0], c1 = u_ramp[1], c2 = u_ramp[2], c3 = u_ramp[3], c4 = u_ramp[4];
   s = clamp(s, 0.0, 1.0) * 4.0;
   if (s < 1.0) return mix(c0, c1, s);
   if (s < 2.0) return mix(c1, c2, s - 1.0);
@@ -244,6 +242,7 @@ export class ScoreLayer implements CustomLayerInterface {
   /** How steady, against this cut-off (0..1), or null for the score. */
   private steady: number | null = null;
   private lut = new Uint8Array(256 * MAX_CRITERIA);
+  private ramp = new Float32Array(PALETTES[0].stops.flat().map((v) => v / 255));
   private lutDirty = true;
 
   private worker = new Worker(new URL('./tile-worker.ts', import.meta.url), { type: 'module' });
@@ -281,6 +280,11 @@ export class ScoreLayer implements CustomLayerInterface {
   /** Two scores (bivariate) with these settings, or one score with null. */
   setBivariate(bi: Bivariate | null) {
     this.bi = bi;
+    this.map?.triggerRepaint();
+  }
+  /** The colours one score is drawn in: five stops, low to high, 0..255. */
+  setPalette(stops: number[][]) {
+    this.ramp = new Float32Array(stops.flat().map((v) => v / 255));
     this.map?.triggerRepaint();
   }
   setOpacity(o: number) {
@@ -443,7 +447,7 @@ export class ScoreLayer implements CustomLayerInterface {
       gl.bindAttribLocation(p, 0, 'a_pos');
       gl.linkProgram(p);
       if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p) ?? 'link');
-      for (const u of ['u_matrix', 'u_v', 'u_lut', 'u_uv', 'u_n', 'u_op', 'u_w', 'u_axis', 'u_opacity',
+      for (const u of ['u_matrix', 'u_ramp', 'u_v', 'u_lut', 'u_uv', 'u_n', 'u_op', 'u_w', 'u_axis', 'u_opacity',
         'u_cut', 'u_mode', 'u_brk', 'u_pal', 'u_only', 'u_steady', 'u_steadyCut', 'u_var', ...extra])
         loc[u] = gl.getUniformLocation(p, u);
       return p;
@@ -628,6 +632,7 @@ export class ScoreLayer implements CustomLayerInterface {
     if (!terrain) g.uniformMatrix4fv(loc.u_matrix, false, opts.defaultProjectionData.mainMatrix as Float32Array);
     g.uniform1iv(loc.u_v, UNITS);
     g.uniform1i(loc.u_lut, MAX_CRITERIA);
+    g.uniform3fv(loc.u_ramp, this.ramp);
     g.uniform1i(loc.u_n, cs.length);
     g.uniform1i(loc.u_op, this.op === 'and' ? 1 : this.op === 'or' ? 2 : 0);
     const pad = (a: number[]) => [...a, ...Array(MAX_CRITERIA - a.length).fill(0)];
