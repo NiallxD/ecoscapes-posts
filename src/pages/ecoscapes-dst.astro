@@ -623,8 +623,8 @@ const config = {
   .pal-menu :global(.pal-bar) { display: block; height: 8px; border-radius: 4px; }
   #pal-btn[aria-expanded='true'] { border-color: var(--accent); color: var(--accent); }
   /* Wider screens: the numbers in the top right corner, the controls in the
-     bottom right under them, and the attribution in the bottom left, just
-     clear of the panel. */
+     bottom right under them, and the attribution in the bottom left corner,
+     under the panel. */
   @media (min-width: 48rem) {
     .key {
       top: calc(var(--safe-t) + 1rem);
@@ -632,7 +632,8 @@ const config = {
       max-height: calc(100dvh - var(--safe-t) - 2rem - 16rem);
     }
     .map-side { top: auto; bottom: calc(1rem + var(--foot)); }
-    .map :global(.maplibregl-ctrl-bottom-left) { left: calc(1rem + 25rem + 0.4rem); }
+    /* The panel stops short of the foot, so the (i) has the corner. */
+    .dst-panel { max-height: calc(100dvh - var(--safe-t) - 1rem - 3rem); }
   }
 </style>
 
