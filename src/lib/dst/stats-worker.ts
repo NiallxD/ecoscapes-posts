@@ -16,9 +16,10 @@
 
 export type Grid = { x0: number; y0: number; w: number; h: number; step: number; z: number };
 export type StatsLayer = { src: string; weight: number; axis: 0 | 1 };
+export type Kind = 'region' | 'view' | 'area';
 export type StatsRequest = {
   seq: number;
-  kind: 'region' | 'view';
+  kind: Kind;
   grid: Grid;
   layers: StatsLayer[];
   /** Each layer's score for each byte, 256 apiece (model.ts criterionLut). */
@@ -27,6 +28,8 @@ export type StatsRequest = {
   cut: number;
   /** The view, in sample cells: [col0, row0, col1, row1). */
   view: [number, number, number, number] | null;
+  /** A drawn area, as a ring of points in sample cells (kind 'area'). */
+  area?: [number, number][];
   /** Two scores: each axis's low/high breaks. Null for one score. */
   breaks: [[number, number], [number, number]] | null;
 };
@@ -45,9 +48,7 @@ export type Tally = {
   points: number;
   best: Spot[];
 };
-export type StatsResponse =
-  | { seq: number; kind: 'region' | 'view'; tally: Tally; ms: number }
-  | { seq: number; kind: 'region' | 'view'; loading: true };
+export type StatsResponse = { seq: number; kind: Kind; tally: Tally; ms: number } | { seq: number; kind: Kind; loading: true };
 
 const BINS = 20;
 /** Hotspots are found in blocks of this many samples a side (~3 km), and
@@ -100,7 +101,7 @@ function rowAreas(g: Grid) {
 }
 
 // One slot per kind: a newer request replaces an older one not yet started.
-const latest: Record<'region' | 'view', StatsRequest | null> = { region: null, view: null };
+const latest: Record<Kind, StatsRequest | null> = { region: null, view: null, area: null };
 let busy = false;
 
 self.onmessage = (e: MessageEvent<StatsRequest>) => {
@@ -111,7 +112,7 @@ self.onmessage = (e: MessageEvent<StatsRequest>) => {
 async function run() {
   busy = true;
   for (;;) {
-    const req = latest.region ?? latest.view;
+    const req = latest.region ?? latest.area ?? latest.view;
     if (!req) break;
     latest[req.kind] = null;
     if (req.layers.some((l) => !samples.has(l.src)))
@@ -135,7 +136,9 @@ function count(req: StatsRequest, arrays: Uint8Array[]): Tally {
   const lut = Float32Array.from(req.luts, (v) => v / 255);
   const w = layers.map((l) => l.weight);
   const ax = layers.map((l) => (two ? l.axis : 0));
-  const [c0, r0, c1, r1] = req.kind === 'view' && req.view ? req.view : [0, 0, g.w, g.h];
+  // Which cells to count, row by row: everything, the view's rectangle, or
+  // the spans of each row inside a drawn area.
+  const spans = spansFor(req, g);
   const t: Tally = { total: 0, above: 0, mean: 0, hist: new Array(BINS).fill(0), cells: new Array(9).fill(0), points: 0, best: [] };
   // Per block: the area with data, and the strength -- the score (one score)
   // or high on both (two scores) -- summed by area.
@@ -146,7 +149,7 @@ function count(req: StatsRequest, arrays: Uint8Array[]): Tally {
   const combine = (k: number) => (op === 'and' ? lo[k] : op === 'or' ? hi[k] : wsum[k] > 0 ? sum[k] / wsum[k] : 0);
   const bandOf = (s: number, [l, h]: [number, number]) => (s < l ? 0 : s < h ? 1 : 2);
 
-  for (let r = r0; r < r1; r++) {
+  for (const [r, c0, c1] of spans) {
     const a = areas[r];
     const base = r * g.w;
     for (let c = c0; c < c1; c++) {
@@ -190,6 +193,35 @@ function count(req: StatsRequest, arrays: Uint8Array[]): Tally {
   t.mean = t.total ? sSum / t.total : 0;
   t.best = hotspots(g, bw, bh, bArea, bStrength);
   return t;
+}
+
+/** [row, col0, col1) runs to count. A drawn area is filled scanline by
+ *  scanline: where each row's middle crosses the outline, in pairs. */
+function spansFor(req: StatsRequest, g: Grid): [number, number, number][] {
+  const out: [number, number, number][] = [];
+  if (req.kind === 'area' && req.area && req.area.length > 2) {
+    const ring = req.area;
+    const ys = ring.map((p) => p[1]);
+    const r0 = Math.max(0, Math.floor(Math.min(...ys))), r1 = Math.min(g.h, Math.ceil(Math.max(...ys)));
+    for (let r = r0; r < r1; r++) {
+      const yc = r + 0.5;
+      const xs: number[] = [];
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const [xi, yi] = ring[i], [xj, yj] = ring[j];
+        if (yi > yc !== yj > yc) xs.push(xi + ((yc - yi) / (yj - yi)) * (xj - xi));
+      }
+      xs.sort((a, b) => a - b);
+      for (let k = 0; k + 1 < xs.length; k += 2) {
+        // Cells whose middles lie between the two crossings.
+        const c0 = Math.max(0, Math.ceil(xs[k] - 0.5)), c1 = Math.min(g.w, Math.floor(xs[k + 1] - 0.5) + 1);
+        if (c1 > c0) out.push([r, c0, c1]);
+      }
+    }
+    return out;
+  }
+  const [c0, r0, c1, r1] = req.kind === 'view' && req.view ? req.view : [0, 0, g.w, g.h];
+  for (let r = r0; r < r1; r++) out.push([r, c0, c1]);
+  return out;
 }
 
 /** The strongest blocks, mostly covered by data, each at least SPREAD blocks

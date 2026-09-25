@@ -155,6 +155,38 @@ await page.click('#here');
 await page.waitForFunction(() => document.querySelector('.why-title')?.textContent === 'Where you are', null, { timeout: 20000 });
 check('"where I am" scores your spot', (await page.locator('.here-dot').count()) === 1);
 
+// Draw an area: a triangle round Squamish, counted inside only.
+await page.click('#presets button:text-is("Wildlife strongholds")');
+await settle();
+await page.evaluate(() => window.__dst.map.jumpTo({ center: [-123.1, 49.75], zoom: 9.5 }));
+await settle();
+await page.click('#scope button[data-scope="area"]');
+const tri = [[-123.25, 49.85], [-122.95, 49.85], [-123.1, 49.62]];
+const at = (p) =>
+  page.evaluate(([lng, lat]) => {
+    const q = window.__dst.map.project([lng, lat]);
+    const r = document.getElementById('map').getBoundingClientRect();
+    return [q.x + r.left, q.y + r.top];
+  }, p);
+for (const p of tri) {
+  const [x, y] = await at(p);
+  await page.mouse.click(x, y);
+  await page.waitForTimeout(250);
+}
+{
+  const [x, y] = await at(tri[0]);
+  await page.mouse.click(x + 2, y + 1);
+}
+await page.waitForFunction(() => /drawn area/.test(document.querySelector('#key-foot').textContent), null, { timeout: 20000 });
+const foot = await text('#key-foot');
+const counted = Number(foot.match(/Of the ([\d,.]+) km²/)[1].replace(/,/g, ''));
+// The triangle's own area, from its corners on a local flat projection.
+const k = (Math.PI / 180) * 6371, c = Math.cos((49.77 * Math.PI) / 180);
+const xy = tri.map(([lng, lat]) => [lng * k * c, lat * k]);
+const true_ = Math.abs(xy.reduce((s, [x1, y1], i) => s + x1 * xy[(i + 1) % 3][1] - xy[(i + 1) % 3][0] * y1, 0) / 2);
+check('a drawn area is counted inside only', Math.abs(counted - true_) / true_ < 0.03, `${counted} km² counted, ${true_.toFixed(0)} km² drawn`);
+await page.click('#scope button[data-scope="region"]');
+
 // Two scores: isolate a cell.
 await page.click('#presets button:text-is("Value × pressure")');
 await settle();

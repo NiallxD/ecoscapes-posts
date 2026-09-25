@@ -80,9 +80,10 @@ const config = {
     <aside class="key" aria-labelledby="key-title">
       <div class="key-head">
         <h2 id="key-title">How much fits</h2>
-        <div class="seg seg-sm seg-2" id="scope" role="radiogroup" aria-label="Count across">
+        <div class="seg seg-sm" id="scope" role="radiogroup" aria-label="Count across">
           <button type="button" role="radio" data-scope="region" aria-checked="true">Whole area</button>
           <button type="button" role="radio" data-scope="view" aria-checked="false">This view</button>
+          <button type="button" role="radio" data-scope="area" aria-checked="false" title="Draw an area on the map and count inside it">Draw</button>
         </div>
       </div>
       <p class="key-solo" id="key-solo" hidden></p>
@@ -328,6 +329,7 @@ const config = {
     bottom: calc(1rem + var(--foot));
     width: 19rem;
     max-height: calc(100dvh - 2rem - var(--foot));
+    overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: contain;
     padding: 0.8rem 0.95rem 0.75rem;
@@ -340,7 +342,7 @@ const config = {
   @media (max-width: 47.99rem) {
     .key { top: calc(var(--safe-t) + 0.8rem); bottom: auto; left: 0.9rem; right: auto; width: 11rem; }
   }
-  .key-head { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; }
+  .key-head { display: grid; gap: 0.5rem; }
   .key h2 { margin: 0; white-space: nowrap; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-dim); }
   .seg-sm { padding: 2px; border-radius: 9px; }
   .seg-sm button { padding: 0.28rem 0.55rem; font-size: 0.72rem; border-radius: 7px; }
@@ -1100,10 +1102,14 @@ const config = {
   const cutOut = document.getElementById('cut-out')!;
   const onlyIn = document.getElementById('only') as HTMLInputElement;
   const scopeEl = document.getElementById('scope')!;
-  let scope: 'region' | 'view' = 'region';
+  type Scope = 'region' | 'view' | 'area';
+  let scope: Scope = 'region';
+  /** The latest count for each scope. */
+  const tallies: Record<Scope, Tally | null> = { region: null, view: null, area: null };
+  const current = () => tallies[scope];
+  const WHERE: Record<Scope, string> = { region: 'across the study area', view: 'in view', area: 'in the drawn area' };
   let seq = 0;
   let countTimer = 0;
-  let last: { region: Tally; view: Tally | null } | null = null;
   const cut = () => Number(cutIn.value) / 100;
   const grid = config.layers[0]?.sample;
 
@@ -1153,8 +1159,9 @@ const config = {
   function recount() {
     clearTimeout(countTimer);
     if (!grid || !items.length) {
-      last = null;
+      tallies.region = tallies.view = tallies.area = null;
       showNumbers();
+      showBest();
       return;
     }
     countTimer = window.setTimeout(() => {
@@ -1162,12 +1169,13 @@ const config = {
       const key = modelKey(m);
       const hit = regionCache.get(key);
       if (hit) {
-        last = { region: hit, view: last?.view ?? null };
+        tallies.region = hit;
         showNumbers();
         showBest();
       } else stats.postMessage({ ...m, seq: ++seq, kind: 'region', view: null } satisfies StatsRequest);
       regionKey = key;
       if (scope === 'view') recountView();
+      if (scope === 'area') recountArea();
     }, 120);
   }
   /** The view alone, over just its own rectangle: after a pan or zoom, or
@@ -1176,11 +1184,23 @@ const config = {
     if (!grid || !items.length) return;
     stats.postMessage({ ...statsModel(), seq: ++viewSeq, kind: 'view', view: viewCells() } satisfies StatsRequest);
   }
+  /** Inside the drawn outline only. */
+  function recountArea() {
+    if (!grid || !items.length || drawn.length < 3) return;
+    const n = 2 ** grid.z * 256;
+    const ring = drawn.map(([lng, lat]) => {
+      const r = (lat * Math.PI) / 180;
+      const x = ((lng + 180) / 360) * n, y = ((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * n;
+      return [(x - grid.x0) / grid.step, (y - grid.y0) / grid.step] as [number, number];
+    });
+    stats.postMessage({ ...statsModel(), seq: ++areaSeq, kind: 'area', view: null, area: ring } satisfies StatsRequest);
+  }
   let regionKey = '';
   let viewSeq = 0;
+  let areaSeq = 0;
   stats.onmessage = (e: MessageEvent<StatsResponse>) => {
     const d = e.data;
-    if (d.kind === 'region' ? d.seq !== seq : d.seq !== viewSeq) return;
+    if (d.seq !== (d.kind === 'region' ? seq : d.kind === 'view' ? viewSeq : areaSeq)) return;
     if ('loading' in d) {
       keyEl.classList.add('loading');
       return;
@@ -1190,8 +1210,8 @@ const config = {
     if (d.kind === 'region') {
       regionCache.set(regionKey, d.tally);
       if (regionCache.size > 50) regionCache.delete(regionCache.keys().next().value!);
-      last = { region: d.tally, view: last?.view ?? null };
-    } else last = { region: last?.region ?? d.tally, view: d.tally };
+    }
+    tallies[d.kind] = d.tally;
     showNumbers();
     showBest();
   };
@@ -1207,7 +1227,7 @@ const config = {
     v >= 100 ? `${Math.round(v).toLocaleString('en-CA')} km²` : v >= 1 ? `${v.toFixed(1)} km²` : `${Math.round(v * 100)} ha`;
 
   function showNumbers() {
-    const t = last ? (scope === 'view' ? last.view : last.region) : null;
+    const t = current();
     if (effectiveMode() === 'two') return showNumbersTwo(t);
     const c = Math.round(cut() * 100);
     cutOut.textContent = String(c);
@@ -1222,7 +1242,7 @@ const config = {
     kmEl.innerHTML = `${km2(t.above)}<br>scores ${c} or more`;
     spreadEl.innerHTML = spreadSvg(t, cut());
     footEl.textContent =
-      `Of the ${km2(t.total)} ${scope === 'view' ? 'in view' : 'across the study area'} that these layers cover. ` +
+      `Of the ${km2(t.total)} ${WHERE[scope]} that these layers cover. ` +
       `Average score ${Math.round(t.mean * 100)}. ${precision(t)}`;
   }
 
@@ -1295,7 +1315,7 @@ const config = {
     biPct.textContent = `${Math.round((t.cells[cell] / t.total) * 100)}%`;
     biKm.innerHTML = `${km2(t.cells[cell])}<br>${esc(cellName(cell).toLowerCase())}`;
     footEl.textContent =
-      `Of the ${km2(t.total)} ${scope === 'view' ? 'in view' : 'across the study area'} where both scores have data. ${precision(t)}`;
+      `Of the ${km2(t.total)} ${WHERE[scope]} where both scores have data. ${precision(t)}`;
   }
 
   biGrid.addEventListener('click', (e) => {
@@ -1343,12 +1363,111 @@ const config = {
   scopeEl.addEventListener('click', (e) => {
     const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button');
     if (!b) return;
-    scope = b.dataset.scope as 'region' | 'view';
+    // "Draw" again while its area is showing: draw a new one.
+    if (b.dataset.scope === 'area' && (scope === 'area' || !drawn.length)) startDraw();
+    scope = b.dataset.scope as Scope;
     for (const x of scopeEl.querySelectorAll('button')) x.setAttribute('aria-checked', String(x === b));
     if (scope === 'view') recountView();
+    if (scope === 'area') recountArea();
+    showDrawn();
     showNumbers();
     showBest();
   });
+  // ---- Drawing an area --------------------------------------------------------
+  // RRN's parcel totals, for any outline: click round an area, double-click
+  // (or click the first point) to close it, and every number counts inside
+  // it alone. Escape leaves off.
+  let drawn: [number, number][] = [];
+  let drawing = false;
+  let drawEnded = 0;
+  let hover: [number, number] | null = null;
+  const drawnSource = () => map.getSource('drawn') as maplibregl.GeoJSONSource | undefined;
+  function showDrawn() {
+    const src = drawnSource();
+    if (!src) return;
+    const pts = drawing && hover ? [...drawn, hover] : drawn;
+    const show = drawing || scope === 'area';
+    src.setData({
+      type: 'FeatureCollection',
+      features:
+        !show || !pts.length
+          ? []
+          : [
+              drawing
+                ? { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: pts } }
+                : { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [[...pts, pts[0]]] } },
+              ...drawn.map((c) => ({ type: 'Feature' as const, properties: { vertex: 1 }, geometry: { type: 'Point' as const, coordinates: c } })),
+            ],
+    });
+  }
+  function startDraw() {
+    drawing = true;
+    drawn = [];
+    hover = null;
+    stopTour();
+    popup.remove();
+    map.doubleClickZoom.disable();
+    map.getCanvas().style.cursor = 'crosshair';
+    say('Click round the area you want to count. Double-click, or click the first point, to finish.');
+    showDrawn();
+  }
+  function endDraw(keep: boolean) {
+    drawing = false;
+    drawEnded = Date.now();
+    map.getCanvas().style.cursor = '';
+    setTimeout(() => map.doubleClickZoom.enable(), 350);
+    if (!keep || drawn.length < 3) {
+      drawn = keep ? drawn : [];
+      if (drawn.length < 3) {
+        drawn = [];
+        if (scope === 'area') {
+          scope = 'region';
+          for (const x of scopeEl.querySelectorAll<HTMLButtonElement>('button')) x.setAttribute('aria-checked', String(x.dataset.scope === 'region'));
+          showNumbers();
+          showBest();
+        }
+      }
+    }
+    showDrawn();
+    if (drawn.length >= 3) {
+      recountArea();
+      saveHash();
+    }
+  }
+  map.on('load', () => {
+    map.addSource('drawn', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+    map.addLayer({ id: 'drawn-fill', type: 'fill', source: 'drawn', filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': '#eef2ee', 'fill-opacity': 0.07 } });
+    map.addLayer({ id: 'drawn-line', type: 'line', source: 'drawn', filter: ['!=', ['geometry-type'], 'Point'], paint: { 'line-color': '#eef2ee', 'line-width': 2, 'line-dasharray': [3, 2] } });
+    map.addLayer({ id: 'drawn-pts', type: 'circle', source: 'drawn', filter: ['==', ['geometry-type'], 'Point'], paint: { 'circle-radius': 4, 'circle-color': '#0d1210', 'circle-stroke-color': '#eef2ee', 'circle-stroke-width': 2 } });
+    showDrawn();
+  });
+  map.on('click', (e) => {
+    if (!drawing) return;
+    const p = [e.lngLat.lng, e.lngLat.lat] as [number, number];
+    // Back on the first point closes the outline.
+    if (drawn.length >= 3) {
+      const first = map.project(drawn[0]);
+      if (Math.hypot(first.x - e.point.x, first.y - e.point.y) < 12) return endDraw(true);
+    }
+    drawn.push(p);
+    showDrawn();
+  });
+  map.on('dblclick', (e) => {
+    if (!drawing) return;
+    e.preventDefault();
+    // The double-click's two clicks each added a point: one is enough.
+    drawn.pop();
+    endDraw(true);
+  });
+  map.on('mousemove', (e) => {
+    if (!drawing) return;
+    hover = [e.lngLat.lng, e.lngLat.lat];
+    showDrawn();
+  });
+  addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && drawing) endDraw(false);
+  });
+
   // "This view" follows the map; the whole area does not need recounting.
   map.on('moveend', () => {
     if (scope === 'view') recountView();
@@ -1374,6 +1493,8 @@ const config = {
     b: [[number, number], [number, number]];
     c: number;
     i: [string, number, number, number, 0 | 1, Record<number, number>?][];
+    /** A drawn area, when there is one. */
+    d?: [number, number][];
   };
   const r4 = (v: number) => Number(v.toPrecision(4));
   let hashTimer = 0;
@@ -1392,6 +1513,7 @@ const config = {
         b: breaks,
         c: Number(cutIn.value),
         i: items.map((it) => [it.id, it.weight, r4(it.bad), r4(it.good), it.axis, ...(it.scores ? [it.scores] : [])] as Saved['i'][number]),
+        ...(drawn.length >= 3 ? { d: drawn.map(([x, y]) => [Number(x.toFixed(5)), Number(y.toFixed(5))] as [number, number]) } : {}),
       };
       const json = JSON.stringify(saved);
       const b64 = btoa(String.fromCharCode(...new TextEncoder().encode(json))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -1414,6 +1536,7 @@ const config = {
       axisNames = [String(saved.a?.[0] ?? AXIS_NAMES[0]).slice(0, 24), String(saved.a?.[1] ?? AXIS_NAMES[1]).slice(0, 24)];
       if (Array.isArray(saved.b)) breaks = saved.b;
       if (saved.c) cutIn.value = String(saved.c);
+      if (Array.isArray(saved.d) && saved.d.length >= 3) drawn = saved.d.slice(0, 200);
       return items.length > 0;
     } catch {
       return false;
@@ -1482,7 +1605,7 @@ const config = {
       ctx.font = `${12 * dpr}px system-ui, sans-serif`;
       ctx.fillStyle = '#9aa79f';
       y += line * 1.2;
-      ctx.fillText(`Combined by: ${OP_NAMES[op]}. ${scope === 'view' ? 'Numbers for the view.' : 'Numbers for the whole study area.'} ${stamp()}`, pad, y);
+      ctx.fillText(`Combined by: ${OP_NAMES[op]}. Numbers ${WHERE[scope]}. ${stamp()}`, pad, y);
       for (const l of lines) ctx.fillText(l, pad, (y += line));
       download(`ecoscapes-planning-${stamp()}.png`, out.toDataURL('image/png'));
     });
@@ -1490,12 +1613,12 @@ const config = {
   });
 
   document.getElementById('save-csv')!.addEventListener('click', () => {
-    const t = last ? (scope === 'view' ? last.view : last.region) : null;
+    const t = current();
     if (!items.length || !t) return say('Add a layer first.');
     const q = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
     const rows: (string | number)[][] = [
       ['EcoScapes planning support', stamp()],
-      ['Area', scope === 'view' ? 'the view' : 'the whole study area'],
+      ['Counted', WHERE[scope]],
       ['Combined by', OP_NAMES[op]],
       [],
       ['Layer', 'Group', 'Poor at', 'Best at', 'Weight'],
@@ -1536,6 +1659,7 @@ const config = {
   // ---- Why this place --------------------------------------------------------
   const popup = new maplibregl.Popup({ maxWidth: '20rem', focusAfterOpen: false });
   map.on('click', (e) => {
+    if (drawing || Date.now() - drawEnded < 400) return;
     stopTour();
     if (items.length) showWhy(e.lngLat);
   });
@@ -1614,7 +1738,7 @@ const config = {
   let bestOpen = false;
   let pins: maplibregl.Marker[] = [];
   const spots = () => {
-    const t = last ? (scope === 'view' ? last.view : last.region) : null;
+    const t = current();
     return (t?.best ?? []).map((b) => ({ at: lngLatOf(b.x, b.y), v: b.v }));
   };
   const spotValue = (v: number) => (effectiveMode() === 'two' ? `${Math.round(v * 100)}% high both` : String(Math.round(v * 100)));
@@ -1635,7 +1759,7 @@ const config = {
       (effectiveMode() === 'two'
         ? 'The places with the most land high on both scores, '
         : 'The places with the highest average score, ') +
-      `each over about 3 km around the pin, ${scope === 'view' ? 'in view' : 'across the study area'}. A tap gives one spot's own score.`;
+      `each over about 3 km around the pin, ${WHERE[scope]}. A tap gives one spot's own score.`;
     bestList.innerHTML = list
       .map((s, i) => `<li><button type="button" data-i="${i}"><b>${i + 1}</b><span>${esc(near(s.at.lng, s.at.lat))}</span><em>${spotValue(s.v)}</em></button></li>`)
       .join('');
