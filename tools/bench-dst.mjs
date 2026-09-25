@@ -21,11 +21,14 @@
 import { chromium } from 'playwright';
 
 const args = process.argv.slice(2);
-const url = (args[args.indexOf('--url') + 1] || 'http://localhost:4331').replace(/\/$/, '');
+const url = (args.includes('--url') ? args[args.indexOf('--url') + 1] : 'http://localhost:4331').replace(/\/$/, '');
 const gpu = args.includes('--gpu');
 
 const browser = await chromium.launch({
-  args: gpu ? [] : ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
+  // --gpu: the machine's own GPU through Metal (macOS); otherwise software.
+  args: gpu
+    ? ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist']
+    : ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
 });
 // No service worker: every tile comes over the network, as on a first visit.
 const context = await browser.newContext({ viewport: { width: 1400, height: 900 }, serviceWorkers: 'block' });
@@ -125,7 +128,7 @@ for (let i = 0; i < 5; i++)
 await step('add a layer (beaver)', () => page.selectOption('#criteria select[data-axis="0"]', 'habitat-beaver'));
 
 // A slider drag: 30 steps, one a frame, timing each frame.
-const drag = await page.evaluate(async () => {
+const dragOnce = () => page.evaluate(async () => {
   const input = document.querySelector('.crit input[data-k="good"]');
   const times = [];
   let last = performance.now();
@@ -140,11 +143,18 @@ const drag = await page.evaluate(async () => {
   times.sort((a, b) => a - b);
   return { median: times[15], worst: times[29] };
 });
+const drag = await dragOnce();
+// Again with "how steady" on: sixteen weightings a pixel instead of one.
+await page.check('#steady-on');
+await page.waitForTimeout(800);
+const dragSteady = await dragOnce();
 await page.waitForTimeout(2500);
 const counts = await page.evaluate(() => window.__dst.debug.counts.slice());
 
 console.table(rows);
-console.log(`slider drag: median frame ${drag.median.toFixed(1)} ms, worst ${drag.worst.toFixed(1)} ms${gpu ? '' : ' (software GL)'}`);
+const gl = gpu ? '' : ' (software GL)';
+console.log(`slider drag: median frame ${drag.median.toFixed(1)} ms, worst ${drag.worst.toFixed(1)} ms${gl}`);
+console.log(`slider drag, how steady on: median frame ${dragSteady.median.toFixed(1)} ms, worst ${dragSteady.worst.toFixed(1)} ms${gl}`);
 console.log(
   `area counts: ${counts.length} runs, median ${[...counts].sort((a, b) => a - b)[counts.length >> 1]?.toFixed(0)} ms, ` +
     `worst ${Math.max(...counts).toFixed(0)} ms`,
