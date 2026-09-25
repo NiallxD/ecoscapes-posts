@@ -133,7 +133,16 @@ const config = {
 
     <div class="map-side">
       <!-- Flat, or the scores laid over the ground's own shape. -->
-      <button class="step" id="three-d" type="button" aria-pressed="false" aria-label="3D view" title="3D view"><span class="step-text">3D</span></button>
+      <!-- The tilt, sliding out of the button while 3D is on: a mouse's
+           way to it (a right-drag also tilts). Not on a touch screen, where
+           two fingers do it. -->
+      <div class="tilt-wrap">
+        <label class="tilt" id="tilt" aria-hidden="true">
+          <span>Tilt</span>
+          <input type="range" min="0" max="80" step="1" value="60" tabindex="-1" aria-label="Tilt" />
+        </label>
+        <button class="step" id="three-d" type="button" aria-pressed="false" aria-label="3D view" title="3D view"><span class="step-text">3D</span></button>
+      </div>
       <button class="step" id="here" type="button" aria-label="Score where I am" title="Score where I am">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
           <circle cx="12" cy="12" r="4" /><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3" />
@@ -560,7 +569,7 @@ const config = {
   import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
   import { Protocol } from 'pmtiles';
   import { studyStyle } from '../lib/study-style';
-  import { addRelief, addSky, flat, setThreeD } from '../lib/terrain';
+  import { addRelief, addSky, flat, threeDButton } from '../lib/terrain';
   import { ScoreLayer, MAX_CRITERIA, scoreOf, criterionLut, type Criterion, type Op } from '../lib/dst/score-layer';
   import type { Grid, StatsRequest, StatsResponse, Tally } from '../lib/dst/stats-worker';
 
@@ -815,12 +824,7 @@ const config = {
 
   // The scores over the ground's own shape, tilted: the score layer follows
   // the terrain itself (score-layer.ts), so the sliders are as quick in 3D.
-  const threeD = document.getElementById('three-d')!;
-  threeD.addEventListener('click', () => {
-    const on = threeD.getAttribute('aria-pressed') !== 'true';
-    threeD.setAttribute('aria-pressed', String(on));
-    setThreeD(map, abs(config.terrain), on);
-  });
+  threeDButton(map, abs(config.terrain), document.getElementById('three-d')!, document.getElementById('tilt')!);
 
   const toast = document.getElementById('toast')!;
   let toastTimer = 0;

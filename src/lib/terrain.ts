@@ -71,6 +71,28 @@ export function setThreeD(map: MlMap, url: string, on: boolean) {
   }
 }
 
+/** The 3D button, and the tilt slider that slides out of it while 3D is on.
+ *  The slider follows the map as well as leading it: a right-drag or a
+ *  keyboard tilt moves it too. */
+export function threeDButton(map: MlMap, url: string, button: HTMLElement, tilt: HTMLElement) {
+  const input = tilt.querySelector('input')!;
+  const show = (on: boolean) => {
+    tilt.classList.toggle('open', on);
+    tilt.setAttribute('aria-hidden', String(!on));
+    input.tabIndex = on ? 0 : -1;
+  };
+  button.addEventListener('click', () => {
+    const on = button.getAttribute('aria-pressed') !== 'true';
+    button.setAttribute('aria-pressed', String(on));
+    show(on);
+    setThreeD(map, url, on);
+  });
+  input.addEventListener('input', () => map.setPitch(Number(input.value)));
+  map.on('pitch', () => {
+    if (document.activeElement !== input) input.value = String(Math.round(map.getPitch()));
+  });
+}
+
 /** The hand controls for a flat map: no turning, no tilting. */
 export function flat(map: MlMap) {
   map.dragRotate.disable();

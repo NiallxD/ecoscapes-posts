@@ -57,7 +57,16 @@ const config = {
         </svg>
       </button>
       <!-- Flat, or tilted over the ground's own shape. -->
-      <button class="step" id="three-d" type="button" aria-pressed="false" aria-label="3D view" title="3D view"><span class="step-text">3D</span></button>
+      <!-- The tilt, sliding out of the button while 3D is on: a mouse's
+           way to it (a right-drag also tilts). Not on a touch screen, where
+           two fingers do it. -->
+      <div class="tilt-wrap">
+        <label class="tilt" id="tilt" aria-hidden="true">
+          <span>Tilt</span>
+          <input type="range" min="0" max="80" step="1" value="60" tabindex="-1" aria-label="Tilt" />
+        </label>
+        <button class="step" id="three-d" type="button" aria-pressed="false" aria-label="3D view" title="3D view"><span class="step-text">3D</span></button>
+      </div>
       <!-- Where you are, in three: off, following you, following you with the
            compass. Each tap steps on; after a drag it takes hold again first. -->
       <button class="step" id="locate" type="button" aria-label="Follow me" data-mode="off">
@@ -468,7 +477,7 @@ const config = {
   import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
   import { Protocol } from 'pmtiles';
   import { layers as basemapLayers, namedFlavor } from '@protomaps/basemaps';
-  import { addRelief, addSky, flat, setThreeD } from '../lib/terrain';
+  import { addRelief, addSky, flat, threeDButton } from '../lib/terrain';
   import { headingOf as compassHeading, requestCompass, hasCompassApi, needsTap, ORIENTATION_EVENTS } from '../lib/compass';
 
   type Legend = { colour: string; label: string };
@@ -703,12 +712,7 @@ const config = {
   // ---- 3D ----------------------------------------------------------------
   // The ground raised and the map tilted over it; turning and tilting by hand
   // only while it is on. Off, level and north-up again.
-  const threeD = document.getElementById('three-d')!;
-  threeD.addEventListener('click', () => {
-    const on = threeD.getAttribute('aria-pressed') !== 'true';
-    threeD.setAttribute('aria-pressed', String(on));
-    setThreeD(map, abs(config.terrain), on);
-  });
+  threeDButton(map, abs(config.terrain), document.getElementById('three-d')!, document.getElementById('tilt')!);
 
   const setLayer = (id: string, on: boolean) => {
     state.get(id)!.on = on;

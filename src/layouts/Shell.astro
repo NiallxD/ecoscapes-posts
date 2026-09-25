@@ -192,6 +192,32 @@ const { title, description = 'Scan the post. See the place, then see it change.'
       /* A step that says what it does in a word rather than a picture (3D). */
       .step-text { font-size: 0.8rem; font-weight: 600; letter-spacing: 0.03em; }
       .step[aria-pressed='true'] { border-color: var(--accent); color: var(--accent); }
+      /* The tilt slider (src/lib/terrain.ts): a pill that slides out to the
+         left from behind the 3D button while 3D is on. Only with a mouse and
+         room for it; a touch screen tilts with two fingers. */
+      .tilt-wrap { position: relative; }
+      .tilt { display: none; }
+      @media (hover: hover) and (pointer: fine) and (min-width: 48rem) {
+        .tilt {
+          position: absolute; z-index: -1;
+          top: 0; right: 23px; height: 46px;
+          display: flex; align-items: center; gap: 0.6rem;
+          width: 0; padding: 0; overflow: hidden;
+          border-radius: 23px 0 0 23px;
+          background: rgba(13, 18, 16, 0.72);
+          border: 1px solid rgba(255, 255, 255, 0.2); border-right: 0;
+          backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+          font-size: 0.72rem; letter-spacing: 0.04em; color: var(--ink-dim);
+          white-space: nowrap;
+          opacity: 0; pointer-events: none;
+          transition: width 0.26s ease, padding 0.26s ease, opacity 0.18s;
+        }
+        .tilt.open {
+          width: 12.5rem; padding: 0 calc(23px + 0.9rem) 0 1rem;
+          opacity: 1; pointer-events: auto;
+        }
+        .tilt input { flex: 1; min-width: 0; margin: 0; accent-color: var(--accent); cursor: pointer; }
+      }
       /* Whichever ends exist keep their own corner, with no placeholder element
          for a missing one. */
       .step-prev { margin-right: auto; }
