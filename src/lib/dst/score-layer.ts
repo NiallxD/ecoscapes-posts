@@ -531,8 +531,3 @@ export class ScoreLayer implements CustomLayerInterface {
 
 const UNITS = Array.from({ length: MAX_CRITERIA }, (_, i) => i);
 const rgb01 = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
-
-/** A threshold in a layer's own units as the byte it would be stored as. */
-export function thresholdByte(layer: { lo: number; hi: number }, t: number) {
-  return 1 + ((t - layer.lo) / (layer.hi - layer.lo || 1)) * 254;
-}

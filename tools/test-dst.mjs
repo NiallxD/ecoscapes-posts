@@ -63,7 +63,7 @@ check('WebGL 2 layer is on the map', await page.evaluate(() => !!window.__dst.ma
 
 // Every example.
 const presets = await page.locator('#presets button').allInnerTexts();
-check('six examples', presets.length === 6, presets.join(', '));
+check('eight examples', presets.length === 8, presets.join(', '));
 for (const p of presets) {
   await page.click(`#presets button:text-is("${p}")`);
   await settle();
