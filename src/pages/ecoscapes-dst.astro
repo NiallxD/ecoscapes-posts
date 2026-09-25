@@ -94,6 +94,11 @@ const config = {
         <label class="key-op"><span>Counts as a good fit from <output id="cut-out">70</output></span>
           <input id="cut" type="range" min="5" max="95" step="5" value="70" /></label>
         <label class="key-check"><input id="only" type="checkbox" /> Only show places above it</label>
+        <label class="key-check" id="steady-label"><input id="steady-on" type="checkbox" /> Show how steady it is</label>
+        <div class="steady" id="steady" hidden>
+          <p>Every weight nudged up and down, sixteen times over. Brightest where a place stays a good fit however the weights shift; dim where it hinges on exactly how they were set.</p>
+          <div class="steady-rows" id="steady-rows"></div>
+        </div>
       </div>
       <!-- Two scores: the nine-cell key, which is also the numbers -- each
            cell's area on hover, and a click shows that cell alone. -->
@@ -353,6 +358,14 @@ const config = {
   .key.loading .big, .key.loading .spread { opacity: 0.45; transition: opacity 0.2s; }
   .key-check { display: flex; align-items: center; gap: 0.45rem; margin-top: 0.45rem; font-size: 0.74rem; color: var(--ink-dim); cursor: pointer; }
   .key-check input { margin: 0; accent-color: var(--accent); }
+  .key-check.off { opacity: 0.45; cursor: not-allowed; }
+  .steady { margin-top: 0.5rem; padding: 0.55rem 0.6rem; border-radius: 9px; background: var(--bg-lift); }
+  .steady[hidden] { display: none; }
+  .steady p { margin: 0 0 0.45rem; font-size: 0.7rem; line-height: 1.45; color: var(--ink-dim); }
+  .steady-rows { display: grid; gap: 0.2rem; }
+  .steady-rows :global(div) { display: grid; grid-template-columns: 10px 1fr auto auto; align-items: center; gap: 0.45rem; font-size: 0.74rem; }
+  .steady-rows :global(i) { width: 10px; height: 10px; border-radius: 2px; }
+  .steady-rows :global(span) { color: var(--ink-dim); font-variant-numeric: tabular-nums; }
   .key-op output { color: var(--ink); font-variant-numeric: tabular-nums; }
   /* One key or the other, by mode. */
   .key-two { display: none; }
@@ -794,6 +807,7 @@ const config = {
     score.setModel(criteria(), op);
     const two = effectiveMode() === 'two';
     score.setBivariate(two ? { breaks, palette: PALETTE, only } : null);
+    syncSteady();
     page.classList.toggle('bi-on', two);
     page.classList.toggle('soloing', soloing());
     document.getElementById('key-title')!.textContent = two ? 'Where they meet' : 'How much fits';
@@ -1115,6 +1129,9 @@ const config = {
   const cutIn = document.getElementById('cut') as HTMLInputElement;
   const cutOut = document.getElementById('cut-out')!;
   const onlyIn = document.getElementById('only') as HTMLInputElement;
+  const steadyIn = document.getElementById('steady-on') as HTMLInputElement;
+  /** How steady is shown when asked for and there are weights to nudge. */
+  const steadyActive = () => steadyIn.checked && effectiveMode() === 'one' && op === 'mean' && criteria().length > 1;
   const scopeEl = document.getElementById('scope')!;
   type Scope = 'region' | 'view' | 'area';
   let scope: Scope = 'region';
@@ -1160,6 +1177,7 @@ const config = {
       op,
       cut: cut(),
       breaks: effectiveMode() === 'two' ? breaks : null,
+      steady: steadyActive(),
       layers: cs.map((c) => ({ src: abs(byId.get(c.layer.id)!.sampleSrc), weight: c.weight, axis: c.axis ?? 0 })),
       luts,
     };
@@ -1168,7 +1186,7 @@ const config = {
    *  answered from here, so going back and forth costs nothing. */
   const regionCache = new Map<string, Tally>();
   const modelKey = (m: ReturnType<typeof statsModel>) =>
-    JSON.stringify([m.op, m.cut, m.breaks, m.layers, Array.from(m.luts)]);
+    JSON.stringify([m.op, m.cut, m.breaks, m.steady, m.layers, Array.from(m.luts)]);
 
   function recount() {
     clearTimeout(countTimer);
@@ -1255,6 +1273,17 @@ const config = {
     pctEl.textContent = `${Math.round((t.above / t.total) * 100)}%`;
     kmEl.innerHTML = `${km2(t.above)}<br>scores ${c} or more`;
     spreadEl.innerHTML = spreadSvg(t, cut());
+    const rows = document.getElementById('steady-rows')!;
+    if (steadyActive() && t.steady.length === 4) {
+      const NAMES = ['Always a good fit', 'Mostly (12–15 of 16)', 'Sometimes (1–11)', 'Never'];
+      const SHADES = [1, 0.85, 0.45, 0];
+      rows.innerHTML = t.steady
+        .map(
+          (a, i) =>
+            `<div><i style="background:${rampCss(SHADES[i])}"></i>${NAMES[i]}<span>${km2(a)}</span><span>${Math.round((a / t.total) * 100)}%</span></div>`,
+        )
+        .join('');
+    } else rows.innerHTML = '';
     footEl.textContent =
       `Of the ${km2(t.total)} ${WHERE[scope]} that these layers cover. ` +
       `Average score ${Math.round(t.mean * 100)}. ${precision(t)}`;
@@ -1367,8 +1396,31 @@ const config = {
     saveHash();
   });
 
+  /** The steadiness switch: usable only with weights to nudge, and the map
+   *  and its note to match. */
+  function syncSteady() {
+    const can = effectiveMode() === 'one' && op === 'mean' && criteria().length > 1;
+    const label = document.getElementById('steady-label')!;
+    steadyIn.disabled = !can;
+    label.classList.toggle('off', !can);
+    label.title = can
+      ? ''
+      : effectiveMode() === 'two'
+        ? 'For one score.'
+        : op !== 'mean'
+          ? 'Only weighing up has weights to nudge.'
+          : 'Needs two or more layers to weigh against each other.';
+    score.setSteady(steadyActive() ? cut() : null);
+    document.getElementById('steady')!.hidden = !steadyActive();
+  }
+  steadyIn.addEventListener('change', () => {
+    syncSteady();
+    recount();
+    saveHash();
+  });
   cutIn.addEventListener('input', () => {
     if (onlyIn.checked) score.setCut(cut());
+    if (steadyActive()) score.setSteady(cut());
     showNumbers();
     recount();
     saveHash();
@@ -1479,7 +1531,12 @@ const config = {
     showDrawn();
   });
   addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && drawing) endDraw(false);
+    if (e.key !== 'Escape') return;
+    if (drawing) endDraw(false);
+    else {
+      popup.remove();
+      stopTour();
+    }
   });
 
   // "This view" follows the map; the whole area does not need recounting.
@@ -1509,6 +1566,8 @@ const config = {
     i: [string, number, number, number, 0 | 1, Record<number, number>?][];
     /** A drawn area, when there is one. */
     d?: [number, number][];
+    /** How steady is showing. */
+    s?: 1;
   };
   const r4 = (v: number) => Number(v.toPrecision(4));
   let hashTimer = 0;
@@ -1527,6 +1586,7 @@ const config = {
         b: breaks,
         c: Number(cutIn.value),
         i: items.map((it) => [it.id, it.weight, r4(it.bad), r4(it.good), it.axis, ...(it.scores ? [it.scores] : [])] as Saved['i'][number]),
+        ...(steadyIn.checked ? { s: 1 as const } : {}),
         ...(drawn.length >= 3 ? { d: drawn.map(([x, y]) => [Number(x.toFixed(5)), Number(y.toFixed(5))] as [number, number]) } : {}),
       };
       const json = JSON.stringify(saved);
@@ -1551,6 +1611,7 @@ const config = {
       if (Array.isArray(saved.b)) breaks = saved.b;
       if (saved.c) cutIn.value = String(saved.c);
       if (Array.isArray(saved.d) && saved.d.length >= 3) drawn = saved.d.slice(0, 200);
+      steadyIn.checked = saved.s === 1;
       return items.length > 0;
     } catch {
       return false;

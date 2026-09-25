@@ -1,5 +1,5 @@
 import type { CustomLayerInterface, CustomRenderMethodInput, Map as MlMap } from 'maplibre-gl';
-import { MAX_CRITERIA, combineScores, criterionLut, valueOf, type Bivariate, type Criterion, type Op } from './model';
+import { MAX_CRITERIA, RUNS, VARIATIONS, combineScores, criterionLut, valueOf, type Bivariate, type Criterion, type Op } from './model';
 import type { TileReply, TileRequest } from './tile-worker';
 
 export { MAX_CRITERIA, combineScores, scoreOf, criterionLut, band, valueOf } from './model';
@@ -52,6 +52,8 @@ const slot = (i: number) => `
     float b = floor(texture(u_v[${i}], u_uv[${i}].xy + v_pos * u_uv[${i}].z).r * 255.0 + 0.5);
     if (b > 0.5) {
       float s = texelFetch(u_lut, ivec2(int(b), ${i}), 0).r;
+      sv[${i}] = s;
+      hv[${i}] = true;
       int k = u_mode == 1 && u_axis[${i}] > 0.5 ? 1 : 0;
       sum[k] += s * u_w[${i}];
       wsum[k] += u_w[${i}];
@@ -76,6 +78,9 @@ uniform int u_mode;            // 0 one score, 1 two scores (bivariate)
 uniform vec4 u_brk;            // first axis low/high break, second axis low/high
 uniform vec3 u_pal[9];
 uniform int u_only;            // two scores: the one cell to draw, or -1
+uniform int u_steady;          // 1: how steady, not the score (one score, weighted mean)
+uniform float u_steadyCut;     // the cut-off each variation is judged against
+uniform vec4 u_var[${RUNS * 2}];       // the ${RUNS} weight variations, ${MAX_CRITERIA} a run in two vec4s
 in vec2 v_pos;
 out vec4 frag;
 vec3 ramp(float s) {
@@ -103,6 +108,9 @@ void main() {
   float sum[2] = float[2](0.0, 0.0), wsum[2] = float[2](0.0, 0.0);
   float lo[2] = float[2](1.0, 1.0), hi[2] = float[2](0.0, 0.0);
   int seen[2] = int[2](0, 0);
+  float sv[${MAX_CRITERIA}];
+  bool hv[${MAX_CRITERIA}];
+  for (int i = 0; i < ${MAX_CRITERIA}; i++) { sv[i] = 0.0; hv[i] = false; }
 ${Array.from({ length: MAX_CRITERIA }, (_, i) => slot(i)).join('')}
   if (u_mode == 1) {
     // A place needs both scores to have a cell.
@@ -115,6 +123,28 @@ ${Array.from({ length: MAX_CRITERIA }, (_, i) => slot(i)).join('')}
     return;
   }
   if (seen[0] == 0) discard;
+  if (u_steady == 1) {
+    // The same model with each weight nudged, ${RUNS} times: in how many does
+    // this place still clear the cut-off?
+    int pass = 0;
+    for (int v = 0; v < ${RUNS}; v++) {
+      vec4 a = u_var[v * 2], c = u_var[v * 2 + 1];
+      float nudge[${MAX_CRITERIA}] = float[${MAX_CRITERIA}](a.x, a.y, a.z, a.w, c.x, c.y, c.z, c.w);
+      float sm = 0.0, ws = 0.0;
+      for (int i = 0; i < ${MAX_CRITERIA}; i++) {
+        if (i >= u_n) break;
+        if (!hv[i]) continue;
+        float w = u_w[i] * nudge[i];
+        sm += sv[i] * w;
+        ws += w;
+      }
+      if (ws > 0.0 && sm / ws >= u_steadyCut) pass++;
+    }
+    float f = float(pass) / ${RUNS}.0;
+    float a = u_opacity * mix(0.55, 0.95, f);
+    frag = vec4(ramp(f) * a, a);
+    return;
+  }
   float score = combine(u_op, sum[0], wsum[0], lo[0], hi[0]);
   if (score < u_cut) discard;
   float a = u_opacity * mix(0.55, 0.95, score);
@@ -142,6 +172,8 @@ export class ScoreLayer implements CustomLayerInterface {
   private opacity = 0.85;
   private cut = 0;
   private bi: Bivariate | null = null;
+  /** How steady, against this cut-off (0..1), or null for the score. */
+  private steady: number | null = null;
   private lut = new Uint8Array(256 * MAX_CRITERIA);
   private lutDirty = true;
 
@@ -184,6 +216,12 @@ export class ScoreLayer implements CustomLayerInterface {
   }
   setOpacity(o: number) {
     this.opacity = o;
+    this.map?.triggerRepaint();
+  }
+  /** Show how steady the result is -- in how many of the weight variations
+   *  each place clears `cut` -- or null to show the score. */
+  setSteady(cut: number | null) {
+    this.steady = cut;
     this.map?.triggerRepaint();
   }
   /** Draw only places scoring at least this (0..1); 0 draws everything. */
@@ -336,7 +374,7 @@ export class ScoreLayer implements CustomLayerInterface {
     if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p) ?? 'link');
     this.prog = p;
     for (const u of ['u_matrix', 'u_tile', 'u_v', 'u_lut', 'u_uv', 'u_n', 'u_op', 'u_w', 'u_axis', 'u_opacity',
-      'u_cut', 'u_mode', 'u_brk', 'u_pal', 'u_only'])
+      'u_cut', 'u_mode', 'u_brk', 'u_pal', 'u_only', 'u_steady', 'u_steadyCut', 'u_var'])
       this.loc[u] = gl.getUniformLocation(p, u);
 
     // Its own vertex array, so nothing here touches MapLibre's.
@@ -446,6 +484,12 @@ export class ScoreLayer implements CustomLayerInterface {
     g.uniform1fv(this.loc.u_axis, pad(cs.map((c) => c.axis ?? 0)));
     g.uniform1f(this.loc.u_opacity, this.opacity);
     g.uniform1f(this.loc.u_cut, this.cut);
+    const steady = this.steady !== null && !this.bi && this.op === 'mean';
+    g.uniform1i(this.loc.u_steady, steady ? 1 : 0);
+    if (steady) {
+      g.uniform1f(this.loc.u_steadyCut, this.steady!);
+      g.uniform4fv(this.loc.u_var, VARIATIONS);
+    }
     const bi = this.bi;
     g.uniform1i(this.loc.u_mode, bi ? 1 : 0);
     if (bi) {

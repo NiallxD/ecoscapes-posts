@@ -1,4 +1,5 @@
 /// <reference lib="webworker" />
+import { MAX_CRITERIA, RUNS, STEADY, VARIATIONS } from './model';
 /** Areas for the planning tool: how much of the study area -- or of the view
  *  -- the current model scores at or above a cut-off, the spread of its
  *  scores, and with two scores the area in each of the nine cells.
@@ -32,6 +33,8 @@ export type StatsRequest = {
   area?: [number, number][];
   /** Two scores: each axis's low/high breaks. Null for one score. */
   breaks: [[number, number], [number, number]] | null;
+  /** Also count how steady the result is (one score, weighted mean). */
+  steady?: boolean;
 };
 /** A hotspot: the middle of a block, in z-pixel coordinates, and its
  *  strength (0..1). */
@@ -47,6 +50,9 @@ export type Tally = {
   cells: number[];
   points: number;
   best: Spot[];
+  /** How steady: the area clearing the cut-off in all, most (STEADY.mostly
+   *  or more), some, and none of the weight variations. Empty unless asked. */
+  steady: number[];
 };
 export type StatsResponse = { seq: number; kind: Kind; tally: Tally; ms: number } | { seq: number; kind: Kind; loading: true };
 
@@ -144,7 +150,19 @@ function count(req: StatsRequest, arrays: Uint8Array[]): Tally {
   // Which cells to count, row by row: everything, the view's rectangle, or
   // the spans of each row inside a drawn area.
   const spans = spansFor(req, g);
-  const t: Tally = { total: 0, above: 0, mean: 0, hist: new Array(BINS).fill(0), cells: new Array(9).fill(0), points: 0, best: [] };
+  const t: Tally = {
+    total: 0,
+    above: 0,
+    mean: 0,
+    hist: new Array(BINS).fill(0),
+    cells: new Array(9).fill(0),
+    points: 0,
+    best: [],
+    steady: [],
+  };
+  const steady = !!req.steady && !two && op === 'mean';
+  if (steady) t.steady = [0, 0, 0, 0];
+  const sk = new Float32Array(n), hk = new Uint8Array(n);
   // Per block: the area with data, and the strength -- the score (one score)
   // or high on both (two scores) -- summed by area.
   const bw = Math.ceil(g.w / BLOCK), bh = Math.ceil(g.h / BLOCK);
@@ -163,8 +181,10 @@ function count(req: StatsRequest, arrays: Uint8Array[]): Tally {
       lo[0] = lo[1] = 1;
       for (let k = 0; k < n; k++) {
         const b = arrays[k][i];
+        hk[k] = b ? 1 : 0;
         if (!b) continue;
         const s = lut[k * 256 + b];
+        sk[k] = s;
         const x = ax[k];
         sum[x] += s * w[k];
         wsum[x] += w[k];
@@ -188,6 +208,21 @@ function count(req: StatsRequest, arrays: Uint8Array[]): Tally {
       const bi = ((r / BLOCK) | 0) * bw + ((c / BLOCK) | 0);
       bArea[bi] += a;
       bStrength[bi] += strength * a;
+      if (steady) {
+        // As the shader does it: the same scores, each weight nudged, RUNS times.
+        let pass = 0;
+        for (let v = 0; v < RUNS; v++) {
+          let sm = 0, ws = 0;
+          for (let k = 0; k < n; k++) {
+            if (!hk[k]) continue;
+            const wv = w[k] * VARIATIONS[v * MAX_CRITERIA + k];
+            sm += sk[k] * wv;
+            ws += wv;
+          }
+          if (ws > 0 && sm / ws >= cut) pass++;
+        }
+        t.steady[pass === STEADY.always ? 0 : pass >= STEADY.mostly ? 1 : pass > 0 ? 2 : 3] += a;
+      }
       t.total += a;
       t.points++;
       t.hist[Math.min(BINS - 1, Math.floor(score * BINS))] += a;

@@ -81,6 +81,22 @@ await page.waitForSelector('.maplibregl-popup-content', { timeout: 10000 });
 const popup = await text('.maplibregl-popup-content');
 check('tap explains a place', /out of 100|No data/.test(popup), popup.slice(0, 90));
 
+// How steady: the four parts add up to the whole, and only for weighing up.
+await page.check('#steady-on');
+await settle();
+// The count with sixteen variations takes a moment longer than the map.
+await page.waitForFunction(() => document.querySelectorAll('#steady-rows div').length === 4, null, { timeout: 30000 });
+await shot('how-steady');
+const parts = await page.locator('#steady-rows div span:first-of-type').allInnerTexts();
+const sum = parts.reduce((t, p) => t + Number(p.replace(/[^\d.]/g, '')), 0);
+const whole = Number((await text('#key-foot')).match(/Of the ([\d,.]+) km²/)[1].replace(/,/g, ''));
+check('how steady: always + mostly + sometimes + never = the whole', parts.length === 4 && Math.abs(sum - whole) <= 3, `${sum} vs ${whole} km²`);
+await page.click('#op button[data-op="and"]');
+check('how steady is off where there are no weights', await page.locator('#steady-on').isDisabled());
+await page.click('#op button[data-op="mean"]');
+await page.uncheck('#steady-on');
+await settle();
+
 // One layer alone.
 await page.keyboard.press('Escape');
 const before = await text('#pct');

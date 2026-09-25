@@ -67,3 +67,20 @@ export function combineScores(scores: { score: number; weight: number }[], op: O
 
 /** Low / middle / high on one axis of the two-score grid. */
 export const band = (s: number, [lo, hi]: [number, number]) => (s < lo ? 0 : s < hi ? 1 : 2);
+
+/** How steady a result is: the same model with every weight nudged, sixteen
+ *  times over. VARIATIONS[v * MAX_CRITERIA + i] multiplies layer i's weight
+ *  in variation v, between about x0.66 and x1.5 -- evenly on a log scale, so
+ *  a weight is as likely to shrink by a third as to grow by half. Fixed, not
+ *  random each time, so the map, the numbers and a shared link all see the
+ *  same sixteen. Only the weighted mean has weights to nudge. */
+export const RUNS = 16;
+export const VARIATIONS = (() => {
+  const out = new Float32Array(RUNS * MAX_CRITERIA);
+  let seed = 20260925;
+  const rand = () => (seed = (Math.imul(seed, 1103515245) + 12345) >>> 0) / 2 ** 32;
+  for (let i = 0; i < out.length; i++) out[i] = 2 ** (rand() * 1.2 - 0.6);
+  return out;
+})();
+/** How many of the RUNS count as "always" and "mostly". */
+export const STEADY = { always: RUNS, mostly: 12 };
