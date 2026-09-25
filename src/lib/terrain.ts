@@ -14,6 +14,9 @@ export const TERRAIN_ATTRIBUTION = '<a href="https://mapterhorn.com/attribution"
  *  dramatic already; a little more reads better from above at a slant. */
 const EXAGGERATION = 1.3;
 const PITCH = 60;
+/** How far over it can be tilted by hand: down near the ground, looking along
+ *  the valleys rather than into them. (MapLibre's own limit is 85.) */
+const MAX_PITCH = 80;
 
 const dem = (url: string) =>
   ({ type: 'raster-dem', url: `pmtiles://${url}`, encoding: 'terrarium', tileSize: 512, attribution: TERRAIN_ATTRIBUTION }) as const;
@@ -51,6 +54,7 @@ export function setThreeD(map: MlMap, url: string, on: boolean) {
   if (on) {
     if (!map.getSource('terrain')) map.addSource('terrain', dem(url));
     map.setTerrain({ source: 'terrain', exaggeration: EXAGGERATION });
+    map.setMaxPitch(MAX_PITCH);
     map.dragRotate.enable();
     map.touchZoomRotate.enableRotation();
     map.touchPitch.enable();
