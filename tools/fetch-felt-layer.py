@@ -161,7 +161,7 @@ def auto_zoom(url_tmpl, band, bbox, cache_dir, zmin=9, zmax=13):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--id", required=True)
-    ap.add_argument("--layers", default="felt_layers_full.json")
+    ap.add_argument("--layers", default="archive/felt_layers_full.json")
     ap.add_argument("--out", required=True)
     ap.add_argument("--cache", required=True)
     ap.add_argument("--bbox", default="-123.9,49.28,-122.05,50.45")

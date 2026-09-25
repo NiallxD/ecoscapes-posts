@@ -1555,7 +1555,7 @@ const config = {
     hover = [e.lngLat.lng, e.lngLat.lat];
     showDrawn();
   });
-  addEventListener('keydown', (e) => {
+  window.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     if (drawing) endDraw(false);
     else {

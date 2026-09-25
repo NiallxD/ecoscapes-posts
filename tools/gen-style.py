@@ -161,7 +161,7 @@ def discrete_breaks_from_tif(tif_path, count):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--id", required=True)
-    ap.add_argument("--layers", default="felt_layers_full.json")
+    ap.add_argument("--layers", default="archive/felt_layers_full.json")
     ap.add_argument("--out", required=True)
     ap.add_argument("--tif", default=None, help="fetched value GeoTIFF, used only as a "
                      "fallback to compute Jenks breaks when Felt's own stats lack them")
