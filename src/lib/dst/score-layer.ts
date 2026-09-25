@@ -20,7 +20,8 @@ export type { Bivariate, Criterion, Op, ValueLayer } from './model';
  *    layer has something for it, so a half-loaded model never shows a score
  *    it does not have.
  *  - Requests are made nearest the middle of the view first, and dropped when
- *    the view moves on before they are answered.
+ *    the view moves on before they are answered. Behind them, a ring of tiles
+ *    just outside the view, so a pan finds its new edge already loaded.
  *
  *  Mercator only. */
 
@@ -160,10 +161,14 @@ export class ScoreLayer implements CustomLayerInterface {
   }
 
   // ---- State ---------------------------------------------------------------
-  /** Tiles still to come for the current view: 0 once everything is drawn. */
+  /** Tiles still to come for the view itself (not the ring round it): 0 once
+   *  everything in view is drawn. */
   get pending() {
-    return this.inflight.size + this.queue.length;
+    let n = 0;
+    for (const k of this.visible) if (!this.textures.has(k)) n++;
+    return n;
   }
+  private visible = new Set<string>();
 
   setModel(criteria: Criterion[], op: Op) {
     this.criteria = criteria.slice(0, MAX_CRITERIA);
@@ -185,6 +190,12 @@ export class ScoreLayer implements CustomLayerInterface {
   setCut(c: number) {
     this.cut = c;
     this.map?.triggerRepaint();
+  }
+
+  /** Get these layers' files ready (their headers and directories), so their
+   *  first tiles are one request each when they are wanted. */
+  warm(srcs: string[]) {
+    this.post({ type: 'warm', srcs });
   }
 
   // ---- Tiles ---------------------------------------------------------------
@@ -380,6 +391,7 @@ export class ScoreLayer implements CustomLayerInterface {
     const g = gl as WebGL2RenderingContext;
     const cs = this.criteria;
     if (!cs.length) {
+      this.visible = new Set();
       this.want([]);
       return;
     }
@@ -394,9 +406,25 @@ export class ScoreLayer implements CustomLayerInterface {
     const my = ((1 - Math.log(Math.tan(lat) + 1 / Math.cos(lat)) / Math.PI) / 2) * n;
     const dist = (t: (typeof tiles)[number]) => (t.canonical.x + 0.5 - mx) ** 2 + (t.canonical.y + 0.5 - my) ** 2;
     const list: Want[] = [];
-    for (const t of [...tiles].sort((a, b) => dist(a) - dist(b))) {
-      const { z, x, y } = t.canonical;
+    const add = (z: number, x: number, y: number) => {
       for (const cr of cs) list.push({ key: `${cr.layer.id}/${z}/${x}/${y}`, src: cr.layer.src, z, x, y });
+    };
+    const sorted = [...tiles].sort((a, b) => dist(a) - dist(b));
+    for (const t of sorted) add(t.canonical.z, t.canonical.x, t.canonical.y);
+    this.visible = new Set(list.map((q) => q.key));
+    // The ring round the view, once everything in it has come -- so it never
+    // competes with what can be seen -- and not while zoomed far out, where
+    // the view is most of the study area already.
+    const z = tiles[0]?.canonical.z ?? MINZ;
+    const inView = list.every((q) => this.textures.has(q.key));
+    if (inView && z >= 9 && tiles.length) {
+      const xs = tiles.map((t) => t.canonical.x), ys = tiles.map((t) => t.canonical.y);
+      const [x0, x1, y0, y1] = [Math.min(...xs) - 1, Math.max(...xs) + 1, Math.min(...ys) - 1, Math.max(...ys) + 1];
+      const ring: [number, number][] = [];
+      for (let x = x0; x <= x1; x++) ring.push([x, y0], [x, y1]);
+      for (let y = y0 + 1; y < y1; y++) ring.push([x0, y], [x1, y]);
+      ring.sort((a, b) => (a[0] + 0.5 - mx) ** 2 + (a[1] + 0.5 - my) ** 2 - ((b[0] + 0.5 - mx) ** 2 + (b[1] + 0.5 - my) ** 2));
+      for (const [x, y] of ring) if (x >= 0 && y >= 0 && x < 2 ** z && y < 2 ** z) add(z, x, y);
     }
     this.want(list);
 

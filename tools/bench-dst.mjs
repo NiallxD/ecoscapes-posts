@@ -65,6 +65,26 @@ async function step(name, act) {
   await page.evaluate(() => (window.__long.length = 0));
   const b0 = bytes, r0 = requests;
   const t0 = Date.now();
+  // In the page: the first frame after which the planning layer has nothing
+  // left to load for three frames running -- its own drawing, not the basemap's.
+  const scored = page.evaluate(
+    () =>
+      new Promise((done) => {
+        const t = performance.now();
+        let calm = 0, started = false;
+        const tick = () => {
+          const p = window.__dst.score.pending;
+          if (p) started = true;
+          calm = p ? 0 : calm + 1;
+          if (started && calm >= 3) return done(performance.now() - t);
+          if (performance.now() - t > 30000) return done(-1);
+          requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+        // Nothing to load at all (everything cached): settled at once.
+        setTimeout(() => !started && done(0), 1500);
+      }),
+  );
   await act();
   // Let the change reach a frame before asking whether it is drawn.
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
@@ -76,10 +96,12 @@ async function step(name, act) {
     quiet = pending ? 0 : quiet + 1;
   }
   const ms = Date.now() - t0 - 400;
+  const scoredMs = await scored;
   const long = await page.evaluate(() => window.__long.slice());
   rows.push({
     step: name,
-    'drawn (ms)': ms,
+    'scored (ms)': Math.round(scoredMs),
+    'all drawn (ms)': ms,
     'long tasks': long.length,
     'longest (ms)': Math.round(Math.max(0, ...long)),
     'stalled (ms)': Math.round(long.reduce((a, b) => a + b, 0)),
@@ -91,6 +113,9 @@ async function step(name, act) {
 await page.goto(`${url}/ecoscapes-dst/?debug`);
 await page.waitForFunction(() => window.__dst && window.__dst.map.loaded());
 
+// As a person would: the pointer rests on the example a moment before the click.
+await page.hover('#presets button:has-text("Room to roam")');
+await page.waitForTimeout(500);
 await step('example: Room to roam (5 layers)', () => page.click('#presets button:has-text("Room to roam")'));
 await step('zoom in to the corridor', () =>
   page.evaluate(() => window.__dst.map.jumpTo({ center: [-123.1, 49.9], zoom: 10.5 })),

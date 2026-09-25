@@ -1002,6 +1002,20 @@ const config = {
     render();
     push();
   }
+  // A pointer resting on an example gets its layers ready, so the click has
+  // less to wait for.
+  const warmed = new Set<string>();
+  const warmPreset = (e: Event) => {
+    const name = (e.target as HTMLElement).closest<HTMLButtonElement>('button')?.dataset.name;
+    const p = name && !warmed.has(name) && PRESETS.find((x) => x.name === name);
+    if (!p) return;
+    warmed.add(name);
+    const ls = p.items.map(([id]) => byId.get(id)!);
+    score.warm(ls.map((l) => l.src));
+    stats.postMessage({ warm: ls.map((l) => abs(l.sampleSrc)) });
+  };
+  presetsEl.addEventListener('pointerover', warmPreset);
+  presetsEl.addEventListener('focusin', warmPreset);
   presetsEl.addEventListener('click', (e) => {
     const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button');
     if (b) usePreset(b.dataset.name!);

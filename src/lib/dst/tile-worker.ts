@@ -17,6 +17,8 @@ export const TILE = 256;
 export type TileRequest =
   | { type: 'tile'; id: number; src: string; z: number; x: number; y: number }
   | { type: 'cancel'; ids: number[] }
+  /** Fetch these files' headers and directories now, ahead of their tiles. */
+  | { type: 'warm'; srcs: string[] }
   | { type: 'value'; id: number; src: string; z: number; x: number; y: number; px: number; py: number };
 export type TileReply =
   | { type: 'tile'; id: number; data: Uint8Array | null }
@@ -69,6 +71,10 @@ function load(src: string, z: number, x: number, y: number) {
 
 self.onmessage = async (e: MessageEvent<TileRequest>) => {
   const m = e.data;
+  if (m.type === 'warm') {
+    for (const src of m.srcs) archive(src).getHeader().catch(() => {});
+    return;
+  }
   if (m.type === 'cancel') {
     for (const id of m.ids) cancelled.add(id);
     // Ids cancelled after they were answered would linger: forget them in bulk.

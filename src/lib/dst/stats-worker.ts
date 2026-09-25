@@ -104,7 +104,12 @@ function rowAreas(g: Grid) {
 const latest: Record<Kind, StatsRequest | null> = { region: null, view: null, area: null };
 let busy = false;
 
-self.onmessage = (e: MessageEvent<StatsRequest>) => {
+self.onmessage = (e: MessageEvent<StatsRequest | { warm: string[] }>) => {
+  // Load these samples ahead of their first count.
+  if ('warm' in e.data) {
+    for (const src of e.data.warm) load(src).catch(() => {});
+    return;
+  }
   latest[e.data.kind] = e.data;
   if (!busy) run();
 };
