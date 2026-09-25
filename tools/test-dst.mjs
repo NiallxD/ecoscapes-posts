@@ -25,7 +25,14 @@ const engine = which === 'webkit' ? webkit : chromium;
 const browser = await engine.launch(
   which === 'webkit' ? {} : { args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] },
 );
-const context = await browser.newContext({ viewport: { width: 1400, height: 900 }, acceptDownloads: true, serviceWorkers: 'block' });
+const context = await browser.newContext({
+  viewport: { width: 1400, height: 900 },
+  acceptDownloads: true,
+  serviceWorkers: 'block',
+  // Squamish, for "Score where I am".
+  geolocation: { latitude: 49.7016, longitude: -123.1558 },
+  permissions: ['geolocation'],
+});
 const page = await context.newPage();
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
@@ -124,6 +131,29 @@ check('map image downloads', /\.png$/.test(png.suggestedFilename()), png.suggest
 const [csv] = await Promise.all([page.waitForEvent('download'), page.click('#save-csv')]);
 const csvText = fs.readFileSync(await csv.path(), 'utf8');
 check('numbers download as CSV', csvText.includes('Land cover') && csvText.includes('Area covered'), `${csvText.split('\n').length} lines`);
+
+// The best places, a visit, the tour, and where I am.
+await page.click('#presets button:text-is("Room to roam")');
+await settle();
+await page.click('#best-btn');
+const best = await page.locator('#best-list button').allInnerTexts();
+check('five best places, each named', best.length === 5 && best.every((b) => / of |at /.test(b)), best[0]?.replace(/\s+/g, ' '));
+check('each has a pin', (await page.locator('.best-pin').count()) === 5);
+await page.locator('#best-list button').first().click();
+await page.waitForSelector('.why-title', { timeout: 15000 });
+check('visiting a place explains it', /^1 · /.test(await text('.why-title')), await text('.why-title'));
+await page.click('#tour-btn');
+await page.waitForTimeout(1500);
+check('the tour runs', (await text('#tour-btn')) === 'Stop the tour');
+await page.mouse.move(900, 500);
+await page.mouse.down();
+await page.mouse.move(960, 530, { steps: 4 });
+await page.mouse.up();
+await page.waitForTimeout(300);
+check('touching the map stops the tour', (await text('#tour-btn')) === 'Take the tour');
+await page.click('#here');
+await page.waitForFunction(() => document.querySelector('.why-title')?.textContent === 'Where you are', null, { timeout: 20000 });
+check('"where I am" scores your spot', (await page.locator('.here-dot').count()) === 1);
 
 // Two scores: isolate a cell.
 await page.click('#presets button:text-is("Value × pressure")');

@@ -108,6 +108,16 @@ const config = {
       </div>
       <label class="key-op">Strength <input id="opacity" type="range" min="0.2" max="1" step="0.05" value="0.85" /></label>
       <p class="key-foot" id="key-foot"></p>
+      <!-- The strongest places for the model as it stands: numbered on the
+           map, named by the nearest town, and a tour that flies through them. -->
+      <div class="best">
+        <div class="best-head">
+          <button type="button" id="best-btn" aria-expanded="false" aria-controls="best-list">Best places</button>
+          <button type="button" id="tour-btn">Take the tour</button>
+        </div>
+        <ol class="best-list" id="best-list" hidden></ol>
+        <p class="best-note" id="best-note" hidden></p>
+      </div>
       <div class="key-out">
         <button type="button" id="save-png">Map image</button>
         <button type="button" id="save-csv">Numbers (CSV)</button>
@@ -115,6 +125,11 @@ const config = {
     </aside>
 
     <div class="map-side">
+      <button class="step" id="here" type="button" aria-label="Score where I am" title="Score where I am">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4" /><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3" />
+        </svg>
+      </button>
       <a class="step" href={asset('/map/')} aria-label="Back to the map">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true">
           <path d="M12 3.5l8.5 4.5-8.5 4.5L3.5 8z" /><path d="M3.5 12l8.5 4.5 8.5-4.5" /><path d="M3.5 16l8.5 4.5 8.5-4.5" />
@@ -312,6 +327,9 @@ const config = {
     right: 0.9rem;
     bottom: calc(1rem + var(--foot));
     width: 19rem;
+    max-height: calc(100dvh - 2rem - var(--foot));
+    overflow-y: auto;
+    overscroll-behavior: contain;
     padding: 0.8rem 0.95rem 0.75rem;
     border-radius: 14px;
     border: 1px solid var(--line);
@@ -376,6 +394,61 @@ const config = {
   .bi-brk :global(.brk b) { grid-column: 1 / -1; font-weight: 600; color: var(--ink); }
   .bi-brk :global(.brk output) { color: var(--ink); font-variant-numeric: tabular-nums; }
   .bi-brk :global(input) { width: 100%; margin: 0; accent-color: var(--accent); }
+  .best { margin-top: 0.6rem; }
+  .best-head { display: flex; gap: 0.4rem; }
+  .best-head button {
+    flex: 1;
+    appearance: none;
+    padding: 0.45rem 0.5rem;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: var(--bg-lift);
+    color: var(--ink);
+    font: inherit;
+    font-size: 0.76rem;
+    cursor: pointer;
+  }
+  .best-head button[aria-expanded='true'], .best-head button[aria-pressed='true'] { border-color: var(--accent); color: var(--accent); }
+  .best-list { list-style: none; margin: 0.45rem 0 0; padding: 0; display: grid; gap: 0.2rem; }
+  .best-list[hidden] { display: none; }
+  .best-note { margin: 0.3rem 0 0; font-size: 0.68rem; line-height: 1.4; color: var(--ink-dim); }
+  .best-note[hidden] { display: none; }
+  .best-list :global(button) {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1.4rem 1fr auto;
+    align-items: center;
+    gap: 0.4rem;
+    appearance: none;
+    padding: 0.35rem 0.45rem;
+    border: 0;
+    border-radius: 7px;
+    background: none;
+    color: var(--ink);
+    font: inherit;
+    font-size: 0.76rem;
+    text-align: left;
+    cursor: pointer;
+  }
+  .best-list :global(button:hover), .best-list :global(button.on) { background: var(--bg-lift); }
+  .best-list :global(b) { display: grid; place-items: center; width: 1.3rem; height: 1.3rem; border-radius: 50%; background: #ffdd80; color: #1a140a; font-size: 0.7rem; }
+  .best-list :global(em) { font-style: normal; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+  /* The pins: numbered, in the ramp's brightest colour. */
+  :global(.best-pin) {
+    width: 24px;
+    height: 24px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: #ffdd80;
+    color: #1a140a;
+    font: 700 12px/1 system-ui, sans-serif;
+    box-shadow: 0 0 0 2px #0d1210, 0 2px 10px rgba(0, 0, 0, 0.6);
+    cursor: pointer;
+  }
+  :global(.best-pin.on) { transform: scale(1.25); box-shadow: 0 0 0 2px #0d1210, 0 0 0 5px rgba(255, 221, 128, 0.5); }
+  :global(.here-dot) { width: 16px; height: 16px; border-radius: 50%; background: #6fb6ff; border: 3px solid #0d1210; box-shadow: 0 0 0 2px #6fb6ff; }
+  .map-side { display: flex; flex-direction: column; gap: 0.6rem; }
   .key-out { display: flex; gap: 0.4rem; margin-top: 0.6rem; }
   .key-out button {
     flex: 1;
@@ -447,6 +520,7 @@ const config = {
   .map :global(.why-total b) { font-size: 1.4rem; font-variant-numeric: tabular-nums; }
   .map :global(.why-sw) { width: 22px; height: 22px; border-radius: 5px; flex: none; align-self: center; }
   .map :global(.why-total span b) { font-size: 0.85rem; }
+  .map :global(.why-title) { margin: 0 1.2rem 0.4rem 0; font-size: 0.78rem; font-weight: 600; color: #ffdd80; }
   .map :global(.why-dot) { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 0.4rem; }
   .map :global(.why-total span) { font-size: 0.75rem; color: var(--ink-dim); }
   .map :global(.why) { width: 100%; border-collapse: collapse; font-size: 0.74rem; }
@@ -1090,6 +1164,7 @@ const config = {
       if (hit) {
         last = { region: hit, view: last?.view ?? null };
         showNumbers();
+        showBest();
       } else stats.postMessage({ ...m, seq: ++seq, kind: 'region', view: null } satisfies StatsRequest);
       regionKey = key;
       if (scope === 'view') recountView();
@@ -1118,6 +1193,7 @@ const config = {
       last = { region: d.tally, view: last?.view ?? null };
     } else last = { region: last?.region ?? d.tally, view: d.tally };
     showNumbers();
+    showBest();
   };
 
   /** How sure the numbers are: sampled at full detail every ~200 m, which is
@@ -1271,6 +1347,7 @@ const config = {
     for (const x of scopeEl.querySelectorAll('button')) x.setAttribute('aria-checked', String(x === b));
     if (scope === 'view') recountView();
     showNumbers();
+    showBest();
   });
   // "This view" follows the map; the whole area does not need recounting.
   map.on('moveend', () => {
@@ -1458,9 +1535,13 @@ const config = {
 
   // ---- Why this place --------------------------------------------------------
   const popup = new maplibregl.Popup({ maxWidth: '20rem', focusAfterOpen: false });
-  map.on('click', async (e) => {
-    if (!items.length) return;
-    const { lng, lat } = e.lngLat;
+  map.on('click', (e) => {
+    stopTour();
+    if (items.length) showWhy(e.lngLat);
+  });
+  /** Why a place scored what it did, in a popup there. */
+  async function showWhy(at: maplibregl.LngLat, title = '') {
+    const { lng, lat } = at;
     const { rows, total, second } = await score.explain(lng, lat);
     const how = op === 'and' ? 'its weakest layer' : op === 'or' ? 'its strongest layer' : 'weighed up';
     const band = (v: number, [lo, hi]: [number, number]) => (v < lo ? 0 : v < hi ? 1 : 2);
@@ -1492,7 +1573,167 @@ const config = {
           return `<tr><td>${dot}${esc(l.name)}${wt}</td><td>${right}</td></tr>`;
         })
         .join('')}</table>`;
-    popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
+    popup.setLngLat(at).setHTML((title ? `<p class="why-title">${esc(title)}</p>` : '') + html).addTo(map);
+  }
+
+  // ---- The best places, and a tour of them -------------------------------------
+  // Named by the nearest town, so "12 km north-east of Pemberton" rather than
+  // coordinates. Approximate positions, enough for "near".
+  const TOWNS: [string, number, number][] = [
+    ['Squamish', -123.156, 49.702], ['Brackendale', -123.157, 49.771], ['Britannia Beach', -123.203, 49.625],
+    ['Lions Bay', -123.236, 49.458], ['Horseshoe Bay', -123.273, 49.373], ['Whistler', -122.957, 50.116],
+    ['Pemberton', -122.803, 50.319], ['Mount Currie', -122.717, 50.32], ["D'Arcy", -122.48, 50.549],
+    ['Birken', -122.62, 50.48], ['Lillooet', -121.937, 50.686], ['Seton Portage', -122.292, 50.706],
+    ['Gold Bridge', -122.841, 50.853], ['Gibsons', -123.508, 49.399], ['Sechelt', -123.755, 49.474],
+    ['Pender Harbour', -124.03, 49.63], ['Egmont', -123.93, 49.75], ['Powell River', -124.525, 49.835],
+    ['Vancouver', -123.121, 49.283], ['Harrison Hot Springs', -121.786, 49.301], ['Hope', -121.442, 49.386],
+    ['Chilliwack', -121.952, 49.158], ['Mission', -122.311, 49.134], ['Bralorne', -122.816, 50.778],
+    ['Lytton', -121.582, 50.232], ['Boston Bar', -121.444, 49.866], ['Port Mellon', -123.486, 49.523],
+  ];
+  const km = (a: [number, number], b: [number, number]) => {
+    const r = Math.PI / 180;
+    const x = Math.sin(((b[1] - a[1]) * r) / 2) ** 2 + Math.cos(a[1] * r) * Math.cos(b[1] * r) * Math.sin(((b[0] - a[0]) * r) / 2) ** 2;
+    return 12742 * Math.asin(Math.sqrt(x));
+  };
+  function near(lng: number, lat: number) {
+    const [name, tl, tt] = TOWNS.reduce((a, t) => (km([t[1], t[2]], [lng, lat]) < km([a[1], a[2]], [lng, lat]) ? t : a));
+    const d = km([tl, tt], [lng, lat]);
+    if (d < 3) return `at ${name}`;
+    const deg = (Math.atan2((lng - tl) * Math.cos((lat * Math.PI) / 180), lat - tt) * 180) / Math.PI;
+    const dirs = ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'];
+    return `${Math.round(d)} km ${dirs[Math.round(((deg + 360) % 360) / 45) % 8]} of ${name}`;
+  }
+  const lngLatOf = (x: number, y: number) => {
+    const n = 2 ** (grid?.z ?? 12) * 256;
+    return new maplibregl.LngLat((x / n) * 360 - 180, (Math.atan(Math.sinh(Math.PI * (1 - (2 * y) / n))) * 180) / Math.PI);
+  };
+
+  const bestBtn = document.getElementById('best-btn')!;
+  const tourBtn = document.getElementById('tour-btn')!;
+  const bestList = document.getElementById('best-list')!;
+  let bestOpen = false;
+  let pins: maplibregl.Marker[] = [];
+  const spots = () => {
+    const t = last ? (scope === 'view' ? last.view : last.region) : null;
+    return (t?.best ?? []).map((b) => ({ at: lngLatOf(b.x, b.y), v: b.v }));
+  };
+  const spotValue = (v: number) => (effectiveMode() === 'two' ? `${Math.round(v * 100)}% high both` : String(Math.round(v * 100)));
+
+  /** The list and the pins, from the latest count (called whenever it lands). */
+  function showBest() {
+    for (const p of pins) p.remove();
+    pins = [];
+    const list = spots();
+    tourBtn.toggleAttribute('disabled', !list.length);
+    const note = document.getElementById('best-note')!;
+    if (!bestOpen || !list.length) {
+      bestList.hidden = note.hidden = true;
+      return;
+    }
+    bestList.hidden = note.hidden = false;
+    note.textContent =
+      (effectiveMode() === 'two'
+        ? 'The places with the most land high on both scores, '
+        : 'The places with the highest average score, ') +
+      `each over about 3 km around the pin, ${scope === 'view' ? 'in view' : 'across the study area'}. A tap gives one spot's own score.`;
+    bestList.innerHTML = list
+      .map((s, i) => `<li><button type="button" data-i="${i}"><b>${i + 1}</b><span>${esc(near(s.at.lng, s.at.lat))}</span><em>${spotValue(s.v)}</em></button></li>`)
+      .join('');
+    pins = list.map((s, i) => {
+      const elp = document.createElement('div');
+      elp.className = 'best-pin';
+      elp.textContent = String(i + 1);
+      elp.addEventListener('click', (e) => {
+        e.stopPropagation();
+        visit(i);
+      });
+      return new maplibregl.Marker({ element: elp }).setLngLat(s.at).addTo(map);
+    });
+  }
+  function mark(i: number) {
+    pins.forEach((p, j) => p.getElement().classList.toggle('on', j === i));
+    bestList.querySelectorAll('button').forEach((b, j) => b.classList.toggle('on', j === i));
+  }
+  function visit(i: number, duration = 1600) {
+    const s = spots()[i];
+    if (!s) return Promise.resolve();
+    mark(i);
+    return new Promise<void>((done) => {
+      let arrived = false;
+      const arrive = () => {
+        if (arrived) return;
+        arrived = true;
+        showWhy(s.at, `${i + 1} · ${near(s.at.lng, s.at.lat)}`);
+        done();
+      };
+      map.once('moveend', arrive);
+      // Already there, there is no move to end: arrive anyway.
+      setTimeout(arrive, duration + 600);
+      map.flyTo({ center: s.at, zoom: Math.max(map.getZoom(), 11), duration, essential: true });
+    });
+  }
+  bestBtn.addEventListener('click', () => {
+    bestOpen = !bestOpen;
+    bestBtn.setAttribute('aria-expanded', String(bestOpen));
+    showBest();
+  });
+  bestList.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button');
+    if (b) {
+      stopTour();
+      visit(Number(b.dataset.i));
+    }
+  });
+
+  // The tour: to each place in turn, explaining it, until it ends or the map
+  // is touched.
+  let touring = 0;
+  function stopTour() {
+    if (!touring) return;
+    touring = 0;
+    tourBtn.setAttribute('aria-pressed', 'false');
+    tourBtn.textContent = 'Take the tour';
+  }
+  tourBtn.addEventListener('click', async () => {
+    if (touring) return stopTour();
+    if (!spots().length) return;
+    const me = (touring = Date.now());
+    tourBtn.setAttribute('aria-pressed', 'true');
+    tourBtn.textContent = 'Stop the tour';
+    if (!bestOpen) bestBtn.click();
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    for (let i = 0; i < spots().length && touring === me; i++) {
+      await visit(i, reduce ? 0 : 3200);
+      await new Promise((r) => setTimeout(r, 3800));
+    }
+    if (touring === me) {
+      stopTour();
+      map.flyTo({ center: map.getCenter(), zoom: 8.2, duration: reduce ? 0 : 2400 });
+    }
+  });
+  for (const ev of ['dragstart', 'wheel', 'touchstart'] as const) map.on(ev, () => stopTour());
+
+  // ---- Where I am ---------------------------------------------------------------
+  let hereDot: maplibregl.Marker | null = null;
+  document.getElementById('here')!.addEventListener('click', () => {
+    if (!('geolocation' in navigator)) return say('This browser cannot tell where you are.');
+    say('Finding where you are…');
+    navigator.geolocation.getCurrentPosition(
+      (p) => {
+        const at = new maplibregl.LngLat(p.coords.longitude, p.coords.latitude);
+        const [[w0, s0], [e0, n0]] = config.limit;
+        if (at.lng < w0 || at.lng > e0 || at.lat < s0 || at.lat > n0) return say('You are outside the study area, so there is nothing to score here.');
+        stopTour();
+        const dot = document.createElement('div');
+        dot.className = 'here-dot';
+        hereDot?.remove();
+        hereDot = new maplibregl.Marker({ element: dot }).setLngLat(at).addTo(map);
+        map.once('moveend', () => (items.length ? showWhy(at, 'Where you are') : say('Add a layer to score where you are.')));
+        map.flyTo({ center: at, zoom: 13, essential: true });
+      },
+      () => say('Could not tell where you are.'),
+      { enableHighAccuracy: true, timeout: 12000 },
+    );
   });
 
   // Opens empty -- the map and the choice are the visitor's -- unless the
