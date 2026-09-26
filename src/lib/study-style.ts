@@ -44,14 +44,11 @@ export function studyStyle(opts: { basemap: string; glyphs: string; limit: [LngL
     const before = k ? SEE * (1 - (k - 1) / RINGS) : 1;
     const after = SEE * (1 - k / RINGS);
     return {
-      opacity: 1 - after / before,
-      data: {
-        type: 'Feature' as const,
-        properties: {},
-        geometry: {
-          type: 'Polygon' as const,
-          coordinates: [[[w - 5, s - 5], [e + 5, s - 5], [e + 5, n + 5], [w - 5, n + 5], [w - 5, s - 5]], hole],
-        },
+      type: 'Feature' as const,
+      properties: { o: 1 - after / before },
+      geometry: {
+        type: 'Polygon' as const,
+        coordinates: [[[w - 5, s - 5], [e + 5, s - 5], [e + 5, n + 5], [w - 5, n + 5], [w - 5, s - 5]], hole],
       },
     };
   });
@@ -59,8 +56,17 @@ export function studyStyle(opts: { basemap: string; glyphs: string; limit: [LngL
     version: 8,
     glyphs: opts.glyphs,
     sources: {
-      ...Object.fromEntries(beyond.map((b, k) => [`beyond-${k}`, { type: 'geojson' as const, data: b.data }])),
-      edge: { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: ring } } },
+      // The rings and the edge in one source, cut no finer than zoom 12 --
+      // it is only straight lines. As nine sources, each re-cut at every zoom,
+      // they were most of the work of a flyover over mountains.
+      beyond: {
+        type: 'geojson',
+        maxzoom: 12,
+        data: {
+          type: 'FeatureCollection',
+          features: [...beyond, { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: ring } }],
+        },
+      },
       protomaps: {
         type: 'vector',
         url: `pmtiles://${opts.basemap}`,
@@ -107,16 +113,19 @@ export function studyStyle(opts: { basemap: string; glyphs: string; limit: [LngL
           'text-halo-blur': 0.5,
         },
       },
-      ...beyond.map((b, k) => ({
-        id: k ? `beyond-${k}` : 'beyond',
-        type: 'fill' as const,
-        source: `beyond-${k}`,
-        paint: { 'fill-color': '#0b100e', 'fill-opacity': b.opacity },
-      })),
+      // One layer: the rings overlap, so each darkens on top of those inside it.
+      {
+        id: 'beyond',
+        type: 'fill',
+        source: 'beyond',
+        filter: ['==', ['geometry-type'], 'Polygon'],
+        paint: { 'fill-color': '#0b100e', 'fill-opacity': ['get', 'o'] },
+      },
       {
         id: 'edge',
         type: 'line',
-        source: 'edge',
+        source: 'beyond',
+        filter: ['==', ['geometry-type'], 'LineString'],
         paint: { 'line-color': '#9aa79f', 'line-width': 1.2, 'line-opacity': 0.8, 'line-dasharray': [4, 3] },
       },
     ],

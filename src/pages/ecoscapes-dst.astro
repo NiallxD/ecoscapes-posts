@@ -1,5 +1,7 @@
 ---
 import { getEntry } from 'astro:content';
+import { getImage } from 'astro:assets';
+import type { ImageMetadata } from 'astro';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import Shell from '../layouts/Shell.astro';
 import { asset, tile } from '../lib/paths';
@@ -44,6 +46,43 @@ function readDescriptions(md: string) {
 }
 const details = readDescriptions(descriptionsMd);
 
+// The cards shown while a flyover is made into a video: a `## Title`, then
+// `Image:` and `Seconds:` lines, then text (src/data/flyover-cards/cards.md,
+// with its pictures beside it).
+import cardsMd from '../data/flyover-cards/cards.md?raw';
+const cardImages = import.meta.glob<ImageMetadata>('../data/flyover-cards/*.{jpg,jpeg,png,webp,JPG,JPEG,PNG,WEBP}', { eager: true, import: 'default' });
+async function readCards(md: string) {
+  const cards = [];
+  for (const part of md.split(/^## /m).slice(1)) {
+    const [head, ...rest] = part.split('\n');
+    let body = rest.join('\n');
+    const file = body.match(/^Image:\s*(.+)$/im)?.[1].trim();
+    const seconds = Number(body.match(/^Seconds:\s*(.+)$/im)?.[1]) || 8;
+    body = body.replace(/^(Image|Seconds):.*$/gim, '');
+    let image = '';
+    let tall = false;
+    if (file) {
+      const meta = cardImages[`../data/flyover-cards/${file}`];
+      if (!meta) throw new Error(`src/data/flyover-cards/cards.md: "${head.trim()}" wants ${file}, which is not in src/data/flyover-cards/`);
+      // Landscape pictures across the top, portrait ones beside the text.
+      tall = meta.height > meta.width;
+      image = (await getImage({ src: meta, width: Math.min(tall ? 900 : 1600, meta.width), format: 'webp', quality: 80 })).src;
+    }
+    cards.push({
+      title: head.trim(),
+      image,
+      tall,
+      seconds,
+      text: body
+        .split(/\n\s*\n/)
+        .map((t) => t.replace(/\s*\n\s*/g, ' ').trim())
+        .filter(Boolean),
+    });
+  }
+  return cards;
+}
+const cards = await readCards(cardsMd);
+
 const config = {
   bounds: data.bounds,
   limit: data.limit,
@@ -52,6 +91,7 @@ const config = {
   glyphs: asset('/tiles/fonts/{fontstack}/{range}.pbf'),
   logo: asset('/img/ecoscapes-logo-white.png'),
   emblem: asset('/img/ecoscapes-emblem.png'),
+  cards,
   layers: layersData.map((l) => ({
     ...l,
     src: tile(l.src),
@@ -97,7 +137,11 @@ const config = {
   </section>
   <main class="dst-page">
     <div class="map" id="map" data-config={JSON.stringify(config)}></div>
+    <!-- A flyover made into a video, played over the map. -->
+    <video class="fly-video" id="fly-video" muted playsinline hidden></video>
 
+    <!-- Down the left on a wider screen: the panel, and the legend under it. -->
+    <div class="left-col">
     <section class="dst-panel" id="panel" aria-labelledby="panel-title">
       <header class="panel-head">
         <div>
@@ -151,6 +195,31 @@ const config = {
         </div>
       </div>
     </section>
+
+      <!-- What the map's colours and marks mean, folded to its title when
+           not wanted. -->
+      <details class="legend" id="legend" open>
+        <summary><h2>Legend</h2><svg class="sum-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg></summary>
+        <div class="lg-one">
+          <i class="lg-ramp"></i>
+          <div class="lg-ends"><span>Poor fit</span><span>Best fit</span></div>
+        </div>
+        <div class="lg-two">
+          <div class="lg-bi">
+            <div class="lg-bi-grid" id="lg-bi-grid" aria-hidden="true"></div>
+            <div class="lg-bi-axes"><span id="lg-bi-y"></span><span id="lg-bi-x"></span></div>
+          </div>
+        </div>
+        <ul class="lg-list">
+          <li><i class="sw sw-none"></i>No data for these layers</li>
+          <li><i class="sw sw-pin">1</i>Best places</li>
+          <li><i class="sw sw-drawn"></i>An area you have drawn</li>
+          <li><i class="sw sw-town">Aa</i>Towns</li>
+          <li><i class="sw sw-road"></i>Roads</li>
+          <li><i class="sw sw-edge"></i>Edge of the study area</li>
+        </ul>
+      </details>
+    </div>
 
     <!-- The result in numbers, and the key to the map's colours: the spread
          of scores is drawn in the map's own ramp, so it is both. -->
@@ -235,6 +304,28 @@ const config = {
           </svg>
         </button>
       </div>
+      <!-- A flyover: views added one by one while this is open, then flown
+           through in order, the panels out of the way. -->
+      <div class="pop-wrap">
+        <div class="pop-menu fly-menu" id="fly-menu" hidden>
+          <p class="pop-title">Flyover</p>
+          <p class="best-note" id="fly-note"></p>
+          <ol class="fly-list" id="fly-list"></ol>
+          <button type="button" class="fly-add" id="fly-add">+ Add this view</button>
+          <label class="fly-speed">Speed <input id="fly-speed" type="range" min="0.4" max="2" step="0.1" value="1" /></label>
+          <div class="fly-row">
+            <button type="button" class="fly-play" id="fly-play" title="Made into a video first, so it plays perfectly smoothly">Play</button>
+            <button type="button" id="fly-live" title="Flown on the live map, straight away">Live</button>
+            <button type="button" id="fly-clear">Clear</button>
+          </div>
+          <button type="button" class="fly-save" id="fly-save" hidden>Save the video</button>
+        </div>
+        <button class="step" id="fly-btn" type="button" aria-expanded="false" aria-controls="fly-menu" aria-label="Flyover" title="Flyover">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="5" cy="18" r="2" /><circle cx="19" cy="6" r="2" /><path d="M6.8 17c4-1 2.5-6 6-7.5 1.6-.7 3-1.3 4.4-2.3" stroke-dasharray="2.2 2.4" />
+          </svg>
+        </button>
+      </div>
       <!-- Sharing it: the whole area as a finished map, the view as it is,
            the numbers, or a code that opens this model. -->
       <div class="pop-wrap" id="save-wrap">
@@ -265,6 +356,20 @@ const config = {
       </a>
     </div>
 
+    <!-- Over the map while the flight's tiles load, its path flown once. -->
+    <div class="fly-cover" id="fly-cover" hidden>
+      <!-- Something to look at while it is made: the cards in turn. -->
+      <figure class="fly-card" id="fly-card" hidden>
+        <!-- Two pictures in a frame of fixed shape: the next decoded before
+             it fades in over the last, so nothing moves or half-draws. -->
+        <div class="fly-pics"><img alt="" /><img alt="" /></div>
+        <figcaption><h2></h2><div></div></figcaption>
+      </figure>
+      <p><b>Getting the flight ready</b> <span>0%</span></p>
+      <div class="fly-bar" aria-hidden="true"><i></i></div>
+      <small></small>
+    </div>
+    <button class="fly-stop" id="fly-stop" type="button" hidden>Stop the flyover</button>
     <div class="loading-bar" id="loading-bar" aria-hidden="true"></div>
     <p class="toast" id="toast" role="status" aria-live="polite" hidden></p>
   </main>
@@ -338,18 +443,72 @@ const config = {
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
   }
+  /* A phone: the panel alone, as above. A wider screen: the panel and the
+     legend in a column down the left, stopping short of the foot so the (i)
+     has the corner; the two share the height when it runs short. */
+  .left-col { display: contents; }
+  .legend { display: none; }
   @media (min-width: 48rem) {
-    .dst-panel {
+    .left-col {
+      position: absolute;
+      z-index: 6;
       left: 1rem;
-      right: auto;
       top: calc(var(--safe-t) + 1rem);
-      bottom: auto;
       width: 25rem;
-      max-height: calc(100dvh - 2rem);
+      max-height: calc(100dvh - var(--safe-t) - 1rem - 3rem);
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+    }
+    .dst-panel {
+      position: relative;
+      left: auto;
+      right: auto;
+      top: auto;
+      bottom: auto;
+      flex: 0 1 auto;
+      min-height: 0;
+      max-height: none;
       border-radius: 18px;
       border: 1px solid var(--line);
     }
+    .legend {
+      display: block;
+      flex: none;
+      padding: 0.8rem 1.1rem;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: rgba(13, 18, 16, 0.96);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+    }
   }
+  .legend summary { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; list-style: none; cursor: pointer; }
+  .legend summary::-webkit-details-marker { display: none; }
+  .legend h2 { margin: 0; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-dim); }
+  .legend summary:hover h2, .legend summary:hover .sum-chev { color: var(--ink); }
+  .legend[open] .sum-chev { transform: rotate(180deg); }
+  .legend[open] summary { margin-bottom: 0.65rem; }
+  /* The score's colours, in the palette chosen, or the nine for two scores. */
+  .lg-ramp { display: block; height: 10px; border-radius: 5px; background: var(--ramp, linear-gradient(90deg, #2d2318, #ffdd80)); }
+  .lg-ends { display: flex; justify-content: space-between; margin-top: 0.25rem; font-size: 0.7rem; color: var(--ink-dim); }
+  .lg-two { display: none; }
+  .bi-on .lg-one { display: none; }
+  .bi-on .lg-two { display: block; }
+  .lg-bi { display: flex; align-items: center; gap: 0.8rem; }
+  .lg-bi-axes { display: grid; gap: 0.3rem; min-width: 0; font-size: 0.72rem; color: var(--ink-dim); }
+  .lg-bi-axes :global(i) { font-style: normal; font-weight: 600; color: var(--ink); }
+  .lg-bi-grid { display: grid; grid-template-columns: repeat(3, 1.6rem); grid-auto-rows: 1.1rem; gap: 2px; }
+  .lg-bi-grid :global(i) { border-radius: 3px; }
+  .lg-list { list-style: none; margin: 0.75rem 0 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem 0.8rem; font-size: 0.74rem; color: var(--ink-dim); }
+  .lg-list li { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
+  .sw { flex: none; width: 22px; height: 14px; display: grid; place-items: center; font-style: normal; }
+  .sw-none { border-radius: 3px; background: #141b17; box-shadow: inset 0 0 0 1px var(--line); }
+  .sw-pin { width: 16px; height: 16px; margin: 0 3px; border-radius: 50%; background: var(--ramp-hi, #ffdd80); color: #1a140a; font: 700 9px/1 system-ui, sans-serif; box-shadow: 0 0 0 1.5px #0d1210; }
+  .sw-drawn { border-radius: 2px; border: 1.5px dashed #eef2ee; background: rgba(238, 242, 238, 0.07); }
+  .sw-town { font: 600 0.72rem/1 system-ui, sans-serif; color: #e6ece9; }
+  .sw-road { height: 3px; border-radius: 2px; background: #b0b8b3; }
+  .sw-edge { height: 0; border-top: 1.5px dashed #9aa79f; }
   .panel-head { display: flex; align-items: flex-start; gap: 0.8rem; padding: 1rem 1.1rem 0.6rem; }
   .panel-head > div { flex: 1; min-width: 0; }
   .panel-logo { display: block; width: 8.5rem; height: auto; margin: 0.1rem 0 0.7rem; }
@@ -760,6 +919,104 @@ const config = {
   .key-op { display: grid; gap: 0.15rem; margin-top: 0.45rem; font-size: 0.7rem; color: var(--ink-dim); }
   .key-op input { width: 100%; margin: 0; accent-color: var(--accent); }
 
+  /* The flyover: its views listed, added, flown. */
+  .fly-menu { width: 16rem; }
+  .fly-list { list-style: none; margin: 0.2rem 0 0; padding: 0; display: grid; gap: 0.1rem; max-height: min(16rem, 40dvh); overflow-y: auto; }
+  .fly-list:empty { display: none; }
+  .fly-list :global(li) { display: flex; align-items: center; gap: 0.2rem; }
+  .fly-list :global(button) { appearance: none; border: 0; border-radius: 7px; background: none; color: var(--ink); font: inherit; font-size: 0.76rem; cursor: pointer; }
+  .fly-list :global(button:hover) { background: var(--bg-lift); }
+  .fly-list :global(.fly-go) { flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.45rem; padding: 0.35rem 0.45rem; text-align: left; }
+  .fly-list :global(.fly-go span) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fly-list :global(.fly-go b) { flex: none; display: grid; place-items: center; width: 1.3rem; height: 1.3rem; border-radius: 50%; background: var(--bg-lift); box-shadow: inset 0 0 0 1px var(--line); font-size: 0.68rem; }
+  .fly-list :global(.fly-del) { flex: none; width: 1.7rem; height: 1.7rem; color: var(--ink-dim); }
+  .fly-menu .fly-add { margin-top: 0.3rem; border: 1px dashed var(--line); justify-items: center; }
+  .fly-speed { display: grid; gap: 0.15rem; margin: 0.5rem 0.3rem 0.2rem; font-size: 0.7rem; color: var(--ink-dim); }
+  .fly-speed input { width: 100%; margin: 0; accent-color: var(--accent); }
+  .fly-row { display: grid; grid-template-columns: 1fr auto auto; gap: 0.4rem; margin-top: 0.4rem; }
+  .fly-menu .fly-save { margin-top: 0.3rem; justify-items: center; color: var(--accent); }
+  .fly-menu .fly-save[hidden] { display: none; }
+  .fly-video { position: absolute; z-index: 5; inset: 0; width: 100%; height: 100%; object-fit: cover; background: var(--bg); }
+  .fly-video[hidden] { display: none; }
+  .fly-row button { appearance: none; padding: 0.5rem 0.7rem; border-radius: 9px; border: 1px solid var(--line); background: var(--bg-lift); color: var(--ink); font: inherit; font-size: 0.78rem; cursor: pointer; }
+  .fly-row button:disabled { opacity: 0.45; cursor: not-allowed; }
+  .fly-row .fly-play { border-color: var(--accent); background: var(--accent); color: #0d1210; font-weight: 600; }
+  #fly-btn[aria-expanded='true'] { border-color: var(--accent); color: var(--accent); }
+  /* Flying: the map and its legend, nothing else but the way to stop. */
+  .flying .dst-panel, .flying .key, .flying .map-side, .flying .map :global(.maplibregl-popup), .flying :global(.best-pin) { display: none; }
+  .flying .left-col { top: calc(var(--safe-t) + 1rem); }
+  .fly-stop {
+    position: absolute;
+    z-index: 7;
+    left: 50%;
+    bottom: calc(1.2rem + var(--foot));
+    transform: translateX(-50%);
+    padding: 0.6rem 1.1rem;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: rgba(13, 18, 16, 0.85);
+    color: var(--ink);
+    font: inherit;
+    font-size: 0.8rem;
+    cursor: pointer;
+    opacity: 0.55;
+    transition: opacity 0.2s;
+  }
+  .fly-stop:hover, .fly-stop:focus-visible { opacity: 1; }
+  .fly-stop[hidden] { display: none; }
+  .fly-cover { position: absolute; z-index: 6; inset: 0; display: grid; place-content: center; justify-items: center; gap: 0.4rem; background: var(--bg); }
+  .fly-cover b { font-weight: 400; }
+  .fly-card { width: min(44rem, calc(100vw - 4rem), 78dvh); margin: 0 0 1.4rem; }
+  .fly-card[hidden] { display: none; }
+  .fly-pics { position: relative; aspect-ratio: 3 / 2; overflow: hidden; border-radius: 14px; border: 1px solid var(--line); background: var(--bg-lift); }
+  .fly-pics img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.7s; will-change: opacity; }
+  .fly-pics img.on { opacity: 1; }
+  .fly-card.nopic .fly-pics { display: none; }
+  .fly-card figcaption { margin-top: 1rem; min-height: 6.5rem; transition: opacity 0.35s; }
+  .fly-card figcaption.out { opacity: 0; }
+  .fly-card.tall { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 1.8rem; width: min(50rem, calc(100vw - 4rem)); }
+  .fly-card.tall .fly-pics { aspect-ratio: 9 / 16; height: min(60dvh, 34rem); }
+  .fly-card.tall figcaption { margin-top: 0; }
+  .fly-bar { width: min(20rem, 60vw); height: 3px; margin: 0.35rem 0 0.15rem; border-radius: 2px; background: var(--line); overflow: hidden; }
+  .fly-bar i { display: block; height: 100%; width: 100%; background: var(--accent); transform-origin: left; transform: scaleX(var(--done, 0)); transition: transform 0.25s linear; }
+  .fly-card h2 { margin: 0 0 0.4rem; font-size: 1.15rem; line-height: 1.3; }
+  .fly-card figcaption div :global(p) { margin: 0 0 0.5rem; font-size: 0.92rem; line-height: 1.55; color: var(--ink-dim); }
+  .fly-cover small { font-size: 0.75rem; color: var(--ink-dim); }
+  .fly-cover[hidden] { display: none; }
+  .fly-cover p { margin: 0; font-size: 0.9rem; color: var(--ink-dim); }
+  .fly-cover span { color: var(--ink); font-variant-numeric: tabular-nums; }
+  :global(.fly-debug) {
+    position: absolute;
+    z-index: 7;
+    left: 50%;
+    top: calc(var(--safe-t) + 0.8rem);
+    transform: translateX(-50%);
+    width: min(36rem, calc(100% - 2rem));
+    padding: 0.5rem 0.6rem;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    background: rgba(13, 18, 16, 0.88);
+    font-size: 0.68rem;
+    color: var(--ink-dim);
+    pointer-events: none;
+  }
+  :global(.fly-debug canvas) { display: block; width: 100%; height: 150px; }
+  :global(.fly-debug-key i) { display: inline-block; width: 10px; height: 3px; margin: 0 0.3rem 0 0.5rem; vertical-align: middle; background: var(--c); }
+  :global(.fly-debug-read) { margin: 0.3rem 0 0; font-variant-numeric: tabular-nums; }
+  :global(.fly-debug-save) {
+    position: absolute;
+    top: 0.4rem;
+    right: 0.5rem;
+    pointer-events: auto;
+    padding: 0.2rem 0.55rem;
+    border-radius: 7px;
+    border: 1px solid var(--line);
+    background: var(--bg-lift);
+    color: var(--ink);
+    font: inherit;
+    cursor: pointer;
+  }
+
   /* Below MapLibre's attribution button, in the same corner. */
   .map-side { position: absolute; z-index: 4; right: 0.9rem; top: calc(var(--safe-t) + 3rem); }
 
@@ -878,8 +1135,6 @@ const config = {
       max-height: calc(100dvh - var(--safe-t) - 2rem - 16rem);
     }
     .map-side { top: auto; bottom: calc(1rem + var(--foot)); }
-    /* The panel stops short of the foot, so the (i) has the corner. */
-    .dst-panel { max-height: calc(100dvh - var(--safe-t) - 1rem - 3rem); }
   }
 </style>
 
@@ -891,6 +1146,8 @@ const config = {
   import { addRelief, addSky, tilting } from '../lib/terrain';
   import { confirmLeave } from '../lib/leave';
   import { PALETTES, paletteById, rgb } from '../lib/dst/palettes';
+  import { cameraAt, flight, lookFrom, metreAt, type View } from '../lib/dst/flyover';
+  import { FlightDebug } from '../lib/dst/flyover-debug';
   import { ScoreLayer, MAX_CRITERIA, scoreOf, criterionLut, type Criterion, type Op } from '../lib/dst/score-layer';
   import type { Grid, StatsRequest, StatsResponse, Tally } from '../lib/dst/stats-worker';
 
@@ -931,7 +1188,8 @@ const config = {
     sampleSrc: string;
     sample: Grid;
   };
-  type Config = { bounds: [LngLat, LngLat]; limit: [LngLat, LngLat]; basemap: string; terrain: string; glyphs: string; logo: string; emblem: string; layers: Layer[] };
+  type Config = { bounds: [LngLat, LngLat]; limit: [LngLat, LngLat]; basemap: string; terrain: string; glyphs: string; logo: string; emblem: string; cards: Card[]; layers: Layer[] };
+  type Card = { title: string; image: string; tall: boolean; seconds: number; text: string[] };
 
   const el = document.getElementById('map')!;
   const config: Config = JSON.parse(el.dataset.config!);
@@ -1126,15 +1384,29 @@ const config = {
   const ROOM: [LngLat, LngLat] = [[w - (e - w), s - (n - s)], [e + (e - w), n + (n - s)]];
   // On a phone the panel covers the lower half: the area is framed in the
   // part of the map left showing.
-  const framing = () =>
-    matchMedia('(min-width: 48rem)').matches
-      ? { top: 20, bottom: 20, right: 20, left: 25 * 16 + 20 }
-      : { top: 20, left: 20, right: 20, bottom: innerHeight * 0.56 + 10 };
+  /** Room round an area fitted to the screen. A wider screen: beside the
+   *  panel, but centred in the window where it fits without going under
+   *  the panel -- the same size either way, only moved. */
+  const framing = (b: [LngLat, LngLat]) => {
+    if (!matchMedia('(min-width: 48rem)').matches) return { top: 20, left: 20, right: 20, bottom: innerHeight * 0.56 + 10 };
+    const [top, bottom, edge, panel] = [20, 20, 20, 25 * 16 + 20];
+    const y = (lat: number) => Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360));
+    const w = ((b[1][0] - b[0][0]) * Math.PI) / 180;
+    const h = y(b[1][1]) - y(b[0][1]);
+    const room = innerWidth - panel - edge;
+    const width = w * Math.min(room / w, (innerHeight - top - bottom) / h);
+    const left = Math.max(panel, (innerWidth - width) / 2);
+    return { top, bottom, left, right: Math.max(edge, innerWidth - left - width) };
+  };
   const map = new maplibregl.Map({
+    // Room for more tiles than the few screens' worth MapLibre keeps by
+    // default, so a flyover's path, loaded before it plays, is still there.
+    // ?fly-cache=N tries another size (MapLibre's own is 5).
+    maxTileCacheZoomLevels: Number(new URLSearchParams(location.search).get('fly-cache')) || 12,
     container: el,
     bounds: config.bounds,
     maxBounds: ROOM,
-    fitBoundsOptions: { padding: framing() },
+    fitBoundsOptions: { padding: framing(config.bounds) },
     maxZoom: 15,
     attributionControl: false,
     dragRotate: false,
@@ -1145,7 +1417,7 @@ const config = {
   // Out as far as the whole area beside the panels, and a little more; no
   // further, where it would only be the dark round it.
   const setMinZoom = () => {
-    const cam = map.cameraForBounds(config.limit, { padding: framing() });
+    const cam = map.cameraForBounds(config.limit, { padding: framing(config.limit) });
     if (cam?.zoom !== undefined) map.setMinZoom(Math.max(0, cam.zoom - 0.4));
   };
   setMinZoom();
@@ -1598,6 +1870,18 @@ const config = {
   confirmLeave(document.querySelector<HTMLAnchorElement>('#home'));
   confirmLeave(document.querySelector<HTMLAnchorElement>('#to-map'));
 
+  // ---- Legend --------------------------------------------------------------
+  // Open or folded as it was left, in this browser.
+  const legend = document.getElementById('legend') as HTMLDetailsElement;
+  try {
+    if (localStorage.getItem('dst-legend') === 'closed') legend.open = false;
+  } catch {}
+  legend.addEventListener('toggle', () => {
+    try {
+      localStorage.setItem('dst-legend', legend.open ? 'open' : 'closed');
+    } catch {}
+  });
+
   // ---- Colours -------------------------------------------------------------
   // The palette one score is drawn in: the map, the key's charts, the best
   // places' pins. Kept in this browser for next time.
@@ -1610,6 +1894,7 @@ const config = {
     score.setPalette(p.stops);
     el.parentElement!.style.setProperty('--ramp-hi', rgb(p.stops[4]));
     el.parentElement!.style.setProperty('--ramp-mid', rgb(p.stops[3]));
+    el.parentElement!.style.setProperty('--ramp', `linear-gradient(90deg, ${p.stops.map(rgb).join(', ')})`);
     palMenu.innerHTML = PALETTES.map(
       (q) =>
         `<button type="button" role="radio" aria-checked="${q.id === p.id}" data-palette="${q.id}">` +
@@ -1851,6 +2136,9 @@ const config = {
   function renderKeyTwo() {
     document.getElementById('bi-x')!.innerHTML = `<i>${esc(axisNames[0])}</i> →`;
     document.getElementById('bi-y')!.innerHTML = `<i>${esc(axisNames[1])}</i> →`;
+    document.getElementById('lg-bi-x')!.innerHTML = `→ Higher <i>${esc(axisNames[0])}</i>`;
+    document.getElementById('lg-bi-y')!.innerHTML = `↑ Higher <i>${esc(axisNames[1])}</i>`;
+    document.getElementById('lg-bi-grid')!.innerHTML = [6, 7, 8, 3, 4, 5, 0, 1, 2].map((c) => `<i style="background:${PALETTE[c]}"></i>`).join('');
     // Top row first: high on the second axis.
     biGrid.innerHTML = [6, 7, 8, 3, 4, 5, 0, 1, 2]
       .map((c) => `<button type="button" data-cell="${c}" style="background:${PALETTE[c]}" aria-pressed="${c === only}" aria-label="${esc(cellName(c))}"></button>`)
@@ -1995,6 +2283,9 @@ const config = {
               ...drawn.map((c) => ({ type: 'Feature' as const, properties: { vertex: 1 }, geometry: { type: 'Point' as const, coordinates: c } })),
             ],
     });
+    // Off while there is nothing drawn, so the map has no tiles of it to cut.
+    const vis = show && pts.length ? 'visible' : 'none';
+    for (const id of ['drawn-fill', 'drawn-line', 'drawn-pts']) map.setLayoutProperty(id, 'visibility', vis);
   }
   function startDraw() {
     drawing = true;
@@ -2032,9 +2323,9 @@ const config = {
   }
   map.on('load', () => {
     map.addSource('drawn', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-    map.addLayer({ id: 'drawn-fill', type: 'fill', source: 'drawn', filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': '#eef2ee', 'fill-opacity': 0.07 } });
-    map.addLayer({ id: 'drawn-line', type: 'line', source: 'drawn', filter: ['!=', ['geometry-type'], 'Point'], paint: { 'line-color': '#eef2ee', 'line-width': 2, 'line-dasharray': [3, 2] } });
-    map.addLayer({ id: 'drawn-pts', type: 'circle', source: 'drawn', filter: ['==', ['geometry-type'], 'Point'], paint: { 'circle-radius': 4, 'circle-color': '#0d1210', 'circle-stroke-color': '#eef2ee', 'circle-stroke-width': 2 } });
+    map.addLayer({ id: 'drawn-fill', layout: { visibility: 'none' }, type: 'fill', source: 'drawn', filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': '#eef2ee', 'fill-opacity': 0.07 } });
+    map.addLayer({ id: 'drawn-line', layout: { visibility: 'none' }, type: 'line', source: 'drawn', filter: ['!=', ['geometry-type'], 'Point'], paint: { 'line-color': '#eef2ee', 'line-width': 2, 'line-dasharray': [3, 2] } });
+    map.addLayer({ id: 'drawn-pts', layout: { visibility: 'none' }, type: 'circle', source: 'drawn', filter: ['==', ['geometry-type'], 'Point'], paint: { 'circle-radius': 4, 'circle-color': '#0d1210', 'circle-stroke-color': '#eef2ee', 'circle-stroke-width': 2 } });
     showDrawn();
   });
   map.on('click', (e) => {
@@ -2071,7 +2362,7 @@ const config = {
 
   // "This view" follows the map; the whole area does not need recounting.
   map.on('moveend', () => {
-    if (scope === 'view') recountView();
+    if (scope === 'view' && !flying) recountView();
   });
 
   keyEl.addEventListener('click', (e) => {
@@ -2098,9 +2389,13 @@ const config = {
     d?: [number, number][];
     /** How steady is showing. */
     s?: 1;
+    /** A flyover's views: lng, lat, zoom, turn, tilt, ground height. */
+    f?: [number, number, number, number, number, number?][];
   };
   const r4 = (v: number) => Number(v.toPrecision(4));
   let hashTimer = 0;
+  const MAX_VIEWS = 30;
+  let flyViews: View[] = [];
   function saveHash() {
     clearTimeout(hashTimer);
     hashTimer = window.setTimeout(() => {
@@ -2118,6 +2413,11 @@ const config = {
         i: items.map((it) => [it.id, it.weight, r4(it.bad), r4(it.good), it.axis, ...(it.scores ? [it.scores] : [])] as Saved['i'][number]),
         ...(steadyIn.checked ? { s: 1 as const } : {}),
         ...(drawn.length >= 3 ? { d: drawn.map(([x, y]) => [Number(x.toFixed(5)), Number(y.toFixed(5))] as [number, number]) } : {}),
+        ...(flyViews.length
+          ? {
+              f: flyViews.map((v) => [Number(v.lng.toFixed(5)), Number(v.lat.toFixed(5)), Number(v.zoom.toFixed(3)), Number(v.bearing.toFixed(1)), Number(v.pitch.toFixed(1)), Math.round(v.elevation)] as [number, number, number, number, number, number]),
+            }
+          : {}),
       };
       const json = JSON.stringify(saved);
       const b64 = btoa(String.fromCharCode(...new TextEncoder().encode(json))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -2142,6 +2442,8 @@ const config = {
       if (saved.c) cutIn.value = String(saved.c);
       if (Array.isArray(saved.d) && saved.d.length >= 3) drawn = saved.d.slice(0, 200);
       steadyIn.checked = saved.s === 1;
+      if (Array.isArray(saved.f))
+        flyViews = saved.f.slice(0, MAX_VIEWS).map(([lng, lat, zoom, bearing, pitch, elevation]) => ({ lng, lat, zoom, bearing, pitch, elevation: elevation ?? 0 }));
       return items.length > 0;
     } catch {
       return false;
@@ -2398,8 +2700,10 @@ const config = {
 
     // The foot's height first: the model, the layers' descriptions and the
     // sources in one column, the code beside them.
-    const qrSize = 136 * u, qrGap = 32 * u;
-    const textW = crop.w - qrSize - qrGap;
+    // The code in the head's right-hand corner; everything under the head
+    // the full width.
+    const qrSize = 76 * u;
+    const textW = crop.w;
     // The model as a chart per layer: its values across the area, shaded by
     // the score each gets, with the poor and best marks on it.
     const crits = criteria();
@@ -2445,8 +2749,9 @@ const config = {
     });
     const modelH = 12 * u + explain.length * 15 * u + 10 * u + rowsN * cellH;
     const aboutH = blocks.length ? 30 * u + 12 * u + Math.max(...colH) : 0;
-    const bodyH = Math.max(qrSize + 30 * u, modelH + aboutH + 14 * u + sources.length * 15 * u);
-    const footH = 30 * u + headH + 26 * u + bodyH;
+    const bodyH = modelH + aboutH + 14 * u + sources.length * 15 * u;
+    // The head as tall as the code and its words under it.
+    const footH = 24 * u + qrSize + 16 * u + 14 * u + 18 * u + bodyH;
     out.width = Math.round(crop.w + M * 2);
     out.height = Math.round(crop.h + M * 2 + footH);
 
@@ -2493,8 +2798,10 @@ const config = {
     ctx.fillText(`${dist >= 1000 ? dist / 1000 : dist} ${dist >= 1000 ? 'km' : 'm'}`, sx + barW, sy - 8 * u);
     ctx.textAlign = 'left';
 
-    // The head of the foot: the logo and title, and the key at the right.
-    let y = M + crop.h + 30 * u;
+    // The head of the foot: the logo and title, the key, and the code at the
+    // right, the rest centred on the code.
+    const headTop = M + crop.h + 24 * u;
+    let y = headTop + (qrSize - headH) / 2;
     const lw = logo.naturalWidth ? (logo.naturalWidth / logo.naturalHeight) * headH : 0;
     if (lw) ctx.drawImage(logo, M, y, lw, headH);
     ctx.fillStyle = '#3a4843';
@@ -2518,7 +2825,7 @@ const config = {
     }
     ctx.fillText(headline, tx, y + 44 * u);
 
-    const kx = M + crop.w;
+    const kx = M + crop.w - qrSize - 36 * u;
     if (two) {
       const c = 20 * u, g = 3 * u, gx = kx - 3 * c - 2 * g;
       [6, 7, 8, 3, 4, 5, 0, 1, 2].forEach((cell, i) => {
@@ -2547,12 +2854,11 @@ const config = {
       ctx.textAlign = 'left';
     }
 
-    // The body: the model and the sources, and the code beside them.
-    y += headH + 22 * u;
+    // The body: the model and the sources, the full width.
+    y = headTop + qrSize + 16 * u + 14 * u;
     ctx.fillStyle = '#2a3430';
     ctx.fillRect(M, y, crop.w, 1.5 * u);
     y += 18 * u;
-    const top = y;
     ctx.fillStyle = '#eef2ee';
     font(12, 650);
     ctx.fillText(`The model · Calculation type: ${opLabel()}`, M, y + 10 * u);
@@ -2655,17 +2961,17 @@ const config = {
     // A code that opens this exact model, light on dark as a phone reads it.
     const n = qr.getModuleCount();
     const cell = qrSize / (n + 4);
-    const qx = M + crop.w - qrSize, qy = top;
+    const qx = M + crop.w - qrSize, qy = headTop;
     ctx.fillStyle = '#eef2ee';
     ctx.fillRect(qx, qy, qrSize, qrSize);
     ctx.fillStyle = '#0d1210';
     for (let r = 0; r < n; r++)
       for (let c = 0; c < n; c++)
         if (qr.isDark(r, c)) ctx.fillRect(qx + (c + 2) * cell, qy + (r + 2) * cell, Math.ceil(cell), Math.ceil(cell));
-    font(10);
+    font(9);
     ctx.fillStyle = '#9aa79f';
     ctx.textAlign = 'center';
-    ctx.fillText('Open this sandbox', qx + qrSize / 2, qy + qrSize + 18 * u);
+    ctx.fillText('Open this sandbox', qx + qrSize / 2, qy + qrSize + 12 * u);
     ctx.textAlign = 'left';
 
     return out;
@@ -2765,7 +3071,9 @@ const config = {
   // ---- Why this place --------------------------------------------------------
   const popup = new maplibregl.Popup({ maxWidth: '20rem', focusAfterOpen: false });
   map.on('click', (e) => {
-    if (drawing || Date.now() - drawEnded < 400) return;
+    // Not while recording or flying a flyover: a click there is for moving
+    // the map, not reading it.
+    if (drawing || flyOpen || flying || Date.now() - drawEnded < 400) return;
     stopTour();
     if (items.length) showWhy(e.lngLat);
   });
@@ -2941,6 +3249,7 @@ const config = {
   /** Every toolbar menu shut, before another opens. */
   function closeOthers() {
     showPalettes(false);
+    showFly(false);
     showSave(false);
     if (bestOpen) {
       stopTour();
@@ -2971,6 +3280,475 @@ const config = {
   }
   for (const ev of ['dragstart', 'wheel', 'touchstart'] as const) map.on(ev, () => stopTour());
 
+  // ---- The flyover -----------------------------------------------------------
+  // While the menu is open, each "add" keeps the view on screen -- where,
+  // how close, turned and tilted. Play flies through them in order on one
+  // smooth path (flyover.ts), the panels out of the way and the legend left.
+  const flyBtn = document.getElementById('fly-btn')!;
+  const flyMenu = document.getElementById('fly-menu')!;
+  const flyList = document.getElementById('fly-list')!;
+  const flyNote = document.getElementById('fly-note')!;
+  const flyPlay = document.getElementById('fly-play') as HTMLButtonElement;
+  const flyClear = document.getElementById('fly-clear') as HTMLButtonElement;
+  const flySpeed = document.getElementById('fly-speed') as HTMLInputElement;
+  const flyStop = document.getElementById('fly-stop')!;
+  const flyLive = document.getElementById('fly-live') as HTMLButtonElement;
+  const flySave = document.getElementById('fly-save')!;
+  const flyVideo = document.getElementById('fly-video') as HTMLVideoElement;
+  let flyOpen = false;
+  const viewNow = (): View => {
+    const c = map.getCenter();
+    return { lng: c.lng, lat: c.lat, zoom: map.getZoom(), bearing: map.getBearing(), pitch: map.getPitch(), elevation: map.getCenterElevation() };
+  };
+  const plan = () => flight(flyViews, { w: el.clientWidth, h: el.clientHeight }, Number(flySpeed.value));
+  // ?flyover-debug: the path drawn on the map and charted (flyover-debug.ts).
+  const flyDebug = new URLSearchParams(location.search).has('flyover-debug')
+    ? new FlightDebug(map, page, () => `score in view missing ${score.pending} loading ${score.loading} held ${score.held}`)
+    : null;
+  if (flyDebug) score.onTile = (key, ms) => flyDebug.note('score-tile-in', `${key} upload ${ms.toFixed(1)}ms`);
+  function renderFly() {
+    flyList.innerHTML = flyViews
+      .map((v, i) => {
+        const at = near(v.lng, v.lat);
+        return (
+          `<li><button type="button" class="fly-go" data-go="${i}" title="Go to this view"><b>${i + 1}</b><span>${esc(at[0].toUpperCase() + at.slice(1))}</span></button>` +
+          `<button type="button" class="fly-del" data-del="${i}" aria-label="Remove view ${i + 1}" title="Remove">×</button></li>`
+        );
+      })
+      .join('');
+    flyNote.textContent =
+      flyViews.length >= 2
+        ? `${flyViews.length} views, about ${Math.round(plan().duration)} seconds.`
+        : flyViews.length
+          ? 'Now move to the next view and add that too.'
+          : 'Move the map to where the flight starts, as close and as tilted as you want it, and add it. Then the next, and the next. A right-drag turns the camera where it stands, to aim it.';
+    flyPlay.disabled = flyLive.disabled = flyViews.length < 2;
+    // Made already, and nothing changed since: it plays at once.
+    const made = !!video && video.key === videoKey();
+    flySave.hidden = !made;
+    flyPlay.textContent = made ? 'Replay' : 'Play';
+    flyClear.disabled = !flyViews.length;
+    flyDebug?.set(flyViews.length >= 2 ? plan() : null);
+  }
+  function showFly(open: boolean) {
+    // Leaving, the middle of the view back on the ground (see looking round).
+    if (!open && looked && !flying) {
+      looked = false;
+      map.setCenterClampedToGround(true);
+    }
+    flyOpen = open;
+    flyMenu.hidden = !open;
+    if (open) popup.remove();
+    flyBtn.setAttribute('aria-expanded', String(open));
+    if (open) renderFly();
+  }
+  flyBtn.addEventListener('click', () => {
+    if (flyOpen) return showFly(false);
+    closeOthers();
+    showFly(true);
+  });
+  document.getElementById('fly-add')!.addEventListener('click', () => {
+    if (flyViews.length >= MAX_VIEWS) return say(`A flyover takes up to ${MAX_VIEWS} views.`);
+    flyViews.push(viewNow());
+    renderFly();
+    flyList.lastElementChild?.scrollIntoView({ block: 'nearest' });
+    saveHash();
+  });
+  flyList.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button');
+    if (!b) return;
+    if (b.dataset.del !== undefined) {
+      flyViews.splice(Number(b.dataset.del), 1);
+      renderFly();
+      saveHash();
+    } else {
+      const v = flyViews[Number(b.dataset.go)];
+      map.easeTo({ center: [v.lng, v.lat], zoom: v.zoom, bearing: v.bearing, pitch: v.pitch, duration: 900 });
+    }
+  });
+  flyClear.addEventListener('click', () => {
+    flyViews = [];
+    renderFly();
+    saveHash();
+  });
+  flySpeed.addEventListener('input', renderFly);
+  flyPlay.addEventListener('click', play);
+  flyLive.addEventListener('click', playLive);
+  flySave.addEventListener('click', () => {
+    if (video) download(`ecoscapes-flyover-${stamp()}.mp4`, video.url);
+  });
+
+  // Looking round, while the flyover is open: a right-drag (or ctrl-drag)
+  // turns the camera where it stands, across and up and down, rather than
+  // swinging it round the middle of the view -- aiming it without moving it.
+  // The middle of the view is then off the ground, wherever the gaze puts it,
+  // and a flight flies it just so.
+  let look: { x: number; y: number; cam: number[]; bearing: number; pitch: number } | null = null;
+  let looked = false;
+  const TURN_PER_PX = 0.25;
+  el.addEventListener(
+    'mousedown',
+    (e) => {
+      if (!flyOpen || flying || !(e.button === 2 || (e.button === 0 && e.ctrlKey))) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const v = viewNow();
+      look = {
+        x: e.clientX,
+        y: e.clientY,
+        cam: cameraAt(v, el.clientHeight, map.getVerticalFieldOfView(), metreAt(v.lat)).camera,
+        bearing: v.bearing,
+        pitch: v.pitch,
+      };
+      map.setCenterClampedToGround(false);
+      looked = true;
+    },
+    true,
+  );
+  el.addEventListener('contextmenu', (e) => {
+    if (flyOpen) e.preventDefault();
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!look) return;
+    const bearing = look.bearing + (e.clientX - look.x) * TURN_PER_PX;
+    const pitch = Math.min(80, Math.max(0, look.pitch - (e.clientY - look.y) * TURN_PER_PX));
+    const c = lookFrom(look.cam, bearing, pitch, map.getZoom(), el.clientHeight, map.getVerticalFieldOfView());
+    map.jumpTo({ center: [c.lng, c.lat], elevation: c.elevation, bearing, pitch });
+  });
+  window.addEventListener('mouseup', () => (look = null));
+
+  let flying = 0;
+  let restorePR = 0;
+  const flyCover = document.getElementById('fly-cover')!;
+  /** Once every tile the view needs -- ground, heights, scores -- is in, or
+   *  after `limit` ms whatever is still missing. Two frames first, for the
+   *  map to see what the new view needs. */
+  const ready = (limit: number) =>
+    new Promise<boolean>((done) => {
+      const t0 = performance.now();
+      const check = () => {
+        if (map.areTilesLoaded() && score.pending === 0) done(true);
+        else if (performance.now() - t0 > limit) done(false);
+        else requestAnimationFrame(check);
+      };
+      requestAnimationFrame(() => requestAnimationFrame(check));
+    });
+  /** The flight flown once in steps before it plays, under a cover, each step
+   *  held until its tiles are in: the real flight then never waits on one.
+   *  Backwards, so it ends at the first view, whose tiles are then the
+   *  freshest kept. */
+  async function preload(f: ReturnType<typeof plan>, me: number) {
+    const steps = Math.max(2, Math.ceil(f.duration / 0.35));
+    cover('Getting the flight ready', 0);
+    for (let k = 0; k <= steps; k++) {
+      if (flying !== me) return false;
+      const v = f.at(f.duration * (1 - k / steps));
+      map.jumpTo({ center: [v.lng, v.lat], zoom: v.zoom, bearing: v.bearing, pitch: v.pitch, elevation: v.elevation });
+      cover('Getting the flight ready', k / steps);
+      const t0 = performance.now();
+      const done = await ready(5000);
+      flyDebug?.note('preload', `step ${k}/${steps} at t ${(f.duration * (1 - k / steps)).toFixed(2)}: ${done ? 'ready' : 'gave up waiting'} after ${(performance.now() - t0).toFixed(0)} ms`);
+    }
+    hideCover();
+    return flying === me;
+  }
+  // The cards (cards.md) in turn while the cover is up, each for its own
+  // seconds, carrying on from where the last cover left off.
+  const cardEl = document.getElementById('fly-card')!;
+  let cardAt = 0;
+  let cardTimer = 0;
+  const pics = [...cardEl.querySelectorAll<HTMLImageElement>('.fly-pics img')];
+  const caption = cardEl.querySelector('figcaption')!;
+  let front = -1;
+  let cardRun = 0;
+  const pause = (ms: number) => new Promise((r) => (cardTimer = window.setTimeout(r, ms)));
+  async function showCard(run: number) {
+    const list = config.cards;
+    const c = list[cardAt++ % list.length];
+    // The picture decoded in the back one first; nothing on screen changes
+    // until it is ready.
+    const back = pics[front === 0 ? 1 : 0];
+    if (c.image) {
+      back.src = c.image;
+      try {
+        await back.decode();
+      } catch {}
+    }
+    if (run !== cardRun) return;
+    // The words out, the picture across, the words in.
+    if (front >= 0) {
+      caption.classList.add('out');
+      await pause(350);
+      if (run !== cardRun) return;
+    }
+    cardEl.classList.toggle('tall', c.tall);
+    cardEl.classList.toggle('nopic', !c.image);
+    caption.querySelector('h2')!.textContent = c.title;
+    caption.querySelector('div')!.innerHTML = c.text.map((t) => `<p>${esc(t)}</p>`).join('');
+    if (c.image) {
+      pics.forEach((p) => p.classList.toggle('on', p === back));
+      front = pics.indexOf(back);
+    }
+    caption.classList.remove('out');
+    await pause(c.seconds * 1000);
+    if (run === cardRun) showCard(run);
+  }
+  function startCards() {
+    if (!config.cards.length) return;
+    cardEl.hidden = false;
+    showCard(++cardRun);
+  }
+  function hideCover() {
+    flyCover.hidden = true;
+    cardRun++;
+    clearTimeout(cardTimer);
+    cardEl.hidden = true;
+  }
+  /** The cover over the map while a flight is got ready or made. */
+  function cover(what: string, done: number, note = '') {
+    if (flyCover.hidden) {
+      startCards();
+      // From empty, not sliding back from wherever the last one ended.
+      const bar = flyCover.querySelector<HTMLElement>('.fly-bar i')!;
+      bar.style.transition = 'none';
+      flyCover.style.setProperty('--done', '0');
+      void bar.offsetWidth;
+      bar.style.transition = '';
+    }
+    flyCover.hidden = false;
+    flyCover.querySelector('b')!.textContent = what;
+    flyCover.querySelector('span')!.textContent = `${Math.round(done * 100)}%`;
+    flyCover.style.setProperty('--done', String(done));
+    flyCover.querySelector('small')!.textContent = note;
+  }
+  /** Out of the way for a flight: the panels, the tour, the popup. */
+  function takeOff() {
+    const me = ++flying;
+    showFly(false);
+    stopTour();
+    popup.remove();
+    page.classList.add('flying');
+    flyStop.hidden = false;
+    // The middle of the view at the flight's own height, not the ground's:
+    // held to the ground, the camera rides up and down every ridge it passes.
+    map.setCenterClampedToGround(false);
+    return me;
+  }
+  const jumpTo = (v: View) => map.jumpTo({ center: [v.lng, v.lat], zoom: v.zoom, bearing: v.bearing, pitch: v.pitch, elevation: v.elevation });
+
+  // ---- The flight as a video ---------------------------------------------------
+  // Made frame by frame, each drawn complete before it is kept, then played
+  // over the map: perfectly smooth in any browser, after a wait. Kept for as
+  // long as nothing it shows changes -- the flight, the model, the colours,
+  // the window -- so playing it again is at once, and it can be saved.
+  let video: { key: string; url: string; start: number } | null = null;
+  /** The title card the saved video opens with: the logo and the model --
+   *  its layers, how they are weighed, the colours. Skipped when played here. */
+  const INTRO = 3;
+  function titleCard(ctx: CanvasRenderingContext2D, w: number, h: number) {
+    const css = getComputedStyle(page);
+    const colour = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback;
+    const u = h / 1000;
+    const font = (size: number, weight = 400) => (ctx.font = `${weight} ${size * u}px system-ui, -apple-system, 'Segoe UI', sans-serif`);
+    ctx.fillStyle = colour('--bg', '#0d1210');
+    ctx.fillRect(0, 0, w, h);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    const lines = modelLines();
+    // Fewer lines, larger; up to MAX_CRITERIA fits.
+    const size = lines.length > 5 ? 28 : 34;
+    const gap = size * 1.55;
+    const block = 90 + 70 + 60 + lines.length * gap + (effectiveMode() === 'two' ? 0 : 90);
+    let y = Math.max(120, (1000 - block) / 2);
+    if (logo.complete && logo.naturalWidth) {
+      const lh = 90 * u;
+      const lw = (logo.naturalWidth / logo.naturalHeight) * lh;
+      ctx.drawImage(logo, (w - lw) / 2, y * u, lw, lh);
+    }
+    y += 90 + 70;
+    font(22, 600);
+    ctx.fillStyle = colour('--accent', '#7fe0a8');
+    if ('letterSpacing' in ctx) (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = `${3 * u}px`;
+    ctx.fillText('DATA SANDBOX · FLYOVER', w / 2, y * u);
+    if ('letterSpacing' in ctx) (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = '0px';
+    y += 50;
+    font(24);
+    ctx.fillStyle = colour('--ink-dim', '#9aa79f');
+    ctx.fillText(`Calculation type: ${opLabel()}`, w / 2, y * u);
+    y += 20;
+    font(size);
+    ctx.fillStyle = colour('--ink', '#eef2ee');
+    for (const line of lines) ctx.fillText(line, w / 2, (y += gap) * u);
+    // The colours, poor to best (two scores have their own nine).
+    if (effectiveMode() !== 'two') {
+      y += 60;
+      const [rw, rh] = [420 * u, 12 * u];
+      const g = ctx.createLinearGradient((w - rw) / 2, 0, (w + rw) / 2, 0);
+      STOPS.forEach((c, i) => g.addColorStop(i / (STOPS.length - 1), rgb(c)));
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.roundRect((w - rw) / 2, y * u, rw, rh, rh / 2);
+      ctx.fill();
+      font(20);
+      ctx.fillStyle = colour('--ink-dim', '#9aa79f');
+      ctx.textAlign = 'left';
+      ctx.fillText('Poor fit', (w - rw) / 2, (y + 42) * u);
+      ctx.textAlign = 'right';
+      ctx.fillText('Best fit', (w + rw) / 2, (y + 42) * u);
+    }
+  }
+  const videoKey = () =>
+    JSON.stringify([location.hash, flyViews, flySpeed.value, getComputedStyle(page).getPropertyValue('--ramp'), map.getCanvas().width, map.getCanvas().height]);
+  /** Drawn complete: redrawn at once, and again each frame until every tile
+   *  is in (or 8 s pass), the view set again each time in case anything
+   *  moved it. The last draw is the one copied, in the same task. */
+  async function settle(v: View, me: number) {
+    const t0 = performance.now();
+    for (;;) {
+      // Stopped: let go at once, so a flight made after it has the map to
+      // itself.
+      if (flying !== me) return;
+      jumpTo(v);
+      map.redraw();
+      if ((map.areTilesLoaded() && score.pending === 0) || performance.now() - t0 > 8000) return;
+      await new Promise((r) => requestAnimationFrame(r));
+    }
+  }
+  async function play() {
+    if (flyViews.length < 2) return;
+    const f = plan();
+    const key = videoKey();
+    const me = takeOff();
+    if (!video || video.key !== key) {
+      const dbg = map.getLayer('flight-debug') ? map.getLayoutProperty('flight-debug', 'visibility') : null;
+      if (dbg !== null) map.setLayoutProperty('flight-debug', 'visibility', 'none');
+      cover('Preparing your flight', 0, 'Each frame is drawn in full, so it plays smoothly.');
+      const t0 = performance.now();
+      let blob: Blob | null = null;
+      try {
+        if (!logo.complete) await new Promise((r) => (logo.onload = logo.onerror = r));
+        const { recordFlight } = await import('../lib/dst/flyover-video');
+        blob = await recordFlight({
+          duration: f.duration,
+          size: { w: map.getCanvas().width, h: map.getCanvas().height },
+          draw: async (t, ctx, w, h) => {
+            await settle(f.at(t), me);
+            if (flying === me) ctx.drawImage(map.getCanvas(), 0, 0, w, h);
+          },
+          onProgress: (k, n) => {
+            if (flying !== me) return;
+            const left = ((performance.now() - t0) / k) * (n - k) / 1000;
+            cover('Preparing your flight', k / n, k > 30 ? `About ${left > 90 ? `${Math.round(left / 60)} min` : `${Math.ceil(left)} s`} left.` : 'Each frame is drawn in full, so it plays smoothly.');
+          },
+          cancelled: () => flying !== me,
+          intro: { seconds: INTRO, draw: titleCard },
+        });
+      } catch (err) {
+        say(err instanceof Error ? err.message : 'Could not make the video.');
+      }
+      if (dbg !== null) map.setLayoutProperty('flight-debug', 'visibility', dbg ?? 'visible');
+      if (!blob || flying !== me) return endFly(flying === me);
+      if (video) URL.revokeObjectURL(video.url);
+      video = { key, url: URL.createObjectURL(blob), start: INTRO };
+    } else {
+      // Under the video, the map waits at the last view, for the hand-back.
+      jumpTo(f.at(f.duration));
+    }
+    hideCover();
+    // Past the title card: that is for the saved copy.
+    if (flyVideo.src !== video.url) flyVideo.src = video.url;
+    flyVideo.currentTime = video.start;
+    flyVideo.hidden = false;
+    flyVideo.onended = () => {
+      if (flying === me) endFly(true);
+    };
+    try {
+      await flyVideo.play();
+    } catch {
+      endFly(true);
+    }
+  }
+
+  // ---- The flight on the live map ------------------------------------------------
+  async function playLive() {
+    if (flyViews.length < 2) return;
+    const f = plan();
+    const me = takeOff();
+    score.keep = 2400;
+    // ?fly-pr=N: the flight drawn at N pixels to the CSS pixel, to see whether
+    // the GPU keeping up is what stutters.
+    const pr = Number(new URLSearchParams(location.search).get('fly-pr'));
+    if (pr > 0) {
+      restorePR = map.getPixelRatio();
+      map.setPixelRatio(pr);
+    }
+    flyDebug?.begin({
+      'fly-pr': pr > 0 ? `${pr} (was ${restorePR})` : `off, drawn at ${map.getPixelRatio()}`,
+      'fly-cache': new URLSearchParams(location.search).get('fly-cache') ?? '12 (default here)',
+      speed: flySpeed.value,
+      duration: `${f.duration.toFixed(2)} s`,
+      'view at s': f.times.map((t) => Number(t.toFixed(2))),
+      views: flyViews,
+    });
+    if (!(await preload(f, me))) return;
+    flyDebug?.note('play', 'preload done, flying');
+    // At the first view now: away.
+    let t0 = 0;
+    const frame = (now: number) => {
+      if (flying !== me) return;
+      t0 ||= now;
+      const t = (now - t0) / 1000;
+      const v = f.at(t);
+      const j0 = performance.now();
+      map.jumpTo({ center: [v.lng, v.lat], zoom: v.zoom, bearing: v.bearing, pitch: v.pitch, elevation: v.elevation });
+      flyDebug?.frame(now, t, v, performance.now() - j0);
+      flyDebug?.playhead(t, v);
+      if (t >= f.duration) {
+        flyDebug?.end('reached the last view');
+        endFly(true);
+      }
+      else requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+  }
+  function endFly(reopen = false) {
+    if (!flying) return;
+    flyDebug?.end('stopped');
+    flying = 0;
+    if (restorePR) {
+      map.setPixelRatio(restorePR);
+      restorePR = 0;
+    }
+    hideCover();
+    flyVideo.pause();
+    flyVideo.hidden = true;
+    score.keep = 700;
+    map.setCenterClampedToGround(true);
+    flyDebug?.playhead(-1);
+    page.classList.remove('flying');
+    flyStop.hidden = true;
+    if (scope === 'view') recountView();
+    if (reopen) showFly(true);
+  }
+  flyVideo.addEventListener('click', () => endFly(true));
+  flyStop.addEventListener('click', () => {
+    flyDebug?.end('stopped with the button');
+    endFly(true);
+  });
+  for (const ev of ['mousedown', 'wheel', 'touchstart'] as const)
+    map.on(ev, () => {
+      if (flying) flyDebug?.end(`stopped by ${ev} on the map`);
+      endFly(true);
+    });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (flying) {
+      flyDebug?.end('stopped with Esc');
+      endFly(true);
+    }
+    else if (flyOpen) showFly(false);
+  });
+
   // ---- Where I am ---------------------------------------------------------------
   let hereDot: maplibregl.Marker | null = null;
   document.getElementById('here')!.addEventListener('click', () => {
@@ -2997,6 +3775,7 @@ const config = {
   // Opens empty -- the map and the choice are the visitor's -- unless the
   // address carries a model (a shared link).
   const shared = loadHash();
+  renderFly();
   render();
   showNumbers();
   if (shared) push();

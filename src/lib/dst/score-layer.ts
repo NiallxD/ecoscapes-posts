@@ -254,6 +254,12 @@ export class ScoreLayer implements CustomLayerInterface {
   private nextId = 1;
   private byId = new Map<number, { key: string; resolve?: (b: number) => void }>();
   private frame = 0;
+  /** How many textures to keep: more while a flyover wants its whole path
+   *  kept ready. */
+  keep = KEEP;
+  /** Told of each tile as it arrives, and how long its upload took (for the
+   *  flyover's log). */
+  onTile: ((key: string, ms: number) => void) | null = null;
 
   constructor(id: string) {
     this.id = id;
@@ -269,6 +275,13 @@ export class ScoreLayer implements CustomLayerInterface {
     return n;
   }
   private visible = new Set<string>();
+  /** Tiles asked of the worker or waiting to be, and textures held. */
+  get loading() {
+    return this.inflight.size + this.queue.length;
+  }
+  get held() {
+    return this.textures.size;
+  }
 
   setModel(criteria: Criterion[], op: Op) {
     this.criteria = criteria.slice(0, MAX_CRITERIA);
@@ -324,7 +337,9 @@ export class ScoreLayer implements CustomLayerInterface {
     }
     this.inflight.delete(r.key);
     if (!this.gl) return;
+    const t0 = performance.now();
     this.textures.set(r.key, { tex: m.data ? this.upload(m.data) : this.empty, used: this.frame });
+    this.onTile?.(r.key, performance.now() - t0);
     this.pump();
     this.map.triggerRepaint();
   }
@@ -499,11 +514,11 @@ export class ScoreLayer implements CustomLayerInterface {
 
   /** Least recently drawn textures go once there are too many. */
   private evict() {
-    if (this.textures.size <= KEEP) return;
+    if (this.textures.size <= this.keep) return;
     const old = [...this.textures.entries()]
       .filter(([, t]) => t.used < this.frame)
       .sort((a, b) => a[1].used - b[1].used)
-      .slice(0, this.textures.size - KEEP + 100);
+      .slice(0, this.textures.size - this.keep + 100);
     for (const [k, t] of old) {
       if (t.tex !== this.empty) this.gl.deleteTexture(t.tex);
       this.textures.delete(k);
