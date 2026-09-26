@@ -1,0 +1,284 @@
+[
+ {
+  "id": "cumulative-impacts",
+  "name": "Cumulative human impacts",
+  "source": {
+   "felt": "b74b4def-b9d5-4dd0-b63b-88d500004453"
+  }
+ },
+ {
+  "id": "ecosystem-resilience",
+  "name": "Ecosystem resilience",
+  "source": {
+   "felt": "cd9beb82-7f36-4f12-8364-438d00004453"
+  }
+ },
+ {
+  "id": "conservation-priorities",
+  "name": "Conservation priorities",
+  "source": {
+   "felt": "06912663-93a6-4eb7-a5c2-461300004453"
+  }
+ },
+ {
+  "id": "ecosystem-services",
+  "name": "Ecosystem services",
+  "source": {
+   "felt": "666f8a56-7786-4649-945b-fe1d00004453"
+  }
+ },
+ {
+  "id": "landcover-2022",
+  "name": "Land cover",
+  "source": {
+   "felt": "10356cb3-4c60-4949-ad55-bd8e00004453"
+  }
+ },
+ {
+  "id": "habitat-suitability-2022",
+  "name": "General habitat suitability (2022)",
+  "source": {
+   "felt": "eb5c57bd-5527-4d91-a6d7-506000004453"
+  }
+ },
+ {
+  "id": "cdc-ecosystem-vulnerability",
+  "name": "Ecosystem vulnerability",
+  "source": {
+   "felt": "93adce79-a302-49ec-970d-2c1d00004453"
+  }
+ },
+ {
+  "id": "biodiversity-index",
+  "name": "Biodiversity index",
+  "source": {
+   "felt": "224fc8fa-1254-48ed-a7f7-bcd500004453"
+  }
+ },
+ {
+  "id": "habitat-permeability-2022",
+  "name": "Landscape permeability",
+  "source": {
+   "felt": "dcb8281f-e158-419e-9dfd-926200004453"
+  }
+ },
+ {
+  "id": "human-footprint-40yr",
+  "name": "Human footprint",
+  "source": {
+   "felt": "316681b4-6f7c-4b6d-b067-241300004453"
+  }
+ },
+ {
+  "id": "forest-change-40yr",
+  "name": "Forest change",
+  "source": {
+   "felt": "80ac13e1-1517-4c47-8dbc-149600004453"
+  }
+ },
+ {
+  "id": "wildfire-hazards-current",
+  "name": "Wildfire hazard",
+  "source": {
+   "felt": "a5984d11-3afa-41d8-9cdb-2fa100004453"
+  }
+ },
+ {
+  "id": "riparian-area-change-40yr",
+  "name": "Riparian area change",
+  "source": {
+   "felt": "4ed4f322-f96d-4126-8c59-baff00004453"
+  }
+ },
+ {
+  "id": "mesic-vegetation-change-40yr",
+  "name": "Mesic vegetation change",
+  "source": {
+   "felt": "55d49259-5bc9-4271-83db-b0ad00004453"
+  }
+ },
+ {
+  "id": "xeric-vegetation-change-40yr",
+  "name": "Xeric vegetation change",
+  "source": {
+   "felt": "186ecd42-931d-4d71-bffb-e64c00004453"
+  }
+ },
+ {
+  "id": "climate-refugia",
+  "name": "Climate refugia",
+  "source": {
+   "felt": "df746d54-cfbc-5e2e-9dca-5dbf00004453"
+  }
+ },
+ {
+  "id": "connectivity-linkages",
+  "name": "Connectivity linkages",
+  "source": {
+   "felt": "7b436516-2a52-43b9-8e16-9f4400004453"
+  }
+ },
+ {
+  "id": "habitat-grizzly-bear",
+  "name": "Grizzly bear habitat",
+  "source": {
+   "felt": "666818e9-1103-4297-805b-bb5000004453"
+  }
+ },
+ {
+  "id": "habitat-wolverine",
+  "name": "Wolverine habitat",
+  "source": {
+   "felt": "f848bdea-311d-5b47-ab4d-a6ff00004453"
+  }
+ },
+ {
+  "id": "habitat-canada-lynx",
+  "name": "Canada lynx habitat",
+  "source": {
+   "felt": "c3b32718-dcec-4862-ab64-e9b000004453"
+  }
+ },
+ {
+  "id": "habitat-pacific-fisher",
+  "name": "Pacific fisher habitat",
+  "source": {
+   "felt": "d8b43964-16e5-4e4f-b736-62e900004453"
+  }
+ },
+ {
+  "id": "habitat-black-bear-fall",
+  "name": "Black bear habitat (fall)",
+  "source": {
+   "felt": "ea552e7d-b66f-40c1-bfa9-e11b00004453"
+  }
+ },
+ {
+  "id": "habitat-black-bear-summer",
+  "name": "Black bear habitat (summer)",
+  "source": {
+   "felt": "fca1a6c3-43c3-4c15-9ba8-a69c00004453"
+  }
+ },
+ {
+  "id": "habitat-hoary-marmot",
+  "name": "Hoary marmot habitat",
+  "source": {
+   "felt": "b28f1d57-5799-572c-b155-cf9200004453"
+  }
+ },
+ {
+  "id": "habitat-black-tailed-deer-a",
+  "name": "Black-tailed deer habitat (A)",
+  "source": {
+   "felt": "5e90d77b-3b07-4959-812d-597100004453"
+  }
+ },
+ {
+  "id": "habitat-black-tailed-deer-b",
+  "name": "Black-tailed deer habitat (B)",
+  "source": {
+   "felt": "d73d69bb-fa6f-4ce8-87b0-735c00004453"
+  }
+ },
+ {
+  "id": "habitat-coyote",
+  "name": "Coyote habitat",
+  "source": {
+   "felt": "db95faa8-f9af-4c03-9535-ae5b00004453"
+  }
+ },
+ {
+  "id": "habitat-douglas-squirrel",
+  "name": "Douglas squirrel habitat",
+  "source": {
+   "felt": "e27852d2-7dde-41e6-81d3-303700004453"
+  }
+ },
+ {
+  "id": "habitat-yellow-pine-chipmunk",
+  "name": "Yellow pine chipmunk habitat",
+  "source": {
+   "felt": "fd1f47f4-3f9c-56b0-98e4-6c7a00004453"
+  }
+ },
+ {
+  "id": "habitat-beaver",
+  "name": "Beaver habitat",
+  "source": {
+   "felt": "d06b5096-a73b-4f29-9468-f8c400004453"
+  }
+ },
+ {
+  "id": "habitat-mink",
+  "name": "Mink habitat",
+  "source": {
+   "felt": "b7be86f9-032f-5bd3-9485-93b500004453"
+  }
+ },
+ {
+  "id": "habitat-northern-red-legged-frog",
+  "name": "Northern red-legged frog habitat",
+  "source": {
+   "felt": "42baa84d-6bd5-49e5-ac25-605900004453"
+  }
+ },
+ {
+  "id": "habitat-western-toad",
+  "name": "Western toad habitat",
+  "source": {
+   "felt": "508e6be0-769a-4b01-8f09-d8a300004453"
+  }
+ },
+ {
+  "id": "habitat-pacific-tree-frog",
+  "name": "Pacific tree frog habitat",
+  "source": {
+   "felt": "52b6dfa4-76db-417e-ac54-40db00004453"
+  }
+ },
+ {
+  "id": "habitat-ensatina-salamander",
+  "name": "Ensatina salamander habitat",
+  "source": {
+   "felt": "89f48d3c-dfbc-427e-a8c3-976400004453"
+  }
+ },
+ {
+  "id": "habitat-northwestern-salamander",
+  "name": "Northwestern salamander habitat",
+  "source": {
+   "felt": "ff6dee29-d3e1-4712-9b45-eb3800004453"
+  }
+ },
+ {
+  "id": "habitat-long-toed-salamander",
+  "name": "Long-toed salamander habitat",
+  "source": {
+   "felt": "36c3ed25-79a3-4b7a-81a6-b34000004453"
+  }
+ },
+ {
+  "id": "habitat-northern-alligator-lizard",
+  "name": "Northern alligator lizard habitat",
+  "source": {
+   "felt": "ace679da-fa5b-4568-9f61-9b9700004453"
+  }
+ },
+ {
+  "id": "habitat-garter-snake",
+  "name": "Common garter snake habitat",
+  "source": {
+   "felt": "3093af32-ce6e-49f5-bfe1-c7ef00004453"
+  }
+ },
+ {
+  "id": "habitat-cores",
+  "name": "Habitat cores and patches",
+  "dir": "layers",
+  "source": {
+   "polygons": "",
+   "colour": "112,168,0"
+  }
+ }
+]

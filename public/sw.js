@@ -10,7 +10,7 @@
  * Nothing here is required for the site to function -- if registration fails,
  * every view still works over the network.
  */
-// Stamped at build time by tools/sw-version.mjs -- VERSION from a hash of the
+// Stamped at build time by shared/tools/sw-version.mjs -- VERSION from a hash of the
 // media, TILES_VERSION from a hash of the map's tiles, so a new basemap does not
 // throw away everyone's photographs and clips, nor a new clip their map.
 // Changing them by hand is not needed and will be overwritten in the build. The

@@ -1,0 +1,4043 @@
+---
+import { getEntry } from 'astro:content';
+import { getImage } from 'astro:assets';
+import type { ImageMetadata } from 'astro';
+import 'maplibre-gl/dist/maplibre-gl.css';
+import Shell from '../shared/layouts/Shell.astro';
+import { asset, tile } from '../shared/lib/paths';
+import layersData from './content/dst-layers.json';
+// The longer text behind each layer's (i), kept as Markdown for the team to
+// edit: a `## Layer name` heading, paragraphs, then a `Source:` line.
+import descriptionsMd from './content/layer-descriptions.md?raw';
+
+/** The Data Sandbox (DST): the RRN demo's weighted, fuzzy scoring, on this
+ *  region's own layers. Where /map/ shows each layer as it is, this page asks
+ *  what matters and how much, and colours the whole area by how well each
+ *  place fits. Every layer is a file of real values (tools/prepare-value-
+ *  layer.py) scored on the GPU as the sliders move -- no server. A demo: the
+ *  presets are examples, not anyone's recommendation. */
+const entry = await getEntry('ecoscapes', 'sea-to-sky');
+if (!entry) throw new Error('map/content/sea-to-sky.md is missing');
+const { data } = entry;
+
+type Detail = { text: string[]; source: string; href: string };
+function readDescriptions(md: string) {
+  const idOf = new Map(layersData.map((l) => [l.name, l.id]));
+  const out: Record<string, Detail> = {};
+  for (const part of md.split(/^## /m).slice(1)) {
+    const [head, ...rest] = part.split('\n');
+    const id = idOf.get(head.trim());
+    if (!id) throw new Error(`dst/content/layer-descriptions.md: "${head.trim()}" is not the name of a layer in the Data Sandbox`);
+    // Up to the next group heading, if there is one.
+    const body = rest.join('\n').split(/^# /m)[0];
+    const src = body.match(/^Source:\s*(.+)$/m)?.[1].trim() ?? '';
+    const link = src.match(/^\[(.+?)\]\((.+?)\)$/);
+    out[id] = {
+      text: body
+        .replace(/^Source:.*$/m, '')
+        .split(/\n\s*\n/)
+        .map((p) => p.replace(/\s*\n\s*/g, ' ').trim())
+        .filter(Boolean),
+      source: link ? link[1] : src,
+      href: link ? link[2] : '',
+    };
+  }
+  return out;
+}
+const details = readDescriptions(descriptionsMd);
+
+// The cards shown while a flyover is made into a video: a `## Title`, then
+// `Image:` and `Seconds:` lines, then text (dst/content/flyover-cards/cards.md,
+// with its pictures beside it).
+import cardsMd from './content/flyover-cards/cards.md?raw';
+const cardImages = import.meta.glob<ImageMetadata>('./content/flyover-cards/*.{jpg,jpeg,png,webp,JPG,JPEG,PNG,WEBP}', { eager: true, import: 'default' });
+async function readCards(md: string) {
+  const cards = [];
+  for (const part of md.split(/^## /m).slice(1)) {
+    const [head, ...rest] = part.split('\n');
+    let body = rest.join('\n');
+    const file = body.match(/^Image:\s*(.+)$/im)?.[1].trim();
+    const seconds = Number(body.match(/^Seconds:\s*(.+)$/im)?.[1]) || 8;
+    body = body.replace(/^(Image|Seconds):.*$/gim, '');
+    let image = '';
+    let tall = false;
+    if (file) {
+      const meta = cardImages[`./content/flyover-cards/${file}`];
+      if (!meta) throw new Error(`dst/content/flyover-cards/cards.md: "${head.trim()}" wants ${file}, which is not in dst/content/flyover-cards/`);
+      // Landscape pictures across the top, portrait ones beside the text.
+      tall = meta.height > meta.width;
+      image = (await getImage({ src: meta, width: Math.min(tall ? 900 : 1600, meta.width), format: 'webp', quality: 80 })).src;
+    }
+    cards.push({
+      title: head.trim(),
+      image,
+      tall,
+      seconds,
+      text: body
+        .split(/\n\s*\n/)
+        .map((t) => t.replace(/\s*\n\s*/g, ' ').trim())
+        .filter(Boolean),
+    });
+  }
+  return cards;
+}
+const cards = await readCards(cardsMd);
+
+const config = {
+  bounds: data.bounds,
+  limit: data.limit,
+  basemap: tile(data.basemap),
+  terrain: tile('/tiles/terrain.pmtiles'),
+  glyphs: asset('/tiles/fonts/{fontstack}/{range}.pbf'),
+  logo: asset('/img/ecoscapes-logo-white.png'),
+  emblem: asset('/img/ecoscapes-emblem.png'),
+  cards,
+  layers: layersData.map((l) => ({
+    ...l,
+    src: tile(l.src),
+    sampleSrc: tile(l.sampleSrc),
+    detail: details[l.id],
+  })),
+};
+---
+<Shell title="EcoScapes Data Sandbox" description="Choose what matters and how much, and see where across the Sea-to-Sky fits best.">
+  <!-- On a phone: not the tool, which needs the room, but a way to send
+       yourself the link for later, and the map to look at now. iPads and
+       computers never see this. -->
+  <section class="phone-gate" aria-labelledby="gate-title">
+    <img class="gate-logo" src={asset('/img/ecoscapes-logo-white.png')} alt="EcoScapes" width="800" height="184" />
+    <p class="eyebrow">Data Sandbox</p>
+    <h1 id="gate-title">This one needs a bigger screen</h1>
+    <p>The Data Sandbox is designed for a computer or a tablet. Send yourself the link and open it there, or take a look at our map explorer on your phone now.</p>
+    <a class="gate-btn gate-main" id="gate-mail" href="mailto:">Email me the link</a>
+    <!-- A shared model (a link or a scanned code) can be seen here as a
+         picture: the full map image, drawn on the phone when asked. -->
+    <button class="gate-btn" id="gate-see" type="button" hidden>See this map on your phone</button>
+    <p class="gate-busy" id="gate-busy" role="status" hidden>Drawing the map… this takes a few seconds.</p>
+    <a class="gate-btn" href={asset('/map/')}>Open the map</a>
+    <a class="gate-home" href={asset('/')}>All the posts</a>
+    <!-- The email's address filled in here, on its own: the page's main
+         script has the whole map library to load first, and the button must
+         work whether or not that ever runs. -->
+    <script is:inline>
+      document.getElementById('gate-mail').href =
+        'mailto:?subject=' + encodeURIComponent('EcoScapes Data Sandbox') +
+        '&body=' + encodeURIComponent('Open the EcoScapes Data Sandbox on a computer or tablet:\n\n' + location.href + '\n');
+      if (/^#[mz]=/.test(location.hash)) document.getElementById('gate-see').hidden = false;
+    </script>
+  </section>
+  <!-- The picture, once drawn: the page itself pinches to zoom it. -->
+  <section class="phone-view" id="phone-view" hidden>
+    <div class="view-bar">
+      <button type="button" class="gate-btn" id="view-back">Back</button>
+      <a class="gate-btn gate-main" id="view-save" href="#">Save image</a>
+    </div>
+    <p class="view-hint">Pinch to zoom in. Open the link on a computer or tablet to change it.</p>
+    <img id="view-img" alt="The map for this sandbox, with its key and layers" />
+  </section>
+  <main class="dst-page">
+    <div class="map" id="map" data-config={JSON.stringify(config)}></div>
+    <!-- A flyover made into a video, played over the map. -->
+    <video class="fly-video" id="fly-video" muted playsinline hidden></video>
+
+    <!-- Down the left on a wider screen: the panel, and the legend under it. -->
+    <div class="left-col">
+    <section class="dst-panel" id="panel" aria-labelledby="panel-title">
+      <header class="panel-head">
+        <div>
+          <img class="panel-logo" src={asset('/img/ecoscapes-logo-white.png')} alt="EcoScapes" width="800" height="184" />
+          <p class="eyebrow">Data Sandbox · demo</p>
+          <h1 id="panel-title">What matters here?</h1>
+        </div>
+        <button class="fold" id="share" type="button" aria-label="Copy a link to this sandbox" title="Copy a link to this sandbox">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1" /><path d="M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1" /></svg>
+        </button>
+        <button class="fold" id="fold" type="button" aria-expanded="true" aria-controls="panel-body" aria-label="Fold the panel">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+        </button>
+      </header>
+      <div class="panel-body" id="panel-body">
+        <p class="lede">Choose the layers which you are interested in analysing. Configure how much you value each layers contribution to the analysis. The map lights up in response to your configuration. Click any location on the map to read how each layer contributes.</p>
+
+        <!-- The three settings folded to a line each until opened, what is
+             chosen in each shown beside its name. -->
+        <details class="block fold-block" name="settings">
+          <summary><h2>Start from an example</h2><span class="sum-val" id="preset-val"></span><svg class="sum-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg></summary>
+          <p class="sec-desc">Load a preconfigured map based around key themes.</p>
+          <div class="chips" id="presets"></div>
+          <p class="op-note" id="preset-note"></p>
+        </details>
+
+        <details class="block fold-block" name="settings">
+          <summary><h2>Bivariate</h2><span class="sum-val" id="mode-val"></span><svg class="sum-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg></summary>
+          <p class="sec-desc">Enable bivariate grouping to split the data into two groups, then plot them together into a bivariate map. This shows how much two variables agree or disagree about an area.</p>
+          <div class="seg seg-2" id="mode" role="radiogroup" aria-label="Single or bivariate">
+            <button type="button" role="radio" data-mode="one">Single</button>
+            <button type="button" role="radio" data-mode="two">Bivariate</button>
+          </div>
+          <p class="op-note" id="mode-note"></p>
+        </details>
+
+        <details class="block fold-block" name="settings">
+          <summary><h2>Calculation type</h2><span class="sum-val" id="op-val"></span><svg class="sum-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg></summary>
+          <p class="sec-desc">When showing multiple data layers, you can choose how those layers are combined. Hover over each to learn more.</p>
+          <div class="seg" id="op" role="radiogroup" aria-label="How the layers combine">
+            <button type="button" role="radio" data-op="mean">Weigh up</button>
+            <button type="button" role="radio" data-op="and">All must pass</button>
+            <button type="button" role="radio" data-op="or">Any one</button>
+          </div>
+          <p class="op-note" id="op-note"></p>
+        </details>
+
+        <div class="block">
+          <h2>Layers</h2>
+          <div id="criteria"></div>
+        </div>
+      </div>
+    </section>
+
+      <!-- What the map's colours and marks mean, folded to its title when
+           not wanted. -->
+      <details class="legend" id="legend" open>
+        <summary><h2>Legend</h2><svg class="sum-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg></summary>
+        <div class="lg-one">
+          <i class="lg-ramp"></i>
+          <div class="lg-ends"><span>Poor fit</span><span>Best fit</span></div>
+        </div>
+        <div class="lg-two">
+          <div class="lg-bi">
+            <div class="lg-bi-grid" id="lg-bi-grid" aria-hidden="true"></div>
+            <div class="lg-bi-axes"><span id="lg-bi-y"></span><span id="lg-bi-x"></span></div>
+          </div>
+        </div>
+        <ul class="lg-list">
+          <li><i class="sw sw-none"></i>No data for these layers</li>
+          <li><i class="sw sw-pin">1</i>Best places</li>
+          <li><i class="sw sw-drawn"></i>An area you have drawn</li>
+          <li><i class="sw sw-town">Aa</i>Towns</li>
+          <li><i class="sw sw-road"></i>Roads</li>
+          <li><i class="sw sw-edge"></i>Edge of the study area</li>
+        </ul>
+      </details>
+    </div>
+
+    <!-- The result in numbers, and the key to the map's colours: the spread
+         of scores is drawn in the map's own ramp, so it is both. -->
+    <aside class="key" aria-labelledby="key-title">
+      <div class="key-head">
+        <div class="key-title">
+          <h2 id="key-title">How much fits</h2>
+          <!-- Minimised to its title, out of the way of the map. -->
+          <button class="fold key-fold" id="key-fold" type="button" aria-expanded="true" aria-label="Minimise">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6-6 6 6" /></svg>
+          </button>
+        </div>
+        <div class="seg seg-sm" id="scope" role="radiogroup" aria-label="Count across">
+          <button type="button" role="radio" data-scope="region" aria-checked="true">Whole area</button>
+          <button type="button" role="radio" data-scope="view" aria-checked="false">This view</button>
+          <button type="button" role="radio" data-scope="area" aria-checked="false" title="Draw an area on the map and count inside it">Draw</button>
+        </div>
+      </div>
+      <p class="key-solo" id="key-solo" hidden></p>
+      <div class="key-one">
+        <p class="big"><b id="pct">–</b><span id="km"></span></p>
+        <div class="spread" id="spread" aria-hidden="true"></div>
+        <div class="key-ends"><span>Poor fit</span><span>Best fit</span></div>
+        <label class="key-op"><span>Counts as a good fit from <output id="cut-out">70</output></span>
+          <input id="cut" type="range" min="5" max="95" step="5" value="70" /></label>
+        <label class="key-check"><input id="only" type="checkbox" /> Only show places above it</label>
+        <label class="key-check" id="steady-label"><input id="steady-on" type="checkbox" /> Show how steady it is</label>
+        <div class="steady" id="steady" hidden>
+          <p>Every weight nudged up and down, sixteen times over. Brightest where a place stays a good fit however the weights shift; dim where it hinges on exactly how they were set.</p>
+          <div class="steady-rows" id="steady-rows"></div>
+        </div>
+      </div>
+      <!-- Two scores: the nine-cell key, which is also the numbers -- each
+           cell's area on hover, and a click shows that cell alone. -->
+      <div class="key-two">
+        <p class="big"><b id="bi-pct">–</b><span id="bi-km"></span></p>
+        <div class="bi">
+          <span class="bi-y" id="bi-y"></span>
+          <div class="bi-grid" id="bi-grid" role="group" aria-label="The nine combinations"></div>
+          <span class="bi-x" id="bi-x"></span>
+        </div>
+        <p class="bi-hint">Hover a square for its area. Click to show it alone.</p>
+        <div class="bi-brk" id="bi-brk"></div>
+      </div>
+      <label class="key-op">Strength <input id="opacity" type="range" min="0.2" max="1" step="0.05" value="0.85" /></label>
+      <p class="key-foot" id="key-foot"></p>
+    </aside>
+    <!-- The flyover's views, in the numbers' place while it is open: views
+         added one by one, then flown through in order, the panels out of
+         the way. -->
+    <div class="pop-menu fly-menu" id="fly-menu" hidden>
+      <p class="pop-title">Flyover</p>
+      <p class="best-note" id="fly-note"></p>
+      <ol class="fly-list" id="fly-list"></ol>
+      <button type="button" class="fly-add" id="fly-add">+ Add this view</button>
+      <label class="fly-speed">Speed <input id="fly-speed" type="range" min="0.4" max="2" step="0.1" value="1" /></label>
+      <div class="fly-row">
+        <button type="button" class="fly-play" id="fly-play" title="Made into a video first, so it plays perfectly smoothly">Play</button>
+        <button type="button" id="fly-live" title="Flown on the live map, straight away">Live</button>
+        <button type="button" id="fly-clear">Clear</button>
+      </div>
+      <button type="button" class="fly-save" id="fly-save" hidden>Save the video</button>
+    </div>
+
+    <div class="map-side">
+      <!-- Flat, or the scores laid over the ground's own shape. -->
+      <!-- The tilt, sliding out of the button while 3D is on: a mouse's
+           way to it (a right-drag also tilts). Not on a touch screen, where
+           two fingers do it. -->
+      <div class="tilt-wrap">
+        <label class="tilt" id="tilt" aria-hidden="true">
+          <span>Tilt</span>
+          <input type="range" min="0" max="80" step="1" value="60" tabindex="-1" aria-label="Tilt" />
+        </label>
+        <button class="step" id="three-d" type="button" aria-pressed="false" aria-label="3D view" title="3D view"><span class="step-text">3D</span></button>
+      </div>
+      <!-- The colours the score is drawn in. -->
+      <div class="pal-wrap" id="pal-wrap">
+        <div class="pal-menu" id="pal-menu" role="radiogroup" aria-label="Colours" hidden></div>
+        <button class="step" id="pal-btn" type="button" aria-expanded="false" aria-controls="pal-menu" aria-label="Colours" title="Colours">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3a9 9 0 100 18c1 0 1.6-.8 1.6-1.7 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-.9.8-1.7 1.7-1.7H16a5 5 0 005-5C21 6.6 17 3 12 3z" />
+            <circle cx="7.5" cy="11" r="1.1" fill="currentColor" /><circle cx="10.5" cy="7.3" r="1.1" fill="currentColor" /><circle cx="15" cy="7.8" r="1.1" fill="currentColor" />
+          </svg>
+        </button>
+      </div>
+      <!-- The strongest places for the model as it stands: numbered on the
+           map, named by the nearest town, and toured as soon as they open. -->
+      <div class="pop-wrap">
+        <div class="pop-menu best-menu" id="best-menu" hidden>
+          <p class="pop-title">Best places</p>
+          <ol class="best-list" id="best-list"></ol>
+          <p class="best-note" id="best-note"></p>
+        </div>
+        <button class="step" id="best-btn" type="button" aria-expanded="false" aria-controls="best-menu" aria-label="Best places" title="Best places">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.8l-5.2 2.8 1-5.8-4.3-4.1 5.9-.9z" />
+          </svg>
+        </button>
+      </div>
+      <!-- A flyover: its views in the numbers' place (after .key). -->
+      <div class="pop-wrap">
+        <button class="step" id="fly-btn" type="button" aria-expanded="false" aria-controls="fly-menu" aria-label="Flyover" title="Flyover">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="5" cy="18" r="2" /><circle cx="19" cy="6" r="2" /><path d="M6.8 17c4-1 2.5-6 6-7.5 1.6-.7 3-1.3 4.4-2.3" stroke-dasharray="2.2 2.4" />
+          </svg>
+        </button>
+      </div>
+      <!-- Sharing it: the whole area as a finished map, the view as it is,
+           the numbers, or a code that opens this model. -->
+      <div class="pop-wrap" id="save-wrap">
+        <div class="pop-menu" id="save-menu" hidden>
+          <button type="button" data-save="full">Full map<small>The whole area, with its key</small></button>
+          <button type="button" data-save="view">This view<small>The map as it is on screen</small></button>
+          <button type="button" data-save="csv">Numbers (CSV)<small>The model and the areas</small></button>
+          <button type="button" data-save="qr">QR code<small>Opens this sandbox on a phone or tablet</small></button>
+        </div>
+        <button class="step" id="save-btn" type="button" aria-expanded="false" aria-controls="save-menu" aria-label="Share" title="Share">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 15V3.5M8 7.5l4-4 4 4" /><path d="M8.5 10.5H6a1 1 0 00-1 1V20a1 1 0 001 1h12a1 1 0 001-1v-8.5a1 1 0 00-1-1h-2.5" />
+          </svg>
+        </button>
+      </div>
+      <button class="step" id="here" type="button" aria-label="Score where I am" title="Score where I am">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4" /><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3" />
+        </svg>
+      </button>
+      <a class="step" id="to-map" href={asset('/map/')} aria-label="Back to the map">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 3.5l8.5 4.5-8.5 4.5L3.5 8z" /><path d="M3.5 12l8.5 4.5 8.5-4.5" /><path d="M3.5 16l8.5 4.5 8.5-4.5" />
+        </svg>
+      </a>
+      <a class="step" id="home" href={asset('/')} aria-label="All the posts">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5L12 4l8 6.5V19a1 1 0 01-1 1h-4.5v-5.5h-5V20H5a1 1 0 01-1-1z" /></svg>
+      </a>
+    </div>
+
+    <!-- Over the map while the flight's tiles load, its path flown once. -->
+    <div class="fly-cover" id="fly-cover" hidden>
+      <!-- Something to look at while it is made: the cards in turn. -->
+      <figure class="fly-card" id="fly-card" hidden>
+        <!-- Two pictures in a frame of fixed shape: the next decoded before
+             it fades in over the last, so nothing moves or half-draws. -->
+        <div class="fly-pics"><img alt="" /><img alt="" /></div>
+        <figcaption><h2></h2><div></div></figcaption>
+      </figure>
+      <p><b>Getting the flight ready</b> <span>0%</span></p>
+      <div class="fly-bar" aria-hidden="true"><i></i></div>
+      <small></small>
+    </div>
+    <!-- A view's callout, pinned to its spot as the live flight passes it
+         (a video has it drawn in). -->
+    <div class="fly-callout" id="fly-callout" hidden><div><h3></h3><p></p></div></div>
+    <button class="fly-stop" id="fly-stop" type="button" hidden>Stop the flyover</button>
+    <div class="loading-bar" id="loading-bar" aria-hidden="true"></div>
+    <p class="toast" id="toast" role="status" aria-live="polite" hidden></p>
+  </main>
+</Shell>
+
+<style>
+  .dst-page { position: relative; height: 100dvh; overflow: hidden; }
+  /* A phone, upright or on its side: a touch screen under 600px either way.
+     The same test is in the script, which then stops before the map. */
+  .phone-gate { display: none; }
+  @media (pointer: coarse) and (max-width: 599px), (pointer: coarse) and (max-height: 599px) {
+    .dst-page { display: none; }
+    .phone-gate {
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 0.9rem;
+      max-width: 26rem;
+      margin: 0 auto;
+      padding: calc(var(--safe-t, 0px) + 2rem) 1.5rem 2rem;
+      background: var(--bg);
+    }
+  }
+  /* Drawing the picture: the map there to draw, but not seen. */
+  :global(html.phone-render) .dst-page { display: block; position: fixed; inset: 0; opacity: 0; pointer-events: none; z-index: -1; }
+  :global(html.phone-viewing) .phone-gate { display: none; }
+  .gate-btn:disabled { opacity: 0.5; }
+  button.gate-btn { width: 100%; appearance: none; background: none; font: inherit; cursor: pointer; }
+  .gate-busy { font-size: 0.85rem; text-align: center; }
+  .phone-view { padding: calc(var(--safe-t, 0px) + 0.8rem) 0.8rem 2rem; background: var(--bg); }
+  .phone-view[hidden] { display: none; }
+  .view-bar { display: flex; gap: 0.6rem; }
+  .view-bar .gate-btn { flex: 1; margin: 0; }
+  .view-hint { margin: 0.7rem 0.2rem; font-size: 0.8rem; line-height: 1.45; color: var(--ink-dim); }
+  #view-img { display: block; width: 100%; height: auto; border-radius: 6px; }
+  .gate-logo { width: 11rem; height: auto; margin-bottom: 1rem; }
+  .phone-gate .eyebrow { margin: 0; font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
+  .phone-gate h1 { margin: 0; font-size: 1.6rem; line-height: 1.2; }
+  .phone-gate p { margin: 0; line-height: 1.55; color: var(--ink-dim); }
+  .gate-btn {
+    display: block;
+    padding: 0.85rem 1rem;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    color: var(--ink);
+    text-align: center;
+    text-decoration: none;
+    font-weight: 600;
+  }
+  .gate-main { margin-top: 0.6rem; border-color: var(--accent); background: var(--accent); color: #0d1210; }
+  .gate-home { align-self: center; margin-top: 0.4rem; font-size: 0.85rem; color: var(--ink-dim); }
+  .map { position: absolute; inset: 0; background: var(--bg); }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+  /* ---- The panel ---------------------------------------------------------
+     A phone: the lower half of the screen, foldable to its title. A wider
+     screen: a card down the left. */
+  .dst-panel {
+    position: absolute;
+    z-index: 6;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-height: 56dvh;
+    display: flex;
+    flex-direction: column;
+    border-radius: 20px 20px 0 0;
+    border-top: 1px solid var(--line);
+    background: rgba(13, 18, 16, 0.96);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+  /* A phone: the panel alone, as above. A wider screen: the panel and the
+     legend in a column down the left, stopping short of the foot so the (i)
+     has the corner; the two share the height when it runs short. */
+  .left-col { display: contents; }
+  .legend { display: none; }
+  @media (min-width: 48rem) {
+    .left-col {
+      position: absolute;
+      z-index: 6;
+      left: 1rem;
+      top: calc(var(--safe-t) + 1rem);
+      width: 25rem;
+      max-height: calc(100dvh - var(--safe-t) - 1rem - 3rem);
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+    }
+    .dst-panel {
+      position: relative;
+      left: auto;
+      right: auto;
+      top: auto;
+      bottom: auto;
+      flex: 0 1 auto;
+      min-height: 0;
+      max-height: none;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+    }
+    .legend {
+      display: block;
+      flex: none;
+      padding: 0.8rem 1.1rem;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: rgba(13, 18, 16, 0.96);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+    }
+  }
+  .legend summary { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; list-style: none; cursor: pointer; }
+  .legend summary::-webkit-details-marker { display: none; }
+  .legend h2 { margin: 0; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-dim); }
+  .legend summary:hover h2, .legend summary:hover .sum-chev { color: var(--ink); }
+  .legend[open] .sum-chev { transform: rotate(180deg); }
+  .legend[open] summary { margin-bottom: 0.65rem; }
+  /* The score's colours, in the palette chosen, or the nine for two scores. */
+  .lg-ramp { display: block; height: 10px; border-radius: 5px; background: var(--ramp, linear-gradient(90deg, #2d2318, #ffdd80)); }
+  .lg-ends { display: flex; justify-content: space-between; margin-top: 0.25rem; font-size: 0.7rem; color: var(--ink-dim); }
+  .lg-two { display: none; }
+  .bi-on .lg-one { display: none; }
+  .bi-on .lg-two { display: block; }
+  .lg-bi { display: flex; align-items: center; gap: 0.8rem; }
+  .lg-bi-axes { display: grid; gap: 0.3rem; min-width: 0; font-size: 0.72rem; color: var(--ink-dim); }
+  .lg-bi-axes :global(i) { font-style: normal; font-weight: 600; color: var(--ink); }
+  .lg-bi-grid { display: grid; grid-template-columns: repeat(3, 1.6rem); grid-auto-rows: 1.1rem; gap: 2px; }
+  .lg-bi-grid :global(i) { border-radius: 3px; }
+  .lg-list { list-style: none; margin: 0.75rem 0 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem 0.8rem; font-size: 0.74rem; color: var(--ink-dim); }
+  .lg-list li { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
+  .sw { flex: none; width: 22px; height: 14px; display: grid; place-items: center; font-style: normal; }
+  .sw-none { border-radius: 3px; background: #141b17; box-shadow: inset 0 0 0 1px var(--line); }
+  .sw-pin { width: 16px; height: 16px; margin: 0 3px; border-radius: 50%; background: var(--ramp-hi, #ffdd80); color: #1a140a; font: 700 9px/1 system-ui, sans-serif; box-shadow: 0 0 0 1.5px #0d1210; }
+  .sw-drawn { border-radius: 2px; border: 1.5px dashed #eef2ee; background: rgba(238, 242, 238, 0.07); }
+  .sw-town { font: 600 0.72rem/1 system-ui, sans-serif; color: #e6ece9; }
+  .sw-road { height: 3px; border-radius: 2px; background: #b0b8b3; }
+  .sw-edge { height: 0; border-top: 1.5px dashed #9aa79f; }
+  .panel-head { display: flex; align-items: flex-start; gap: 0.8rem; padding: 1rem 1.1rem 0.6rem; }
+  .panel-head > div { flex: 1; min-width: 0; }
+  .panel-logo { display: block; width: 8.5rem; height: auto; margin: 0.1rem 0 0.7rem; }
+  #share { margin-right: -0.4rem; }
+  .eyebrow { margin: 0; font-size: 0.66rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
+  h1 { font-size: 1.2rem; line-height: 1.2; margin: 0.25rem 0 0; }
+  .fold {
+    flex: none;
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+    background: var(--bg-lift);
+    color: var(--ink);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .fold svg { width: 16px; height: 16px; transition: transform 0.18s; }
+  .fold[aria-expanded='false'] svg { transform: rotate(180deg); }
+  .panel-body {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0 1.1rem calc(1.2rem + var(--foot));
+  }
+  .panel-body[hidden] { display: none; }
+  @media (min-width: 48rem) { .panel-body { padding-bottom: 1.2rem; } }
+  .lede { margin: 0 0 0.9rem; font-size: 0.88rem; line-height: 1.5; color: var(--ink-dim); }
+  .block { border-top: 1px solid var(--line); padding: 0.8rem 0; }
+  .block h2 {
+    margin: 0 0 0.55rem;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+  .fold-block summary { display: flex; align-items: center; gap: 0.5rem; list-style: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .fold-block summary::-webkit-details-marker { display: none; }
+  .fold-block summary h2 { margin: 0; }
+  .fold-block[open] summary { margin-bottom: 0.55rem; }
+  .sum-val { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; font-size: 0.74rem; color: var(--ink); }
+  .fold-block[open] .sum-val { visibility: hidden; }
+  .sum-chev { flex: none; width: 14px; height: 14px; color: var(--ink-dim); transition: transform 0.15s; }
+  .fold-block[open] .sum-chev { transform: rotate(180deg); }
+  .fold-block summary:hover h2, .fold-block summary:hover .sum-chev { color: var(--ink); }
+
+  .chips :global(button), .seg button {
+    appearance: none;
+    -webkit-appearance: none;
+    font: inherit;
+    font-size: 0.82rem;
+    line-height: 1.2;
+    white-space: nowrap;
+    color: var(--ink);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* Examples: an even grid of equal buttons, however many there are. */
+  .chips { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; }
+  .chips :global(button) {
+    padding: 0.55rem 0.75rem;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: var(--bg-lift);
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .chips :global(button:hover) { border-color: #3a4843; }
+  .chips :global(button[aria-pressed='true']) { border-color: var(--accent); color: var(--accent); }
+  /* How they combine: one control in three parts, the chosen part lifted. */
+  .seg {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    padding: 3px;
+    border-radius: 11px;
+    border: 1px solid var(--line);
+    background: rgba(0, 0, 0, 0.25);
+  }
+  .seg-2 { grid-template-columns: 1fr 1fr; }
+  .seg button { padding: 0.5rem 0.4rem; border: 0; border-radius: 8px; background: none; color: var(--ink-dim); }
+  .seg button:hover { color: var(--ink); }
+  .seg button[aria-checked='true'] { background: var(--bg-lift); color: var(--accent); box-shadow: 0 0 0 1px var(--line); }
+  .sec-desc { margin: 0 0 0.6rem; font-size: 0.76rem; line-height: 1.45; color: var(--ink-dim); }
+  /* The examples, the two modes and the calculation types explained on
+     hover (and keyboard focus), in a tip under the button: kept inside the
+     panel by lining it up with the button's outer edge at either side. */
+  .fold-block :global([data-tip]) { position: relative; }
+  .fold-block :global([data-tip])::after {
+    content: attr(data-tip);
+    position: absolute;
+    z-index: 3;
+    top: calc(100% + 8px);
+    left: 50%;
+    width: 14rem;
+    padding: 0.5rem 0.65rem;
+    border-radius: 9px;
+    border: 1px solid var(--line);
+    background: rgba(13, 18, 16, 0.97);
+    color: var(--ink);
+    font-size: 0.72rem;
+    font-weight: 400;
+    line-height: 1.45;
+    text-align: left;
+    white-space: normal;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    visibility: hidden;
+    --tx: -50%;
+    transform: translate(var(--tx), -3px);
+    transition: opacity 0.12s, transform 0.12s, visibility 0.12s;
+    pointer-events: none;
+  }
+  .seg :global([data-tip]:first-child)::after, .chips :global([data-tip]:nth-child(odd))::after { left: 0; --tx: 0; }
+  .seg :global([data-tip]:last-child)::after, .chips :global([data-tip]:nth-child(even))::after { left: auto; right: 0; --tx: 0; }
+  @media (hover: hover) {
+    .fold-block :global([data-tip]:hover)::after { opacity: 1; visibility: visible; transform: translate(var(--tx), 0); }
+  }
+  .fold-block :global([data-tip]:focus-visible)::after { opacity: 1; visibility: visible; transform: translate(var(--tx), 0); }
+  .op-note { margin: 0.5rem 0 0; font-size: 0.76rem; line-height: 1.45; color: var(--ink-dim); }
+  button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* One criterion: its name, the spread of its values with the two
+     thresholds on it, and its weight. */
+  /* Two scores: the layers in two sections, one per axis, each named. */
+  #criteria :global(.axis) { margin-top: 0.4rem; }
+  #criteria :global(.axis + .axis) { margin-top: 1rem; padding-top: 0.8rem; border-top: 1px dashed var(--line); }
+  #criteria :global(.axis-head) { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; }
+  #criteria :global(.axis-head i) { width: 12px; height: 12px; border-radius: 3px; flex: none; }
+  #criteria :global(.axis-name) {
+    flex: 1;
+    min-width: 0;
+    padding: 0.3rem 0.45rem;
+    border-radius: 7px;
+    border: 1px solid transparent;
+    background: none;
+    color: var(--ink);
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+  }
+  #criteria :global(.axis-name:hover), #criteria :global(.axis-name:focus) { border-color: var(--line); background: var(--bg-lift); outline: none; }
+  #criteria :global(.axis-sub) { font-size: 0.7rem; color: var(--ink-dim); white-space: nowrap; }
+  #criteria :global(.add select) {
+    width: 100%;
+    margin-top: 0.3rem;
+    padding: 0.55rem 0.7rem;
+    border-radius: 10px;
+    border: 1px dashed var(--line);
+    background: none;
+    color: var(--ink);
+    font: inherit;
+    font-size: 0.85rem;
+  }
+  #criteria :global(.empty) { margin: 0; font-size: 0.85rem; line-height: 1.5; color: var(--ink-dim); }
+  #criteria :global(.crit) { padding: 0.75rem 0; border-top: 1px solid var(--line); }
+  #criteria :global(.crit:first-child) { border-top: 0; padding-top: 0.1rem; }
+  #criteria :global(.crit-head) { display: flex; align-items: center; gap: 0.4rem; }
+  #criteria :global(.crit-head b) { flex: 1; min-width: 0; font-size: 0.92rem; font-weight: 600; }
+  #criteria :global(.icon) {
+    width: 30px;
+    height: 30px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+    background: none;
+    color: var(--ink-dim);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #criteria :global(.icon svg) { width: 14px; height: 14px; }
+  #criteria :global(.icon[aria-expanded='true']) { color: var(--accent); border-color: var(--accent); }
+  #criteria :global(.info) { margin: 0.45rem 0 0.4rem; padding: 0.55rem 0.7rem; border-radius: 10px; background: var(--bg-lift); font-size: 0.76rem; line-height: 1.5; }
+  #criteria :global(.info p) { margin: 0; }
+  #criteria :global(.info p + p) { margin-top: 0.4rem; }
+  #criteria :global(.info .info-src) { margin-top: 0.4rem; font-size: 0.7rem; color: var(--ink-dim); }
+  #criteria :global(.info a) { color: var(--accent); }
+  /* Which way is good, as plainly as it can be put: a tag after the text. */
+  #criteria :global(.way) { display: inline-block; margin-left: 0.2rem; padding: 0.05rem 0.45rem; border-radius: 6px; background: var(--bg-lift); color: var(--ink); font-weight: 600; white-space: nowrap; }
+  #criteria :global(.dir) { margin: 0.15rem 0 0.35rem; font-size: 0.76rem; color: var(--ink-dim); }
+  #criteria :global(svg.hist) { display: block; width: 100%; height: 44px; }
+  /* Poor and best as two handles on one slider, under the histogram and
+     lined up with it: the inputs run half a handle past each end, so a
+     handle's middle sits over the value it stands for. */
+  #criteria :global(.dual) { position: relative; height: 22px; margin-top: 0.2rem; }
+  #criteria :global(.dual::before), #criteria :global(.dual::after) { content: ''; position: absolute; border-radius: 3px; pointer-events: none; }
+  #criteria :global(.dual::before) { left: 0; right: 0; top: 9.5px; height: 3px; background: var(--line); }
+  #criteria :global(.dual::after) {
+    left: var(--lo);
+    right: calc(100% - var(--hi));
+    top: 8.5px;
+    height: 5px;
+    background: linear-gradient(var(--dir), rgba(154, 167, 159, 0.4), var(--ramp-hi, #ffdd80));
+  }
+  /* input[type='range'] to outrank the general slider rule further down. */
+  #criteria :global(.dual input[type='range']) {
+    position: absolute;
+    left: -10px;
+    top: 0;
+    width: calc(100% + 20px);
+    height: 22px;
+    margin: 0;
+    background: none;
+    -webkit-appearance: none;
+    appearance: none;
+    pointer-events: none;
+  }
+  #criteria :global(.dual input.front) { z-index: 1; }
+  #criteria :global(.dual input::-webkit-slider-runnable-track) { height: 22px; background: none; }
+  #criteria :global(.dual input::-moz-range-track) { background: none; }
+  #criteria :global(.dual input::-webkit-slider-thumb) {
+    -webkit-appearance: none;
+    pointer-events: auto;
+    width: 20px;
+    height: 20px;
+    margin-top: 1px;
+    border-radius: 50%;
+    border: 2px solid #0d1210;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+    cursor: grab;
+  }
+  #criteria :global(.dual input::-moz-range-thumb) {
+    pointer-events: auto;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2px solid #0d1210;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+    cursor: grab;
+  }
+  #criteria :global(.t-bad::-webkit-slider-thumb) { background: #c9d2cc; }
+  #criteria :global(.t-bad::-moz-range-thumb) { background: #c9d2cc; }
+  #criteria :global(.t-good::-webkit-slider-thumb) { background: var(--ramp-hi, #ffdd80); }
+  #criteria :global(.t-good::-moz-range-thumb) { background: var(--ramp-hi, #ffdd80); }
+  #criteria :global(.dual input:focus-visible) { outline: none; }
+  #criteria :global(.dual input:focus-visible::-webkit-slider-thumb) { box-shadow: 0 0 0 3px var(--accent); }
+  #criteria :global(.dual input:focus-visible::-moz-range-thumb) { box-shadow: 0 0 0 3px var(--accent); }
+  #criteria :global(.thresh) { display: flex; justify-content: space-between; margin-top: 0.25rem; font-size: 0.72rem; color: var(--ink-dim); }
+  #criteria :global(.thresh.flip) { flex-direction: row-reverse; }
+  #criteria :global(.thresh i) { display: inline-block; width: 8px; height: 8px; margin-right: 0.35rem; border-radius: 50%; vertical-align: 0.05em; }
+  #criteria :global(.dot-bad) { background: #c9d2cc; }
+  #criteria :global(.dot-good) { background: var(--ramp-hi, #ffdd80); }
+  #criteria :global(.weight) {
+    display: grid;
+    gap: 0.15rem;
+    font-size: 0.72rem;
+    color: var(--ink-dim);
+  }
+  #criteria :global(.thresh output), #criteria :global(.weight output) { color: var(--ink); font-variant-numeric: tabular-nums; }
+  #criteria :global(input[type='range']) { width: 100%; margin: 0; accent-color: var(--accent); }
+  #criteria :global(.weight) { margin-top: 0.5rem; }
+  #criteria :global(.weight-head) { display: flex; justify-content: space-between; gap: 0.5rem; }
+  #criteria :global(.weight-head b) { color: var(--ink); font-weight: 600; white-space: nowrap; }
+  #criteria :global(.weight-foot) { display: flex; align-items: baseline; gap: 0.5rem; }
+  #criteria :global(.weight-foot small) { font-size: 0.68rem; color: var(--ink-dim); }
+  #criteria :global(.weight-foot output) { margin-left: auto; }
+  .op-and #criteria :global(.weight), .op-or #criteria :global(.weight) { display: none; }
+
+
+  /* ---- The key: bottom right on a wide screen; on a phone, above the panel. */
+  .key {
+    position: absolute;
+    z-index: 4;
+    right: 0.9rem;
+    bottom: calc(1rem + var(--foot));
+    width: 19rem;
+    max-height: calc(100dvh - 2rem - var(--foot));
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0.8rem 0.95rem 0.75rem;
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    background: rgba(13, 18, 16, 0.9);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+  @media (max-width: 47.99rem) {
+    .key { top: calc(var(--safe-t) + 0.8rem); bottom: auto; left: 0.9rem; right: auto; width: 11rem; }
+  }
+  .key-head { display: grid; gap: 0.5rem; }
+  .key-title { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+  .key-fold { width: 28px; height: 28px; margin: -0.25rem -0.3rem -0.25rem 0; }
+  .key-fold svg { width: 14px; height: 14px; }
+  /* Minimised: the title and its button, nothing else. */
+  .key.folded > :not(.key-head), .key.folded .seg { display: none; }
+  .key h2 { margin: 0; white-space: nowrap; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-dim); }
+  .seg-sm { padding: 2px; border-radius: 9px; }
+  .seg-sm button { padding: 0.28rem 0.55rem; font-size: 0.72rem; border-radius: 7px; }
+  .big { display: flex; align-items: baseline; gap: 0.55rem; margin: 0.6rem 0 0.5rem; }
+  .big b { font-size: 1.9rem; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; }
+  .big span { font-size: 0.8rem; line-height: 1.35; color: var(--ink-dim); }
+  .spread :global(svg) { display: block; width: 100%; height: 56px; }
+  .key.loading .big, .key.loading .spread { opacity: 0.45; transition: opacity 0.2s; }
+  .key-check { display: flex; align-items: center; gap: 0.45rem; margin-top: 0.45rem; font-size: 0.74rem; color: var(--ink-dim); cursor: pointer; }
+  .key-check input { margin: 0; accent-color: var(--accent); }
+  .key-check.off { opacity: 0.45; cursor: not-allowed; }
+  .steady { margin-top: 0.5rem; padding: 0.55rem 0.6rem; border-radius: 9px; background: var(--bg-lift); }
+  .steady[hidden] { display: none; }
+  .steady p { margin: 0 0 0.45rem; font-size: 0.7rem; line-height: 1.45; color: var(--ink-dim); }
+  .steady-rows { display: grid; gap: 0.2rem; }
+  .steady-rows :global(div) { display: grid; grid-template-columns: 10px 1fr auto auto; align-items: center; gap: 0.45rem; font-size: 0.74rem; }
+  .steady-rows :global(i) { width: 10px; height: 10px; border-radius: 2px; }
+  .steady-rows :global(span) { color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+  .key-op output { color: var(--ink); font-variant-numeric: tabular-nums; }
+  /* One key or the other, by mode. */
+  .key-two { display: none; }
+  .bi-on .key-one { display: none; }
+  .bi-on .key-two { display: block; }
+  /* One layer shown alone: said at the top of the key, its card marked. */
+  .key-solo { display: flex; align-items: center; gap: 0.5rem; margin: 0.55rem 0 0; padding: 0.4rem 0.55rem; border-radius: 8px; background: var(--bg-lift); font-size: 0.74rem; }
+  .key-solo[hidden] { display: none; }
+  .key-solo :global(button) { margin-left: auto; appearance: none; border: 0; background: none; color: var(--accent); font: inherit; cursor: pointer; }
+  .soloing #criteria :global(.crit:not(.solo)) { opacity: 0.45; }
+  #criteria :global(.icon[aria-pressed='true']) { color: var(--accent); border-color: var(--accent); }
+  /* A categorical layer: a score for each kind, not two thresholds. */
+  #criteria :global(.cats) { display: grid; gap: 0.25rem; margin-top: 0.35rem; }
+  #criteria :global(.cat) { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 0.5rem; font-size: 0.76rem; }
+  #criteria :global(.cat small) { color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+  #criteria :global(.cat-seg) { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+  #criteria :global(.cat-seg button) { appearance: none; border: 0; background: none; color: var(--ink-dim); font: inherit; font-size: 0.7rem; padding: 0.2rem 0.45rem; cursor: pointer; }
+  #criteria :global(.cat-seg button + button) { border-left: 1px solid var(--line); }
+  #criteria :global(.cat-seg button[aria-pressed='true']) { background: var(--bg-lift); color: var(--accent); }
+  /* The nine cells: second axis up, first across, high/high top right. */
+  .bi { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; gap: 0.35rem 0.5rem; align-items: center; }
+  .bi-y { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 0.72rem; color: var(--ink-dim); white-space: nowrap; }
+  .bi-x { grid-column: 2; font-size: 0.72rem; color: var(--ink-dim); }
+  .bi-y :global(i), .bi-x :global(i) { font-style: normal; font-weight: 600; }
+  .bi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; }
+  .bi-grid :global(button) {
+    appearance: none;
+    aspect-ratio: 1.6;
+    border: 0;
+    border-radius: 4px;
+    cursor: pointer;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+    transition: transform 0.12s, opacity 0.12s;
+  }
+  .bi-grid :global(button:hover) { transform: scale(1.06); }
+  .bi-grid.isolating :global(button:not([aria-pressed='true'])) { opacity: 0.3; }
+  .bi-grid :global(button[aria-pressed='true']) { box-shadow: 0 0 0 2px var(--ink); }
+  .bi-hint { margin: 0.4rem 0 0; font-size: 0.7rem; color: var(--ink-dim); }
+  .bi-brk { display: grid; gap: 0.5rem; margin-top: 0.6rem; }
+  .bi-brk :global(.brk) { display: grid; grid-template-columns: 1fr 1fr; gap: 0.1rem 0.7rem; font-size: 0.7rem; color: var(--ink-dim); }
+  .bi-brk :global(.brk b) { grid-column: 1 / -1; font-weight: 600; color: var(--ink); }
+  .bi-brk :global(.brk output) { color: var(--ink); font-variant-numeric: tabular-nums; }
+  .bi-brk :global(input) { width: 100%; margin: 0; accent-color: var(--accent); }
+  .best-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.15rem; }
+  .best-note { margin: 0.35rem 0.3rem 0.1rem; font-size: 0.68rem; line-height: 1.4; color: var(--ink-dim); }
+  .best-list :global(button) {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1.4rem 1fr auto;
+    align-items: center;
+    gap: 0.4rem;
+    appearance: none;
+    padding: 0.35rem 0.45rem;
+    border: 0;
+    border-radius: 7px;
+    background: none;
+    color: var(--ink);
+    font: inherit;
+    font-size: 0.76rem;
+    text-align: left;
+    cursor: pointer;
+  }
+  .best-list :global(button:hover), .best-list :global(button.on) { background: var(--bg-lift); }
+  .best-list :global(b) { display: grid; place-items: center; width: 1.3rem; height: 1.3rem; border-radius: 50%; background: var(--ramp-hi, #ffdd80); color: #1a140a; font-size: 0.7rem; }
+  .best-list :global(em) { font-style: normal; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+  /* The pins: numbered, in the ramp's brightest colour. */
+  :global(.best-pin) {
+    width: 24px;
+    height: 24px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--ramp-hi, #ffdd80);
+    color: #1a140a;
+    font: 700 12px/1 system-ui, sans-serif;
+    box-shadow: 0 0 0 2px #0d1210, 0 2px 10px rgba(0, 0, 0, 0.6);
+    cursor: pointer;
+  }
+  :global(.best-pin.on) { transform: scale(1.25); box-shadow: 0 0 0 2px #0d1210, 0 0 0 5px rgba(255, 221, 128, 0.5); }
+  :global(.here-dot) { width: 16px; height: 16px; border-radius: 50%; background: #6fb6ff; border: 3px solid #0d1210; box-shadow: 0 0 0 2px #6fb6ff; }
+  .map-side { display: flex; flex-direction: column; gap: 0.6rem; }
+  /* Tiles still arriving: a thin bar across the top of the map. */
+  .loading-bar {
+    position: absolute;
+    z-index: 5;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent) 0 0 / 40% 100% no-repeat;
+    opacity: 0;
+    transition: opacity 0.3s;
+    animation: loading 1.1s linear infinite;
+    pointer-events: none;
+  }
+  .loading-bar.on { opacity: 0.8; }
+  @keyframes loading { from { background-position: -40% 0; } to { background-position: 140% 0; } }
+  @media (prefers-reduced-motion: reduce) { .loading-bar { animation: none; background-size: 100% 100%; } }
+  .key-foot { margin: 0.55rem 0 0; font-size: 0.7rem; line-height: 1.4; color: var(--ink-dim); }
+  .key-ends { display: flex; justify-content: space-between; margin-top: 0.25rem; font-size: 0.7rem; color: var(--ink-dim); }
+  .key-op { display: grid; gap: 0.15rem; margin-top: 0.45rem; font-size: 0.7rem; color: var(--ink-dim); }
+  .key-op input { width: 100%; margin: 0; accent-color: var(--accent); }
+
+  /* The flyover: its views listed, added, flown. */
+  .fly-list { list-style: none; margin: 0.2rem 0 0; padding: 0; display: grid; gap: 0.1rem; max-height: min(22rem, 45dvh); overflow-x: hidden; overflow-y: auto; }
+  .fly-list:empty { display: none; }
+  .fly-list :global(li) { display: flex; align-items: center; gap: 0.2rem; min-width: 0; }
+  .fly-list :global(button) { appearance: none; border: 0; border-radius: 7px; background: none; color: var(--ink); font: inherit; font-size: 0.76rem; cursor: pointer; }
+  .fly-list :global(button:hover) { background: var(--bg-lift); }
+  .fly-list :global(.fly-go) { flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.45rem; padding: 0.35rem 0.45rem; text-align: left; }
+  .fly-list :global(.fly-go span) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fly-list :global(.fly-go b) { flex: none; display: grid; place-items: center; width: 1.3rem; height: 1.3rem; border-radius: 50%; background: var(--bg-lift); box-shadow: inset 0 0 0 1px var(--line); font-size: 0.68rem; }
+  .fly-list :global(.fly-del), .fly-list :global(.fly-pen) { flex: none; width: 1.7rem; height: 1.7rem; color: var(--ink-dim); }
+  .fly-list :global(.fly-pen) { display: grid; place-items: center; }
+  .fly-list :global(.fly-pen svg) { width: 16px; height: 16px; }
+  .fly-list :global(.fly-pen.on) { color: var(--accent); }
+  .fly-list :global(li.fly-edit) { display: grid; gap: 0.3rem; padding: 0.15rem 0.2rem 0.45rem 2.2rem; }
+  .fly-list :global(.fly-edit input), .fly-list :global(.fly-edit textarea) {
+    width: 100%; box-sizing: border-box; padding: 0.35rem 0.45rem; border-radius: 7px; border: 1px solid var(--line);
+    background: var(--bg); color: var(--ink); font: inherit; font-size: 0.74rem; resize: vertical;
+  }
+  /* Pinned to the view's spot on the ground: a dot there, a stem up from
+     it, and the card on top. Moved into place each frame. */
+  .fly-callout { position: absolute; z-index: 6; left: 0; top: 0; width: 0; height: 0; pointer-events: none; }
+  .fly-callout[hidden] { display: none; }
+  .fly-callout::before {
+    content: '';
+    position: absolute;
+    left: -5px;
+    top: -5px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 3px rgba(13, 18, 16, 0.6);
+  }
+  .fly-callout::after { content: ''; position: absolute; left: -1px; bottom: 5px; width: 2px; height: 56px; background: var(--accent); }
+  .fly-callout div {
+    position: absolute;
+    bottom: 61px;
+    left: 0;
+    transform: translateX(-50%);
+    width: max-content;
+    max-width: min(22rem, calc(100vw - 2rem));
+    padding: 0.6rem 0.9rem 0.65rem;
+    border-radius: 10px;
+    border-bottom: 2px solid var(--accent);
+    background: rgba(13, 18, 16, 0.88);
+    color: var(--ink);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+  }
+  .fly-callout h3 { margin: 0; font-size: 1rem; font-weight: 600; }
+  .fly-callout p { margin: 0.25rem 0 0; font-size: 0.85rem; line-height: 1.4; color: var(--ink-dim); }
+  .fly-callout h3:empty, .fly-callout p:empty { display: none; }
+  .fly-callout h3:empty + p { margin-top: 0; }
+  .fly-menu .fly-add { margin-top: 0.3rem; border: 1px dashed var(--line); justify-items: center; }
+  .fly-speed { display: grid; gap: 0.15rem; margin: 0.5rem 0.3rem 0.2rem; font-size: 0.7rem; color: var(--ink-dim); }
+  .fly-speed input { width: 100%; margin: 0; accent-color: var(--accent); }
+  .fly-row { display: grid; grid-template-columns: 1fr auto auto; gap: 0.4rem; margin-top: 0.4rem; }
+  .fly-menu .fly-save { margin-top: 0.3rem; justify-items: center; color: var(--accent); }
+  .fly-menu .fly-save[hidden] { display: none; }
+  .fly-video { position: absolute; z-index: 5; inset: 0; width: 100%; height: 100%; object-fit: cover; background: var(--bg); }
+  .fly-video[hidden] { display: none; }
+  .fly-row button { appearance: none; padding: 0.5rem 0.7rem; border-radius: 9px; border: 1px solid var(--line); background: var(--bg-lift); color: var(--ink); font: inherit; font-size: 0.78rem; cursor: pointer; }
+  .fly-row button:disabled { opacity: 0.45; cursor: not-allowed; }
+  .fly-row .fly-play { border-color: var(--accent); background: var(--accent); color: #0d1210; font-weight: 600; }
+  #fly-btn[aria-expanded='true'] { border-color: var(--accent); color: var(--accent); }
+  /* Flying: the map and its legend, nothing else but the way to stop. */
+  .fly-open .key, .flying .dst-panel, .flying .key, .flying .map-side, .flying .map :global(.maplibregl-popup), .flying :global(.best-pin) { display: none; }
+  .flying .left-col { top: calc(var(--safe-t) + 1rem); }
+  .fly-stop {
+    position: absolute;
+    z-index: 7;
+    left: 50%;
+    bottom: calc(1.2rem + var(--foot));
+    transform: translateX(-50%);
+    padding: 0.6rem 1.1rem;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: rgba(13, 18, 16, 0.85);
+    color: var(--ink);
+    font: inherit;
+    font-size: 0.8rem;
+    cursor: pointer;
+    opacity: 0.55;
+    transition: opacity 0.2s;
+  }
+  .fly-stop:hover, .fly-stop:focus-visible { opacity: 1; }
+  .fly-stop[hidden] { display: none; }
+  .fly-cover { position: absolute; z-index: 6; inset: 0; display: grid; place-content: center; justify-items: center; gap: 0.4rem; background: var(--bg); }
+  .fly-cover b { font-weight: 400; }
+  .fly-card { width: min(44rem, calc(100vw - 4rem), 78dvh); margin: 0 0 1.4rem; }
+  .fly-card[hidden] { display: none; }
+  .fly-pics { position: relative; aspect-ratio: 3 / 2; overflow: hidden; border-radius: 14px; border: 1px solid var(--line); background: var(--bg-lift); }
+  .fly-pics img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.7s; will-change: opacity; }
+  .fly-pics img.on { opacity: 1; }
+  .fly-card.nopic .fly-pics { display: none; }
+  .fly-card figcaption { margin-top: 1rem; min-height: 6.5rem; transition: opacity 0.35s; }
+  .fly-card figcaption.out { opacity: 0; }
+  .fly-card.tall { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 1.8rem; width: min(50rem, calc(100vw - 4rem)); }
+  .fly-card.tall .fly-pics { aspect-ratio: 9 / 16; height: min(60dvh, 34rem); }
+  .fly-card.tall figcaption { margin-top: 0; }
+  .fly-bar { width: min(20rem, 60vw); height: 3px; margin: 0.35rem 0 0.15rem; border-radius: 2px; background: var(--line); overflow: hidden; }
+  .fly-bar i { display: block; height: 100%; width: 100%; background: var(--accent); transform-origin: left; transform: scaleX(var(--done, 0)); transition: transform 0.25s linear; }
+  .fly-card h2 { margin: 0 0 0.4rem; font-size: 1.15rem; line-height: 1.3; }
+  .fly-card figcaption div :global(p) { margin: 0 0 0.5rem; font-size: 0.92rem; line-height: 1.55; color: var(--ink-dim); }
+  .fly-cover small { font-size: 0.75rem; color: var(--ink-dim); }
+  .fly-cover[hidden] { display: none; }
+  .fly-cover p { margin: 0; font-size: 0.9rem; color: var(--ink-dim); }
+  .fly-cover span { color: var(--ink); font-variant-numeric: tabular-nums; }
+  :global(.fly-debug) {
+    position: absolute;
+    z-index: 7;
+    left: 50%;
+    top: calc(var(--safe-t) + 0.8rem);
+    transform: translateX(-50%);
+    width: min(36rem, calc(100% - 2rem));
+    padding: 0.5rem 0.6rem;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    background: rgba(13, 18, 16, 0.88);
+    font-size: 0.68rem;
+    color: var(--ink-dim);
+    pointer-events: none;
+  }
+  :global(.fly-debug canvas) { display: block; width: 100%; height: 150px; }
+  :global(.fly-debug-key i) { display: inline-block; width: 10px; height: 3px; margin: 0 0.3rem 0 0.5rem; vertical-align: middle; background: var(--c); }
+  :global(.fly-debug-read) { margin: 0.3rem 0 0; font-variant-numeric: tabular-nums; }
+  :global(.fly-debug-save) {
+    position: absolute;
+    top: 0.4rem;
+    right: 0.5rem;
+    pointer-events: auto;
+    padding: 0.2rem 0.55rem;
+    border-radius: 7px;
+    border: 1px solid var(--line);
+    background: var(--bg-lift);
+    color: var(--ink);
+    font: inherit;
+    cursor: pointer;
+  }
+
+  /* Below MapLibre's attribution button, in the same corner. */
+  .map-side { position: absolute; z-index: 4; right: 0.9rem; top: calc(var(--safe-t) + 3rem); }
+
+  .toast {
+    position: absolute;
+    z-index: 7;
+    top: calc(var(--safe-t) + 0.9rem);
+    left: 1rem;
+    right: 1rem;
+    max-width: 24rem;
+    margin: 0 auto;
+    padding: 0.7rem 1rem;
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    background: rgba(13, 18, 16, 0.9);
+    font-size: 0.85rem;
+    text-align: center;
+  }
+
+  /* Why a place scored what it did: MapLibre's popup, in the site's colours. */
+  .map :global(.maplibregl-popup-content) {
+    padding: 0.75rem 0.9rem;
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    background: rgba(13, 18, 16, 0.96);
+    color: var(--ink);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+    min-width: 15rem;
+  }
+  .map :global(.maplibregl-popup-tip) { border-top-color: rgba(13, 18, 16, 0.96); border-bottom-color: rgba(13, 18, 16, 0.96); }
+  .map :global(.maplibregl-popup-close-button) { color: var(--ink-dim); font-size: 1.1rem; padding: 0 0.4rem; }
+  .map :global(.why-total) { display: flex; align-items: baseline; gap: 0.5rem; margin-bottom: 0.45rem; }
+  .map :global(.why-total b) { font-size: 1.4rem; font-variant-numeric: tabular-nums; }
+  .map :global(.why-sw) { width: 22px; height: 22px; border-radius: 5px; flex: none; align-self: center; }
+  .map :global(.why-total span b) { font-size: 0.85rem; }
+  .map :global(.why-title) { margin: 0 1.2rem 0.4rem 0; font-size: 0.78rem; font-weight: 600; color: var(--ramp-hi, #ffdd80); }
+  .map :global(.why-dot) { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 0.4rem; }
+  .map :global(.why-total span) { font-size: 0.75rem; color: var(--ink-dim); }
+  .map :global(.why) { width: 100%; border-collapse: collapse; font-size: 0.74rem; }
+  .map :global(.why td) { padding: 0.2rem 0; border-top: 1px solid var(--line); vertical-align: top; }
+  .map :global(.why td + td) { text-align: right; padding-left: 0.6rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .map :global(.why .dim) { color: var(--ink-dim); }
+  .map :global(.why-bar) { display: block; height: 3px; margin-top: 3px; border-radius: 2px; background: var(--line); }
+  .map :global(.why-bar i) { display: block; height: 100%; border-radius: 2px; background: var(--ramp-mid, #e99e1f); }
+
+  .map :global(.maplibregl-ctrl-attrib) { background: rgba(13, 18, 16, 0.7); color: var(--ink-dim); font-size: 0.68rem; }
+  .map :global(.maplibregl-ctrl-attrib a) { color: var(--ink-dim); }
+  .map :global(.maplibregl-ctrl-attrib-button) { filter: invert(1); background-color: transparent; }
+  .map :global(.maplibregl-ctrl-top-right) { top: var(--safe-t); }
+  @media (min-width: 48rem) { .map :global(.maplibregl-ctrl-bottom-right) { bottom: 7rem; } }
+  /* The palette menu: out to the left of its button, swatches in a column. */
+  .pal-wrap, .pop-wrap { position: relative; }
+  .pal-menu, .pop-menu {
+    position: absolute;
+    z-index: 5;
+    right: calc(100% + 0.6rem);
+    bottom: 0;
+    width: 12.5rem;
+    display: grid;
+    gap: 0.15rem;
+    padding: 0.4rem;
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    background: rgba(13, 18, 16, 0.94);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+  .pal-menu[hidden], .pop-menu[hidden] { display: none; }
+  .pal-menu :global(button) {
+    appearance: none;
+    display: grid;
+    gap: 0.3rem;
+    padding: 0.45rem 0.55rem;
+    border-radius: 9px;
+    border: 1px solid transparent;
+    background: none;
+    color: var(--ink-dim);
+    font: inherit;
+    font-size: 0.74rem;
+    text-align: left;
+    cursor: pointer;
+  }
+  .pal-menu :global(button:hover) { background: var(--bg-lift); color: var(--ink); }
+  .pal-menu :global(button[aria-checked='true']) { border-color: var(--accent); color: var(--ink); }
+  .pal-menu :global(.pal-bar) { display: block; height: 8px; border-radius: 4px; }
+  #pal-btn[aria-expanded='true'], #best-btn[aria-expanded='true'], #save-btn[aria-expanded='true'] { border-color: var(--accent); color: var(--accent); }
+  /* The save menu, and the best places: as the palettes, beside their button. */
+  .pop-menu > button {
+    appearance: none;
+    display: grid;
+    gap: 0.1rem;
+    padding: 0.45rem 0.6rem;
+    border-radius: 9px;
+    border: 0;
+    background: none;
+    color: var(--ink);
+    font: inherit;
+    font-size: 0.78rem;
+    text-align: left;
+    cursor: pointer;
+  }
+  .pop-menu > button:hover:not(:disabled) { background: var(--bg-lift); }
+  .pop-menu > button:disabled { opacity: 0.5; cursor: progress; }
+  .pop-menu small { font-size: 0.68rem; color: var(--ink-dim); }
+  .pop-title { margin: 0.2rem 0.3rem 0.35rem; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-dim); }
+  .best-menu { width: 17rem; max-height: min(24rem, 70dvh); overflow-y: auto; }
+  /* On a phone the buttons are at the top: their menus hang down. */
+  @media (max-width: 47.99rem) { .pop-menu { top: 0; bottom: auto; } }
+  /* The flyover's panel, where the numbers are, which step aside for it. */
+  .pop-menu.fly-menu {
+    z-index: 4;
+    right: 0.9rem;
+    top: calc(var(--safe-t) + 1rem);
+    bottom: auto;
+    width: 19rem;
+    /* Clear of the buttons under it; the list scrolls, not the panel. */
+    max-height: max(18rem, calc(100dvh - var(--safe-t) - 2.6rem - 28.5rem));
+    display: flex;
+    flex-direction: column;
+    padding: 0.6rem 0.65rem 0.65rem;
+  }
+  .pop-menu.fly-menu .fly-list { flex: 0 1 auto; min-height: 3rem; max-height: none; }
+  .pop-menu.fly-menu > * { flex: none; }
+  .pop-menu.fly-menu > .fly-list { flex: 0 1 auto; }
+  @media (max-width: 47.99rem) { .pop-menu.fly-menu { top: calc(var(--safe-t) + 0.8rem); left: 0.9rem; right: auto; width: min(19rem, calc(100% - 5.5rem)); max-height: 70dvh; } }
+  /* Wider screens: the numbers in the top right corner, the controls in the
+     bottom right under them, and the attribution in the bottom left corner,
+     under the panel. */
+  @media (min-width: 48rem) {
+    .key {
+      top: calc(var(--safe-t) + 1rem);
+      bottom: auto;
+      max-height: calc(100dvh - var(--safe-t) - 2rem - 16rem);
+    }
+    .map-side { top: auto; bottom: calc(1rem + var(--foot)); }
+  }
+</style>
+
+<script>
+  import * as maplibregl from 'maplibre-gl';
+  import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
+  import { Protocol } from 'pmtiles';
+  import { studyStyle } from '../shared/lib/study-style';
+  import { addRelief, addSky, tilting } from '../shared/lib/terrain';
+  import { confirmLeave } from '../shared/lib/leave';
+  import { PALETTES, paletteById, rgb } from './lib/palettes';
+  import { cameraAt, flight, lookFrom, metreAt, type View } from './lib/flyover';
+  import { FlightDebug } from './lib/flyover-debug';
+  import { ScoreLayer, MAX_CRITERIA, scoreOf, criterionLut, type Criterion, type Op } from './lib/score-layer';
+  import type { Grid, StatsRequest, StatsResponse, Tally } from './lib/stats-worker';
+
+  // A phone gets the screen above instead (.phone-gate), and nothing past
+  // here runs.
+  // Unless a shared model is to be drawn as a picture (showOnPhone, below):
+  // then the rest runs behind the screen, the map unseen.
+  const PHONE = '(pointer: coarse) and (max-width: 599px), (pointer: coarse) and (max-height: 599px)';
+  const onPhone = matchMedia(PHONE).matches;
+  if (onPhone) {
+    await new Promise<void>((go) => document.getElementById('gate-see')!.addEventListener('click', () => go(), { once: true }));
+    document.documentElement.classList.add('phone-render');
+  }
+
+  type LngLat = [number, number];
+  type Layer = {
+    id: string;
+    name: string;
+    /** Where it sits in the add-a-layer menu. */
+    group: string;
+    src: string;
+    lo: number;
+    hi: number;
+    unit: string;
+    /** Values that are classes, with a name each: thresholds step between
+     *  them rather than sliding. */
+    classes?: { value: number; label: string }[];
+    /** Which way is usually "good" for this layer, for a new criterion. */
+    higher: 'better' | 'worse';
+    /** Categories with no order between them (land cover): scored kind by
+     *  kind rather than by two thresholds. */
+    categorical?: boolean;
+    about: string;
+    /** The map portal's longer description, and where the data comes from. */
+    detail?: { text: string[]; source: string; href: string };
+    hist: number[];
+    /** Its area sample: full-detail values on a grid every layer shares. */
+    sampleSrc: string;
+    sample: Grid;
+  };
+  type Config = { bounds: [LngLat, LngLat]; limit: [LngLat, LngLat]; basemap: string; terrain: string; glyphs: string; logo: string; emblem: string; cards: Card[]; layers: Layer[] };
+  type Card = { title: string; image: string; tall: boolean; seconds: number; text: string[] };
+
+  const el = document.getElementById('map')!;
+  const config: Config = JSON.parse(el.dataset.config!);
+  const byId = new Map(config.layers.map((l) => [l.id, l]));
+  // Menu groups in catalogue order.
+  const groups = [...new Set(config.layers.map((l) => l.group))];
+  const abs = (p: string) => (/^https?:/.test(p) ? p : location.origin + p);
+  const esc = (s: string) =>
+    s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+
+  // ---- The model -----------------------------------------------------------
+  // All of it, in one place: what the map, the panel and the explanation read.
+  /** `scores`: a categorical layer's score for each class value. */
+  type Item = { id: string; weight: number; good: number; bad: number; axis: 0 | 1; scores?: Record<number, number> };
+  let items: Item[] = [];
+  let op: Op = 'mean';
+  // Two scores (bivariate): each layer feeds one of two axes, each axis is
+  // named by whoever is using it, and breaks into low / middle / high.
+  type Mode = 'one' | 'two';
+  let mode: Mode = 'one';
+  const AXIS_NAMES: [string, string] = ['Value', 'Pressure'];
+  let axisNames: [string, string] = [...AXIS_NAMES];
+  let breaks: [[number, number], [number, number]] = [[0.35, 0.65], [0.35, 0.65]];
+  /** The one cell shown alone, or -1 for all. */
+  let only = -1;
+  /** One layer shown alone (its index), or -1: its own score on the map and
+   *  in the numbers, to see what it contributes. */
+  let solo = -1;
+  /** Layers whose longer description is open, by id. */
+  const infoOpen = new Set<string>();
+  const soloing = () => solo >= 0 && solo < items.length;
+  /** What is actually drawn and counted: the model, or the one layer alone. */
+  const effectiveMode = (): Mode => (soloing() ? 'one' : mode);
+  // Row-major from low/low: row = second axis (up), column = first (across).
+  // Blue across, orange up, cream where both are high. Checked with the
+  // palette validator on this basemap over all 36 pairs: normal vision ΔE
+  // 15.8, protan/deutan 12.1. Low/low is dim on purpose: nothing of note.
+  const PALETTE = ['#343c39', '#38618d', '#3584e8', '#8c593c', '#998d90', '#9dc1e5', '#e8722f', '#f8b787', '#fff8d6'];
+  const AXIS_COLOURS = [PALETTE[2], PALETTE[6]];
+
+  /** A value near the given share of a layer's pixels, from its histogram:
+   *  where a new criterion's thresholds start, so the map shows a spread
+   *  rather than all-best or all-worst. */
+  const quantile = (l: Layer, q: number) => {
+    const total = l.hist.reduce((a, b) => a + b, 0);
+    let run = 0;
+    for (let i = 0; i < l.hist.length; i++) {
+      run += l.hist[i];
+      if (run >= q * total) return l.lo + ((i + 0.5) / l.hist.length) * (l.hi - l.lo);
+    }
+    return l.hi;
+  };
+  const snap = (l: Layer, v: number) =>
+    l.classes ? l.classes.reduce((a, c) => (Math.abs(c.value - v) < Math.abs(a.value - v) ? c : a)).value : v;
+  const fresh = (id: string, weight = 1, higher?: 'better' | 'worse', axis: 0 | 1 = 0, q?: [number, number]): Item => {
+    const l = byId.get(id)!;
+    const up = (higher ?? l.higher) === 'better';
+    // From a quarter of the way up the spread to near its top: the ordinary
+    // scores poorly, and only the stand-out places are brightest. An example
+    // can start elsewhere (`q`, shares of the layer's area).
+    const [qa, qb] = q ?? (up ? [0.25, 0.95] : [0.05, 0.75]);
+    const a = snap(l, l.classes ? l.classes[0].value : quantile(l, qa));
+    const b = snap(l, l.classes ? l.classes.at(-1)!.value : quantile(l, qb));
+    // A categorical layer starts with every kind in the middle, to be scored.
+    const scores = l.categorical ? Object.fromEntries(l.classes!.map((c) => [c.value, 0.5])) : undefined;
+    return { id, weight, bad: up ? a : b, good: up ? b : a, axis, scores };
+  };
+
+  // Examples, to show what the tool is for. Plainly examples: nobody's
+  // recommendation, and the panel says so.
+  type Preset = {
+    name: string;
+    about: string;
+    op: Op;
+    /** Two scores, with these axis names. */
+    axes?: [string, string];
+    items: [string, number, ('better' | 'worse')?, (0 | 1)?, [number, number]?][];
+  };
+  const PRESETS: Preset[] = [
+    {
+      name: 'Wildlife strongholds',
+      about:
+        'Where habitat is already at its best: land that suits many native species, lets animals move through it and could recover from a fire or a clearcut, with little human impact.',
+      op: 'mean',
+      items: [
+        ['habitat-suitability', 3],
+        ['habitat-permeability', 2],
+        ['ecosystem-resilience', 2],
+        ['cumulative-impacts', 1],
+      ],
+    },
+    {
+      name: 'Under pressure',
+      about:
+        'Where nature is under most strain: the heaviest human impact, a footprint that has grown over forty years, built-up land, and where a fire could burn hottest.',
+      op: 'mean',
+      items: [
+        ['cumulative-impacts', 3, 'better'],
+        ['human-footprint-change', 2, 'better'],
+        ['built-up-density', 1, 'better'],
+        ['wildfire-hazard', 1, 'better'],
+      ],
+    },
+    {
+      name: 'Room to roam',
+      about:
+        'Where the wide-ranging carnivores (grizzly, wolverine, lynx and fisher) can live, and the linkages that let them move between those places.',
+      op: 'mean',
+      items: [
+        ['habitat-grizzly-bear', 2],
+        ['habitat-wolverine', 2],
+        ['habitat-canada-lynx', 1],
+        ['habitat-pacific-fisher', 1],
+        ['connectivity-linkages', 2],
+      ],
+    },
+    {
+      name: 'Bear country',
+      about:
+        'Where both bears do well through the seasons: grizzly habitat, black bear habitat in summer and in fall, and the linkages that join them up.',
+      op: 'mean',
+      items: [
+        ['habitat-grizzly-bear', 2],
+        ['habitat-black-bear-summer', 1],
+        ['habitat-black-bear-fall', 1],
+        ['connectivity-linkages', 1],
+      ],
+    },
+    {
+      name: "Life at the water's edge",
+      about:
+        'Where the animals of streams, ponds and wetlands find good habitat: beaver and mink, and three of the region\'s frogs and toads.',
+      op: 'mean',
+      items: [
+        ['habitat-beaver', 2],
+        ['habitat-mink', 1],
+        ['habitat-northern-red-legged-frog', 1],
+        ['habitat-western-toad', 1],
+        ['habitat-pacific-tree-frog', 1],
+      ],
+    },
+    {
+      name: 'Quiet and intact',
+      about:
+        'Good habitat, away from trails and little touched by people. All three must pass, so a place lights up only if it does well on every one.',
+      op: 'and',
+      items: [
+        ['distance-to-trails', 1],
+        ['cumulative-impacts', 1],
+        ['habitat-suitability', 1],
+      ],
+    },
+    {
+      name: 'Value × pressure',
+      about:
+        'Bivariate: how valuable the land is for nature, set against how much pressure it is under. The top-right square, high on both, is where they meet.',
+      op: 'mean',
+      axes: ['Value', 'Pressure'],
+      items: [
+        ['habitat-suitability', 2, undefined, 0],
+        ['ecosystem-resilience', 1, undefined, 0],
+        ['habitat-permeability', 1, undefined, 0],
+        // Pressure counts from well below the extremes: at the defaults only
+        // the most built-up 5% would score, and nothing valuable is there.
+        ['cumulative-impacts', 2, 'better', 1, [0.5, 0.85]],
+        ['human-footprint-change', 1, 'better', 1, [0.5, 0.85]],
+        ['wildfire-hazard', 1, 'better', 1],
+      ],
+    },
+    {
+      name: 'Habitat × climate',
+      about:
+        'Bivariate: good habitat today, set against places sheltered from a warming climate. The top-right square is where the two coincide.',
+      op: 'mean',
+      axes: ['Habitat now', 'Climate shelter'],
+      items: [
+        ['habitat-suitability', 1, undefined, 0],
+        ['climate-macrorefugia', 1, undefined, 1],
+        ['climate-microrefugia', 1, undefined, 1],
+      ],
+    },
+  ];
+  let preset: string | null = null;
+
+  // ---- The map -------------------------------------------------------------
+  maplibregl.setWorkerUrl(workerUrl);
+  maplibregl.addProtocol('pmtiles', new Protocol().tile);
+  const [[w, s], [e, n]] = config.limit;
+  /** As far as the map pans: the study area and as much again on every
+   *  side, so zoomed right out the whole area fits on any screen, the dark
+   *  beyond its edge all round it. */
+  const ROOM: [LngLat, LngLat] = [[w - (e - w), s - (n - s)], [e + (e - w), n + (n - s)]];
+  // On a phone the panel covers the lower half: the area is framed in the
+  // part of the map left showing.
+  /** Room round an area fitted to the screen. A wider screen: beside the
+   *  panel, but centred in the window where it fits without going under
+   *  the panel -- the same size either way, only moved. */
+  const framing = (b: [LngLat, LngLat]) => {
+    if (!matchMedia('(min-width: 48rem)').matches) return { top: 20, left: 20, right: 20, bottom: innerHeight * 0.56 + 10 };
+    const [top, bottom, edge, panel] = [20, 20, 20, 25 * 16 + 20];
+    const y = (lat: number) => Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360));
+    const w = ((b[1][0] - b[0][0]) * Math.PI) / 180;
+    const h = y(b[1][1]) - y(b[0][1]);
+    const room = innerWidth - panel - edge;
+    const width = w * Math.min(room / w, (innerHeight - top - bottom) / h);
+    const left = Math.max(panel, (innerWidth - width) / 2);
+    return { top, bottom, left, right: Math.max(edge, innerWidth - left - width) };
+  };
+  const map = new maplibregl.Map({
+    // Room for more tiles than the few screens' worth MapLibre keeps by
+    // default, so a flyover's path, loaded before it plays, is still there.
+    // ?fly-cache=N tries another size (MapLibre's own is 5).
+    maxTileCacheZoomLevels: Number(new URLSearchParams(location.search).get('fly-cache')) || 12,
+    container: el,
+    bounds: config.bounds,
+    maxBounds: ROOM,
+    fitBoundsOptions: { padding: framing(config.bounds) },
+    maxZoom: 15,
+    attributionControl: false,
+    dragRotate: false,
+    style: studyStyle({ basemap: abs(config.basemap), glyphs: abs(config.glyphs), limit: config.limit }),
+  });
+  map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: 'TerrAdapt-Cascadia, Nature Squamish' }), 'bottom-left');
+  map.once('load', () => el.querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show'));
+  // Out as far as the whole area beside the panels, and a little more; no
+  // further, where it would only be the dark round it.
+  const setMinZoom = () => {
+    const cam = map.cameraForBounds(config.limit, { padding: framing(config.limit) });
+    if (cam?.zoom !== undefined) map.setMinZoom(Math.max(0, cam.zoom - 0.4));
+  };
+  setMinZoom();
+  map.on('resize', setMinZoom);
+
+  const score = new ScoreLayer('score');
+  // ?debug: hooks for measuring (dst/tools/bench-dst.mjs), nothing on screen.
+  const debug = new URLSearchParams(location.search).has('debug') ? { counts: [] as number[] } : null;
+  if (debug) Object.assign(window, { __dst: { map, score, debug } });
+  map.on('load', () => {
+    addRelief(map, abs(config.terrain));
+    addSky(map);
+    // Over the land, under the roads and the towns: still a map to find your
+    // way by.
+    const firstRoad = map.getStyle().layers.find((l) => l.id.startsWith('roads_tunnels'))?.id;
+    try {
+      map.addLayer(score, firstRoad);
+    } catch {
+      say('This needs a browser with WebGL 2.');
+    }
+    push();
+  });
+
+  // The scores over the ground's own shape, tilted: the score layer follows
+  // the terrain itself (score-layer.ts), so the sliders are as quick in 3D.
+  tilting(map, abs(config.terrain), document.getElementById('three-d')!, document.getElementById('tilt')!);
+
+  const toast = document.getElementById('toast')!;
+  let toastTimer = 0;
+  function say(text: string) {
+    toast.textContent = text;
+    toast.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = window.setTimeout(() => (toast.hidden = true), 4200);
+  }
+
+  const criteria = (): Criterion[] =>
+    (soloing() ? [items[solo]] : items).map((i) => ({
+      layer: byId.get(i.id)!,
+      weight: soloing() ? 1 : i.weight,
+      good: i.good,
+      bad: i.bad,
+      axis: i.axis,
+      scores: i.scores,
+    }));
+  /** The model to the map: lookup tables and uniforms only, so on the next
+   *  frame. */
+  function push() {
+    score.setModel(criteria(), op);
+    const two = effectiveMode() === 'two';
+    score.setBivariate(two ? { breaks, palette: PALETTE, only } : null);
+    syncSteady();
+    page.classList.toggle('bi-on', two);
+    page.classList.toggle('soloing', soloing());
+    document.getElementById('key-title')!.textContent = two ? 'Where they meet' : 'How much fits';
+    const note = document.getElementById('key-solo')!;
+    note.hidden = !soloing();
+    if (soloing())
+      note.innerHTML = `Showing <b>${esc(byId.get(items[solo].id)!.name)}</b> alone <button type="button" id="solo-off">Show all</button>`;
+    recount();
+    saveHash();
+  }
+
+  // ---- The panel -----------------------------------------------------------
+  const page = el.parentElement!;
+  const list = document.getElementById('criteria')!;
+  const modeEl = document.getElementById('mode')!;
+  const MODE_NOTES: Record<Mode, string> = {
+    one: 'Every layer feeds one score, from poor fit to best fit.',
+    two: 'Sort the layers into two groups and see where they coincide: each place gets a score for each group, and a colour for the pair.',
+  };
+  for (const b of modeEl.querySelectorAll<HTMLElement>('[data-mode]')) b.dataset.tip = MODE_NOTES[b.dataset.mode as Mode];
+  const presetsEl = document.getElementById('presets')!;
+  // One settings group open at a time: name="settings" does it where the
+  // browser knows exclusive <details>, this where it does not.
+  const folds = document.querySelectorAll<HTMLDetailsElement>('.fold-block');
+  for (const d of folds)
+    d.addEventListener('toggle', () => {
+      if (d.open) for (const o of folds) if (o !== d) o.open = false;
+    });
+  const opEl = document.getElementById('op')!;
+  /** The calculation type as its button names it, for the exports. */
+  const opLabel = () => opEl.querySelector(`[data-op="${op}"]`)!.textContent!;
+  const OP_NAMES: Record<Op, string> = { mean: 'weighing up', and: 'all must pass', or: 'any one' };
+  const OP_NOTES: Record<Op, string> = {
+    mean: 'Each layer counts as much as its weight says: a weak layer can be made up for by strong ones.',
+    and: 'A place scores only as well as its weakest layer. Weights are set aside.',
+    or: 'A place scores as well as its strongest layer. Weights are set aside.',
+  };
+  // Each calculation type's note as its button's hover tip.
+  for (const b of opEl.querySelectorAll<HTMLElement>('[data-op]')) b.dataset.tip = OP_NOTES[b.dataset.op as Op];
+
+  const fmt = (l: Layer, v: number) => {
+    if (l.classes) return l.classes.find((c) => c.value === snap(l, v))?.label ?? String(v);
+    const span = l.hi - l.lo;
+    const d = span >= 100 ? 0 : span >= 10 ? 1 : 2;
+    // No "-0" from a value a hair under zero.
+    return `${(Math.abs(v) < 0.5 * 10 ** -d ? 0 : v).toFixed(d)}${l.unit ? ` ${l.unit}` : ''}`;
+  };
+
+  /** A layer's values as a histogram, the part that scores between the two
+   *  thresholds shaded from poor to best. */
+  function histSvg(l: Layer, it: Item) {
+    const W = 300, H = 44, n = l.hist.length;
+    // Square-root scale, so a layer dominated by one value (much of the area
+    // at zero impact, say) still shows the rest of its spread.
+    const max = Math.sqrt(Math.max(...l.hist)) || 1;
+    const x = (v: number) => ((v - l.lo) / (l.hi - l.lo || 1)) * W;
+    const bars = l.hist
+      .map((c, i) => {
+        const h = (Math.sqrt(c) / max) * (H - 4);
+        const mid = l.lo + ((i + 0.5) / n) * (l.hi - l.lo);
+        const sc = scoreOf({ layer: l, weight: 1, good: it.good, bad: it.bad }, mid);
+        return `<rect x="${((i / n) * W).toFixed(1)}" y="${(H - h).toFixed(1)}" width="${(W / n - 1).toFixed(1)}" height="${h.toFixed(1)}" rx="1" fill="${rampCss(sc)}"/>`;
+      })
+      .join('');
+    const mark = (v: number, c: string) => `<line x1="${x(v)}" x2="${x(v)}" y1="0" y2="${H}" stroke="${c}" stroke-width="2"/>`;
+    return `<svg class="hist" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${bars}${mark(it.bad, '#9aa79f')}${mark(it.good, rgb(STOPS[4]))}</svg>`;
+  }
+  /** The palette the score is drawn in (palettes.ts), for the key's charts. */
+  let STOPS: number[][] = PALETTES[0].stops;
+  function rampCss(t: number) {
+    const s = Math.min(1, Math.max(0, t)) * 4;
+    const i = Math.min(3, Math.floor(s));
+    const f = s - i;
+    const c = STOPS[i].map((a, k) => Math.round(a + (STOPS[i + 1][k] - a) * f));
+    return `rgb(${c.join(',')})`;
+  }
+
+  /** A weight in words. 1 is neutral -- every layer counts the same --
+   *  so the bands are narrow near it and widen upward, as a doubling
+   *  matters more than a step: 0.1-0.3, 0.4-0.7, 0.8-1.2, 1.3-1.7,
+   *  1.8-2.4, 2.5-3.2, 3.3-4.2, 4.3-5. */
+  const WEIGHT_WORDS: [number, string][] = [
+    [0.35, 'Very little'],
+    [0.75, 'Little'],
+    [1.25, 'Neutral'],
+    [1.75, 'A bit'],
+    [2.45, 'Quite a bit'],
+    [3.25, 'A lot'],
+    [4.25, 'Lots'],
+    [Infinity, 'Most important'],
+  ];
+  const weightWord = (w: number) => WEIGHT_WORDS.find(([top]) => w < top)![1];
+
+  /** Where the two handles of a layer's one slider sit, for the shading
+   *  between them: poor to best, whichever way round they are. */
+  function dualStyle(l: Layer, it: Item) {
+    const pc = (v: number) => (((v - l.lo) / (l.hi - l.lo || 1)) * 100).toFixed(2);
+    return `--bad:${pc(it.bad)}%;--good:${pc(it.good)}%;--lo:${pc(Math.min(it.bad, it.good))}%;--hi:${pc(Math.max(it.bad, it.good))}%;--dir:${it.good >= it.bad ? '90deg' : '270deg'}`;
+  }
+
+  function sliderAttrs(l: Layer) {
+    if (l.classes) {
+      const v = l.classes.map((c) => c.value);
+      return `min="${Math.min(...v)}" max="${Math.max(...v)}" step="1"`;
+    }
+    return `min="${l.lo}" max="${l.hi}" step="${(l.hi - l.lo) / 254}"`;
+  }
+
+  /** A categorical layer's kinds, each with its share of the study area and
+   *  a Poor / Fair / Good choice. */
+  function catsHtml(l: Layer, it: Item) {
+    const total = l.hist.reduce((a, b) => a + b, 0) || 1;
+    const share = (v: number) => {
+      const bin = Math.min(l.hist.length - 1, Math.floor(((v - l.lo) / (l.hi - l.lo || 1)) * l.hist.length));
+      return l.hist[bin] / total;
+    };
+    const LEVELS: [string, number][] = [['Poor', 0], ['Fair', 0.5], ['Good', 1]];
+    return `<div class="cats">${l
+      .classes!.map((c) => {
+        const pct = share(c.value) * 100;
+        const s = it.scores?.[c.value] ?? 0.5;
+        return `<div class="cat"><span>${esc(c.label)}</span><small>${pct >= 1 ? Math.round(pct) : pct > 0 ? '<1' : 0}%</small>
+          <span class="cat-seg" role="group" aria-label="${esc(c.label)}">${LEVELS.map(
+            ([name, v]) => `<button type="button" data-act="cat" data-v="${c.value}" data-s="${v}" aria-pressed="${s === v}">${name}</button>`,
+          ).join('')}</span></div>`;
+      })
+      .join('')}</div>`;
+  }
+
+  function critHtml(it: Item, i: number) {
+    const l = byId.get(it.id)!;
+    const better = it.good >= it.bad ? 'Higher = better' : 'Lower = better';
+    const on = soloing() && solo === i;
+    // A weight only counts against another layer's: in the same score, when
+    // there are two.
+    const alone = items.filter((x) => mode !== 'two' || x.axis === it.axis).length === 1;
+    return `<div class="crit${on ? ' solo' : ''}" data-i="${i}">
+      <div class="crit-head">
+        <b>${esc(l.name)}</b>
+        <button class="icon" type="button" data-act="solo" aria-pressed="${on}" aria-label="Show ${esc(l.name)} alone" title="Show this layer alone">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+        ${
+          mode === 'two'
+            ? `<button class="icon" type="button" data-act="axis" aria-label="Move to ${esc(axisNames[1 - it.axis])}" title="Move to ${esc(axisNames[1 - it.axis])}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h14l-4-4M20 16H6l4 4"/></svg>
+        </button>`
+            : ''
+        }
+        <button class="icon" type="button" data-act="flip" aria-label="Swap which end is good" title="Swap which end is good">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v16M4 7l3-3 3 3M17 20V4M14 17l3 3 3-3"/></svg>
+        </button>
+        ${
+          l.detail
+            ? `<button class="icon" type="button" data-act="info" aria-expanded="${infoOpen.has(l.id)}" aria-label="About ${esc(l.name)}" title="About this layer">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6"/><circle cx="12" cy="7.5" r="0.6" fill="currentColor"/></svg>
+        </button>`
+            : ''
+        }
+        <button class="icon" type="button" data-act="remove" aria-label="Remove ${esc(l.name)}" title="Remove">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+      ${
+        l.detail && infoOpen.has(l.id)
+          ? `<div class="info">${l.detail.text.map((t) => `<p>${esc(t)}</p>`).join('')}<p class="info-src">Source: ${
+              l.detail.href ? `<a href="${esc(l.detail.href)}" target="_blank" rel="noopener">${esc(l.detail.source)}</a>` : esc(l.detail.source)
+            }</p></div>`
+          : ''
+      }
+      ${
+        l.categorical
+          ? `<p class="dir">Score each kind. ${esc(l.about)}</p>${catsHtml(l, it)}`
+          : `<p class="dir">${esc(l.about)} <span class="way">${better}</span></p>
+      <div class="hist-wrap">${histSvg(l, it)}</div>
+      <div class="dual" style="${dualStyle(l, it)}">
+        <input type="range" class="t-bad" data-k="bad" ${sliderAttrs(l)} value="${it.bad}" aria-label="Poor at">
+        <input type="range" class="t-good" data-k="good" ${sliderAttrs(l)} value="${it.good}" aria-label="Best at">
+      </div>
+      <div class="thresh${it.good < it.bad ? ' flip' : ''}">
+        <span><i class="dot-bad"></i>Poor at <output data-out="bad">${esc(fmt(l, it.bad))}</output></span>
+        <span><i class="dot-good"></i>Best at <output data-out="good">${esc(fmt(l, it.good))}</output></span>
+      </div>`
+      }
+      <label class="weight">
+        <span class="weight-head">How much do you value this layer? <b data-out="weight-word">${weightWord(it.weight)}</b></span>
+        <input type="range" data-k="weight" min="0.1" max="5" step="0.1" value="${it.weight}">
+        <span class="weight-foot">${
+          alone ? '<small>Add another layer below to use weighting</small>' : ''
+        }<output data-out="weight">×${it.weight.toFixed(1)}</output></span></label>
+    </div>`;
+  }
+
+  /** The add-a-layer menu, for one axis in two-score mode. */
+  function addHtml(axis: 0 | 1) {
+    const used = new Set(items.map((i) => i.id));
+    const full = items.length >= MAX_CRITERIA;
+    return `<label class="add"><span class="sr">Add a layer</span><select data-axis="${axis}"${full ? ' disabled' : ''}>
+      <option value="">${full ? `Up to ${MAX_CRITERIA} layers at once` : mode === 'two' ? `+ Add to ${esc(axisNames[axis])}` : '+ Add a layer'}</option>
+      ${groups
+        .map((g) => {
+          const opts = config.layers.filter((l) => l.group === g && !used.has(l.id));
+          return opts.length
+            ? `<optgroup label="${esc(g)}">${opts.map((l) => `<option value="${esc(l.id)}">${esc(l.name)}</option>`).join('')}</optgroup>`
+            : '';
+        })
+        .join('')}
+    </select></label>`;
+  }
+
+  function render() {
+    const cards = (axis?: 0 | 1) =>
+      items
+        .map((it, i) => (axis === undefined || it.axis === axis ? critHtml(it, i) : ''))
+        .join('');
+    if (mode === 'two') {
+      list.innerHTML = ([0, 1] as const)
+        .map(
+          (a) => `<div class="axis">
+            <div class="axis-head"><i style="background:${AXIS_COLOURS[a]}"></i>
+              <input class="axis-name" data-axis="${a}" value="${esc(axisNames[a])}" aria-label="Name of the ${a ? 'second' : 'first'} score" maxlength="24">
+              <span class="axis-sub">${a ? 'up the key' : 'across the key'}</span></div>
+            ${cards(a) || `<p class="empty">No layers in this score yet.</p>`}
+            ${addHtml(a)}
+          </div>`,
+        )
+        .join('');
+    } else {
+      list.innerHTML =
+        (items.length ? cards() : `<p class="empty">No layers yet. Start from an example, or add one below.</p>`) + addHtml(0);
+    }
+    for (const b of modeEl.querySelectorAll<HTMLButtonElement>('button'))
+      b.setAttribute('aria-checked', String(b.dataset.mode === mode));
+    document.getElementById('mode-note')!.textContent = MODE_NOTES[mode];
+    document.getElementById('mode-val')!.textContent = mode === 'two' ? 'Bivariate' : 'Single';
+    document.getElementById('op-val')!.textContent = opEl.querySelector(`[data-op="${op}"]`)!.textContent!;
+    document.getElementById('preset-val')!.textContent = preset ?? (items.length ? 'Your own mix' : '');
+
+    for (const b of opEl.querySelectorAll<HTMLButtonElement>('button'))
+      b.setAttribute('aria-checked', String(b.dataset.op === op));
+    document.getElementById('op-note')!.textContent =
+      OP_NOTES[op] + (mode === 'two' ? ' Each of the two scores is combined this way.' : '');
+    page.classList.toggle('op-and', op === 'and');
+    page.classList.toggle('op-or', op === 'or');
+    for (const b of presetsEl.querySelectorAll<HTMLButtonElement>('button'))
+      b.setAttribute('aria-pressed', String(b.dataset.name === preset));
+    const chosen = PRESETS.find((p) => p.name === preset);
+    document.getElementById('preset-note')!.textContent = chosen
+      ? `${chosen.about} An example of what the tool can do, not a recommendation.`
+      : items.length
+        ? 'Your own mix. Pick an example to start again.'
+        : '';
+    renderKeyTwo();
+  }
+
+  presetsEl.innerHTML = PRESETS.filter((p) => p.items.every(([id]) => byId.has(id)))
+    .map((p) => `<button type="button" data-name="${esc(p.name)}" data-tip="${esc(p.about)}" aria-pressed="false">${esc(p.name)}</button>`)
+    .join('');
+  function usePreset(name: string) {
+    const p = PRESETS.find((x) => x.name === name)!;
+    items = p.items.map(([id, wt, higher, axis, q]) => fresh(id, wt, higher, axis ?? 0, q));
+    op = p.op;
+    mode = p.axes ? 'two' : 'one';
+    axisNames = p.axes ? [...p.axes] : [...AXIS_NAMES];
+    only = -1;
+    solo = -1;
+    preset = name;
+    render();
+    push();
+  }
+  // A pointer resting on an example gets its layers ready, so the click has
+  // less to wait for.
+  const warmed = new Set<string>();
+  const warmPreset = (e: Event) => {
+    const name = (e.target as HTMLElement).closest<HTMLButtonElement>('button')?.dataset.name;
+    const p = name && !warmed.has(name) && PRESETS.find((x) => x.name === name);
+    if (!p) return;
+    warmed.add(name);
+    const ls = p.items.map(([id]) => byId.get(id)!);
+    score.warm(ls.map((l) => l.src));
+    stats.postMessage({ warm: ls.map((l) => abs(l.sampleSrc)) });
+  };
+  presetsEl.addEventListener('pointerover', warmPreset);
+  presetsEl.addEventListener('focusin', warmPreset);
+  presetsEl.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button');
+    if (b) usePreset(b.dataset.name!);
+  });
+  opEl.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button');
+    if (!b) return;
+    op = b.dataset.op as Op;
+    preset = null;
+    render();
+    push();
+  });
+  list.addEventListener('change', (e) => {
+    const sel = e.target as HTMLSelectElement;
+    if (sel.tagName !== 'SELECT' || !sel.value) return;
+    const axis = Number(sel.dataset.axis) as 0 | 1;
+    items.push(fresh(sel.value, 1, undefined, axis));
+    preset = null;
+    render();
+    push();
+    list.querySelector(`select[data-axis="${axis}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  });
+  modeEl.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button');
+    if (!b || b.dataset.mode === mode) return;
+    mode = b.dataset.mode as Mode;
+    only = -1;
+    solo = -1;
+    preset = null;
+    render();
+    push();
+  });
+  list.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-act]');
+    if (!b) return;
+    const i = Number(b.closest<HTMLElement>('.crit')!.dataset.i);
+    const act = b.dataset.act;
+    if (act === 'info') {
+      const id = items[i].id;
+      if (!infoOpen.delete(id)) infoOpen.add(id);
+      render();
+      return;
+    }
+    if (act === 'solo') {
+      solo = solo === i ? -1 : i;
+      render();
+      push();
+      return;
+    }
+    if (act === 'remove') {
+      items.splice(i, 1);
+      if (solo === i) solo = -1;
+      else if (solo > i) solo--;
+    } else if (act === 'axis') items[i].axis = (1 - items[i].axis) as 0 | 1;
+    else if (act === 'cat') items[i].scores = { ...items[i].scores, [Number(b.dataset.v)]: Number(b.dataset.s) };
+    else if (items[i].scores)
+      // Swapping ends on a categorical layer turns every score over.
+      items[i].scores = Object.fromEntries(Object.entries(items[i].scores!).map(([k, v]) => [k, 1 - v]));
+    else [items[i].good, items[i].bad] = [items[i].bad, items[i].good];
+    preset = null;
+    render();
+    push();
+  });
+  // Dragging a slider: the map and this criterion's own readouts, in place --
+  // not a re-render of the panel, which would drop the slider mid-drag.
+  list.addEventListener('input', (e) => {
+    const input = e.target as HTMLInputElement;
+    if (input.classList.contains('axis-name')) {
+      // Renamed in place: the key and the menus follow, the panel is not
+      // redrawn under the cursor.
+      axisNames[Number(input.dataset.axis)] = input.value.trim() || AXIS_NAMES[Number(input.dataset.axis)];
+      renderKeyTwo();
+      showNumbers();
+      saveHash();
+      return;
+    }
+    const row = input.closest<HTMLElement>('.crit');
+    if (!row || !input.dataset.k) return;
+    const it = items[Number(row.dataset.i)];
+    const l = byId.get(it.id)!;
+    const k = input.dataset.k as 'good' | 'bad' | 'weight';
+    it[k] = Number(input.value);
+    preset = null;
+    for (const b of presetsEl.querySelectorAll('button')) b.setAttribute('aria-pressed', 'false');
+    document.getElementById('preset-note')!.textContent = 'Your own mix. Pick an example to start again.';
+    document.getElementById('preset-val')!.textContent = 'Your own mix';
+    row.querySelector(`[data-out="${k}"]`)!.textContent = k === 'weight' ? `×${it.weight.toFixed(1)}` : fmt(l, it[k]);
+    if (k === 'weight') row.querySelector('[data-out="weight-word"]')!.textContent = weightWord(it.weight);
+    if (k !== 'weight') {
+      row.querySelector('.hist-wrap')!.innerHTML = histSvg(l, it);
+      row.querySelector('.way')!.textContent = it.good >= it.bad ? 'Higher = better' : 'Lower = better';
+      row.querySelector('.dual')!.setAttribute('style', dualStyle(l, it));
+      row.querySelector('.thresh')!.classList.toggle('flip', it.good < it.bad);
+      // The handle last moved on top, so two that meet can still be parted.
+      for (const x of row.querySelectorAll('.dual input')) x.classList.toggle('front', x === input);
+    }
+    push();
+  });
+  // ---- The numbers ---------------------------------------------------------
+  // Counted in a worker from each layer's area sample, a moment after the
+  // model stops changing: the map answers every frame, the numbers as soon
+  // as they are sure.
+  const stats = new Worker(new URL('./lib/stats-worker.ts', import.meta.url), { type: 'module' });
+  const keyEl = document.querySelector<HTMLElement>('.key')!;
+  const keyFold = document.getElementById('key-fold')!;
+  keyFold.addEventListener('click', () => {
+    const open = keyFold.getAttribute('aria-expanded') !== 'true';
+    keyFold.setAttribute('aria-expanded', String(open));
+    keyFold.setAttribute('aria-label', open ? 'Minimise' : 'Open');
+    keyEl.classList.toggle('folded', !open);
+  });
+  // Either way off the page loses the model on the map: asked first. (The
+  // link button in the panel keeps it, for coming back to.)
+  confirmLeave(document.querySelector<HTMLAnchorElement>('#home'));
+  confirmLeave(document.querySelector<HTMLAnchorElement>('#to-map'));
+
+  // ---- Legend --------------------------------------------------------------
+  // Open or folded as it was left, in this browser.
+  const legend = document.getElementById('legend') as HTMLDetailsElement;
+  try {
+    if (localStorage.getItem('dst-legend') === 'closed') legend.open = false;
+  } catch {}
+  legend.addEventListener('toggle', () => {
+    try {
+      localStorage.setItem('dst-legend', legend.open ? 'open' : 'closed');
+    } catch {}
+  });
+
+  // ---- Colours -------------------------------------------------------------
+  // The palette one score is drawn in: the map, the key's charts, the best
+  // places' pins. Kept in this browser for next time.
+  const palWrap = document.getElementById('pal-wrap')!;
+  const palBtn = document.getElementById('pal-btn')!;
+  const palMenu = document.getElementById('pal-menu')!;
+  function usePalette(id: string | null) {
+    const p = paletteById(id);
+    STOPS = p.stops;
+    score.setPalette(p.stops);
+    el.parentElement!.style.setProperty('--ramp-hi', rgb(p.stops[4]));
+    el.parentElement!.style.setProperty('--ramp-mid', rgb(p.stops[3]));
+    el.parentElement!.style.setProperty('--ramp', `linear-gradient(90deg, ${p.stops.map(rgb).join(', ')})`);
+    palMenu.innerHTML = PALETTES.map(
+      (q) =>
+        `<button type="button" role="radio" aria-checked="${q.id === p.id}" data-palette="${q.id}">` +
+        `<span>${q.name}</span><i class="pal-bar" style="background:linear-gradient(90deg,${q.stops.map(rgb).join(',')})"></i></button>`,
+    ).join('');
+    try {
+      localStorage.setItem('dst-palette', p.id);
+    } catch {}
+  }
+  usePalette((() => {
+    try {
+      return localStorage.getItem('dst-palette');
+    } catch {
+      return null;
+    }
+  })());
+  const showPalettes = (open: boolean) => {
+    palMenu.hidden = !open;
+    palBtn.setAttribute('aria-expanded', String(open));
+  };
+  palBtn.addEventListener('click', () => {
+    // One menu out at a time: they open into the same space.
+    if (palMenu.hidden) closeOthers();
+    showPalettes(palMenu.hidden);
+  });
+  palMenu.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLElement>('[data-palette]');
+    if (!b) return;
+    usePalette(b.dataset.palette!);
+    render();
+    showNumbers();
+  });
+  document.addEventListener('click', (e) => {
+    if (!palMenu.hidden && !palWrap.contains(e.target as Node)) showPalettes(false);
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !palMenu.hidden) showPalettes(false);
+  });
+  const pctEl = document.getElementById('pct')!;
+  const kmEl = document.getElementById('km')!;
+  const spreadEl = document.getElementById('spread')!;
+  const footEl = document.getElementById('key-foot')!;
+  const cutIn = document.getElementById('cut') as HTMLInputElement;
+  const cutOut = document.getElementById('cut-out')!;
+  const onlyIn = document.getElementById('only') as HTMLInputElement;
+  const steadyIn = document.getElementById('steady-on') as HTMLInputElement;
+  /** How steady is shown when asked for and there are weights to nudge. */
+  const steadyActive = () => steadyIn.checked && effectiveMode() === 'one' && op === 'mean' && criteria().length > 1;
+  const scopeEl = document.getElementById('scope')!;
+  type Scope = 'region' | 'view' | 'area';
+  let scope: Scope = 'region';
+  /** The latest count for each scope. */
+  const tallies: Record<Scope, Tally | null> = { region: null, view: null, area: null };
+  const current = () => tallies[scope];
+  const WHERE: Record<Scope, string> = { region: 'across the study area', view: 'in view', area: 'in the drawn area' };
+  let seq = 0;
+  let countTimer = 0;
+  const cut = () => Number(cutIn.value) / 100;
+  const grid = config.layers[0]?.sample;
+
+  /** The part of the map that can be seen -- not what the panel covers on a
+   *  wide screen -- as sample cells, for counting "this view". */
+  function viewCells(): [number, number, number, number] | null {
+    if (!grid) return null;
+    const panel = document.getElementById('panel')!;
+    // Folded to its title, the panel hides next to nothing.
+    const wide = matchMedia('(min-width: 48rem)').matches && !document.getElementById('panel-body')!.hidden;
+    const left = wide ? panel.getBoundingClientRect().right - el.getBoundingClientRect().left : 0;
+    const nw = map.unproject([Math.max(0, left), 0]);
+    const se = map.unproject([el.clientWidth, el.clientHeight]);
+    const n = 2 ** grid.z * 256;
+    const px = (lng: number, lat: number) => {
+      const r = (lat * Math.PI) / 180;
+      return [((lng + 180) / 360) * n, ((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * n];
+    };
+    const [x0, y0] = px(nw.lng, nw.lat);
+    const [x1, y1] = px(se.lng, se.lat);
+    const c = (x: number) => Math.floor((x - grid.x0) / grid.step);
+    const r = (y: number) => Math.floor((y - grid.y0) / grid.step);
+    return [Math.max(0, c(x0)), Math.max(0, r(y0)), Math.min(grid.w, c(x1) + 1), Math.min(grid.h, r(y1) + 1)];
+  }
+
+  /** The model as the counting worker takes it: every layer's lookup table
+   *  (the shader's own), weights and axes. */
+  function statsModel() {
+    const cs = criteria();
+    const luts = new Uint8Array(cs.length * 256);
+    cs.forEach((c, i) => luts.set(criterionLut(c), i * 256));
+    return {
+      grid: grid!,
+      op,
+      cut: cut(),
+      breaks: effectiveMode() === 'two' ? breaks : null,
+      steady: steadyActive(),
+      layers: cs.map((c) => ({ src: abs(byId.get(c.layer.id)!.sampleSrc), weight: c.weight, axis: c.axis ?? 0 })),
+      luts,
+    };
+  }
+  /** The whole area is counted once per model; a model counted before is
+   *  answered from here, so going back and forth costs nothing. */
+  const regionCache = new Map<string, Tally>();
+  const modelKey = (m: ReturnType<typeof statsModel>) =>
+    JSON.stringify([m.op, m.cut, m.breaks, m.steady, m.layers, Array.from(m.luts)]);
+
+  function recount() {
+    clearTimeout(countTimer);
+    if (!grid || !items.length) {
+      tallies.region = tallies.view = tallies.area = null;
+      showNumbers();
+      showBest();
+      return;
+    }
+    countTimer = window.setTimeout(() => {
+      const m = statsModel();
+      const key = modelKey(m);
+      const hit = regionCache.get(key);
+      if (hit) {
+        // Any count still on its way is for an older model: bumping the
+        // sequence drops it, rather than letting it land over this one and be
+        // cached under this model's key.
+        seq++;
+        tallies.region = hit;
+        showNumbers();
+        showBest();
+      } else stats.postMessage({ ...m, seq: ++seq, kind: 'region', view: null } satisfies StatsRequest);
+      regionKey = key;
+      if (scope === 'view') recountView();
+      if (scope === 'area') recountArea();
+    }, 120);
+  }
+  /** The view alone, over just its own rectangle: after a pan or zoom, or
+   *  when "This view" is chosen. */
+  function recountView() {
+    if (!grid || !items.length) return;
+    stats.postMessage({ ...statsModel(), seq: ++viewSeq, kind: 'view', view: viewCells() } satisfies StatsRequest);
+  }
+  /** Inside the drawn outline only. */
+  function recountArea() {
+    if (!grid || !items.length || drawn.length < 3) return;
+    const n = 2 ** grid.z * 256;
+    const ring = drawn.map(([lng, lat]) => {
+      const r = (lat * Math.PI) / 180;
+      const x = ((lng + 180) / 360) * n, y = ((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * n;
+      return [(x - grid.x0) / grid.step, (y - grid.y0) / grid.step] as [number, number];
+    });
+    stats.postMessage({ ...statsModel(), seq: ++areaSeq, kind: 'area', view: null, area: ring } satisfies StatsRequest);
+  }
+  let regionKey = '';
+  let viewSeq = 0;
+  let areaSeq = 0;
+  stats.onmessage = (e: MessageEvent<StatsResponse>) => {
+    const d = e.data;
+    if (d.seq !== (d.kind === 'region' ? seq : d.kind === 'view' ? viewSeq : areaSeq)) return;
+    if ('loading' in d) {
+      keyEl.classList.add('loading');
+      return;
+    }
+    keyEl.classList.remove('loading');
+    if (debug) debug.counts.push(d.ms);
+    if (d.kind === 'region') {
+      regionCache.set(regionKey, d.tally);
+      if (regionCache.size > 50) regionCache.delete(regionCache.keys().next().value!);
+    }
+    tallies[d.kind] = d.tally;
+    showNumbers();
+    showBest();
+  };
+
+  /** How sure the numbers are: sampled at full detail every ~200 m, which is
+   *  exact enough for the study area, but zoomed right in few samples fall in
+   *  view. */
+  const precision = (t: Tally) =>
+    t.points < 2000
+      ? `Zoomed in this close, only ${t.points.toLocaleString('en-CA')} sample points are in view: treat these as approximate.`
+      : 'Counted at full detail.';
+  const km2 = (v: number) =>
+    v >= 100 ? `${Math.round(v).toLocaleString('en-CA')} km²` : v >= 1 ? `${v.toFixed(1)} km²` : `${Math.round(v * 100)} ha`;
+
+  function showNumbers() {
+    const t = current();
+    if (effectiveMode() === 'two') return showNumbersTwo(t);
+    const c = Math.round(cut() * 100);
+    cutOut.textContent = String(c);
+    if (!t || !t.total) {
+      pctEl.textContent = '–';
+      kmEl.textContent = items.length ? 'No data here for these layers.' : 'Add a layer to see how much fits.';
+      spreadEl.innerHTML = '';
+      footEl.textContent = '';
+      return;
+    }
+    pctEl.textContent = `${Math.round((t.above / t.total) * 100)}%`;
+    kmEl.innerHTML = `${km2(t.above)}<br>scores ${c} or more`;
+    spreadEl.innerHTML = spreadSvg(t, cut());
+    const rows = document.getElementById('steady-rows')!;
+    if (steadyActive() && t.steady.length === 4) {
+      const NAMES = ['Always a good fit', 'Mostly (12–15 of 16)', 'Sometimes (1–11)', 'Never'];
+      const SHADES = [1, 0.85, 0.45, 0];
+      rows.innerHTML = t.steady
+        .map(
+          (a, i) =>
+            `<div><i style="background:${rampCss(SHADES[i])}"></i>${NAMES[i]}<span>${km2(a)}</span><span>${Math.round((a / t.total) * 100)}%</span></div>`,
+        )
+        .join('');
+    } else rows.innerHTML = '';
+    footEl.textContent =
+      `Of the ${km2(t.total)} ${WHERE[scope]} that these layers cover. ` +
+      `Average score ${Math.round(t.mean * 100)}. ${precision(t)}`;
+  }
+
+  /** The spread of scores by area, in the map's own colours: the key and the
+   *  distribution in one. Bars under the cut-off are faded. */
+  function spreadSvg(t: Tally, cutAt: number) {
+    const W = 300, H = 56, n = t.hist.length;
+    const max = Math.max(...t.hist) || 1;
+    const bars = t.hist
+      .map((a, i) => {
+        const h = Math.max(a > 0 ? 1.5 : 0, (a / max) * (H - 2));
+        const lo = i / n, hi = (i + 1) / n;
+        const tip = `${Math.round(lo * 100)}–${Math.round(hi * 100)}: ${km2(a)} (${Math.round((a / t.total) * 100)}%)`;
+        return `<rect x="${((i / n) * W + 1).toFixed(1)}" y="${(H - h).toFixed(1)}" width="${(W / n - 2).toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="${rampCss((i + 0.5) / n)}" opacity="${lo + 1e-9 >= cutAt ? 1 : 0.35}"><title>${tip}</title></rect>`;
+      })
+      .join('');
+    const x = cutAt * W;
+    return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${bars}<line x1="${x}" x2="${x}" y1="0" y2="${H}" stroke="#eef2ee" stroke-width="1.5" stroke-dasharray="3 3"/></svg>`;
+  }
+
+  // ---- Two scores: the key ---------------------------------------------------
+  const biGrid = document.getElementById('bi-grid')!;
+  const biPct = document.getElementById('bi-pct')!;
+  const biKm = document.getElementById('bi-km')!;
+  const biBrk = document.getElementById('bi-brk')!;
+  const BANDS = ['Low', 'Medium', 'High'];
+  /** Which cell the headline is about: the one shown alone, the one under
+   *  the pointer, or high on both. */
+  let hovered = -1;
+  const cellName = (cell: number) =>
+    `${BANDS[cell % 3]} ${axisNames[0].toLowerCase()}, ${BANDS[Math.floor(cell / 3)].toLowerCase()} ${axisNames[1].toLowerCase()}`;
+
+  function renderKeyTwo() {
+    document.getElementById('bi-x')!.innerHTML = `<i>${esc(axisNames[0])}</i> →`;
+    document.getElementById('bi-y')!.innerHTML = `<i>${esc(axisNames[1])}</i> →`;
+    document.getElementById('lg-bi-x')!.innerHTML = `→ Higher <i>${esc(axisNames[0])}</i>`;
+    document.getElementById('lg-bi-y')!.innerHTML = `↑ Higher <i>${esc(axisNames[1])}</i>`;
+    document.getElementById('lg-bi-grid')!.innerHTML = [6, 7, 8, 3, 4, 5, 0, 1, 2].map((c) => `<i style="background:${PALETTE[c]}"></i>`).join('');
+    // Top row first: high on the second axis.
+    biGrid.innerHTML = [6, 7, 8, 3, 4, 5, 0, 1, 2]
+      .map((c) => `<button type="button" data-cell="${c}" style="background:${PALETTE[c]}" aria-pressed="${c === only}" aria-label="${esc(cellName(c))}"></button>`)
+      .join('');
+    biGrid.classList.toggle('isolating', only >= 0);
+    const pc = (v: number) => Math.round(v * 100);
+    biBrk.innerHTML = ([0, 1] as const)
+      .map(
+        (a) => `<div class="brk" data-axis="${a}"><b>${esc(axisNames[a])}</b>
+          <label>Low below <output>${pc(breaks[a][0])}</output>
+            <input type="range" data-b="0" min="5" max="90" step="5" value="${pc(breaks[a][0])}"></label>
+          <label>High from <output>${pc(breaks[a][1])}</output>
+            <input type="range" data-b="1" min="10" max="95" step="5" value="${pc(breaks[a][1])}"></label></div>`,
+      )
+      .join('');
+  }
+
+  function showNumbersTwo(t: Tally | null) {
+    for (const b of biGrid.querySelectorAll<HTMLButtonElement>('button')) {
+      const c = Number(b.dataset.cell);
+      b.title = t && t.total ? `${cellName(c)}: ${km2(t.cells[c])} (${Math.round((t.cells[c] / t.total) * 100)}%)` : cellName(c);
+    }
+    const cell = hovered >= 0 ? hovered : only >= 0 ? only : 8;
+    const both = items.some((i) => i.axis === 0) && items.some((i) => i.axis === 1);
+    if (!t || !t.total) {
+      biPct.textContent = '–';
+      biKm.textContent = !items.length
+        ? 'Add layers to both scores to see how they overlap.'
+        : !both
+          ? 'Each score needs at least one layer.'
+          : 'No data here for these layers.';
+      footEl.textContent = '';
+      return;
+    }
+    biPct.textContent = `${Math.round((t.cells[cell] / t.total) * 100)}%`;
+    biKm.innerHTML = `${km2(t.cells[cell])}<br>${esc(cellName(cell).toLowerCase())}`;
+    footEl.textContent =
+      `Of the ${km2(t.total)} ${WHERE[scope]} where both scores have data. ${precision(t)}`;
+  }
+
+  biGrid.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button');
+    if (!b) return;
+    const c = Number(b.dataset.cell);
+    only = only === c ? -1 : c;
+    for (const x of biGrid.querySelectorAll('button')) x.setAttribute('aria-pressed', String(Number(x.getAttribute('data-cell')) === only));
+    biGrid.classList.toggle('isolating', only >= 0);
+    score.setBivariate({ breaks, palette: PALETTE, only });
+    showNumbers();
+  });
+  biGrid.addEventListener('pointerover', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button');
+    hovered = b ? Number(b.dataset.cell) : -1;
+    showNumbers();
+  });
+  biGrid.addEventListener('pointerleave', () => {
+    hovered = -1;
+    showNumbers();
+  });
+  biBrk.addEventListener('input', (e) => {
+    const input = e.target as HTMLInputElement;
+    const a = Number(input.closest<HTMLElement>('.brk')!.dataset.axis);
+    const k = Number(input.dataset.b);
+    let v = Number(input.value) / 100;
+    // Low stays below high.
+    if (k === 0) v = Math.min(v, breaks[a][1] - 0.05);
+    else v = Math.max(v, breaks[a][0] + 0.05);
+    breaks[a][k] = v;
+    input.value = String(Math.round(v * 100));
+    input.previousElementSibling!.textContent = String(Math.round(v * 100));
+    score.setBivariate({ breaks, palette: PALETTE, only });
+    recount();
+    saveHash();
+  });
+
+  /** The steadiness switch: usable only with weights to nudge, and the map
+   *  and its note to match. */
+  function syncSteady() {
+    const can = effectiveMode() === 'one' && op === 'mean' && criteria().length > 1;
+    const label = document.getElementById('steady-label')!;
+    steadyIn.disabled = !can;
+    label.classList.toggle('off', !can);
+    label.title = can
+      ? ''
+      : effectiveMode() === 'two'
+        ? 'For one score.'
+        : op !== 'mean'
+          ? 'Only weighing up has weights to nudge.'
+          : 'Needs two or more layers to weigh against each other.';
+    score.setSteady(steadyActive() ? cut() : null);
+    document.getElementById('steady')!.hidden = !steadyActive();
+  }
+  steadyIn.addEventListener('change', () => {
+    syncSteady();
+    recount();
+    saveHash();
+  });
+  cutIn.addEventListener('input', () => {
+    if (onlyIn.checked) score.setCut(cut());
+    if (steadyActive()) score.setSteady(cut());
+    showNumbers();
+    recount();
+    saveHash();
+  });
+  onlyIn.addEventListener('change', () => score.setCut(onlyIn.checked ? cut() : 0));
+  scopeEl.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button');
+    if (!b) return;
+    // "Draw" again while its area is showing: draw a new one.
+    if (b.dataset.scope === 'area' && (scope === 'area' || !drawn.length)) startDraw();
+    scope = b.dataset.scope as Scope;
+    for (const x of scopeEl.querySelectorAll('button')) x.setAttribute('aria-checked', String(x === b));
+    if (scope === 'view') recountView();
+    if (scope === 'area') recountArea();
+    showDrawn();
+    showNumbers();
+    showBest();
+  });
+  // ---- Drawing an area --------------------------------------------------------
+  // RRN's parcel totals, for any outline: click round an area, double-click
+  // (or click the first point) to close it, and every number counts inside
+  // it alone. Escape leaves off.
+  let drawn: [number, number][] = [];
+  let drawing = false;
+  let drawEnded = 0;
+  let hover: [number, number] | null = null;
+  const drawnSource = () => map.getSource('drawn') as maplibregl.GeoJSONSource | undefined;
+  function showDrawn() {
+    const src = drawnSource();
+    if (!src) return;
+    const pts = drawing && hover ? [...drawn, hover] : drawn;
+    const show = drawing || scope === 'area';
+    src.setData({
+      type: 'FeatureCollection',
+      features:
+        !show || !pts.length
+          ? []
+          : [
+              drawing
+                ? { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: pts } }
+                : { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [[...pts, pts[0]]] } },
+              ...drawn.map((c) => ({ type: 'Feature' as const, properties: { vertex: 1 }, geometry: { type: 'Point' as const, coordinates: c } })),
+            ],
+    });
+    // Off while there is nothing drawn, so the map has no tiles of it to cut.
+    const vis = show && pts.length ? 'visible' : 'none';
+    for (const id of ['drawn-fill', 'drawn-line', 'drawn-pts']) map.setLayoutProperty(id, 'visibility', vis);
+  }
+  function startDraw() {
+    drawing = true;
+    drawn = [];
+    hover = null;
+    stopTour();
+    popup.remove();
+    map.doubleClickZoom.disable();
+    map.getCanvas().style.cursor = 'crosshair';
+    say('Click round the area you want to count. Double-click, or click the first point, to finish.');
+    showDrawn();
+  }
+  function endDraw(keep: boolean) {
+    drawing = false;
+    drawEnded = Date.now();
+    map.getCanvas().style.cursor = '';
+    setTimeout(() => map.doubleClickZoom.enable(), 350);
+    if (!keep || drawn.length < 3) {
+      drawn = keep ? drawn : [];
+      if (drawn.length < 3) {
+        drawn = [];
+        if (scope === 'area') {
+          scope = 'region';
+          for (const x of scopeEl.querySelectorAll<HTMLButtonElement>('button')) x.setAttribute('aria-checked', String(x.dataset.scope === 'region'));
+          showNumbers();
+          showBest();
+        }
+      }
+    }
+    showDrawn();
+    if (drawn.length >= 3) {
+      recountArea();
+      saveHash();
+    }
+  }
+  map.on('load', () => {
+    map.addSource('drawn', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+    map.addLayer({ id: 'drawn-fill', layout: { visibility: 'none' }, type: 'fill', source: 'drawn', filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': '#eef2ee', 'fill-opacity': 0.07 } });
+    map.addLayer({ id: 'drawn-line', layout: { visibility: 'none' }, type: 'line', source: 'drawn', filter: ['!=', ['geometry-type'], 'Point'], paint: { 'line-color': '#eef2ee', 'line-width': 2, 'line-dasharray': [3, 2] } });
+    map.addLayer({ id: 'drawn-pts', layout: { visibility: 'none' }, type: 'circle', source: 'drawn', filter: ['==', ['geometry-type'], 'Point'], paint: { 'circle-radius': 4, 'circle-color': '#0d1210', 'circle-stroke-color': '#eef2ee', 'circle-stroke-width': 2 } });
+    showDrawn();
+  });
+  map.on('click', (e) => {
+    if (!drawing) return;
+    const p = [e.lngLat.lng, e.lngLat.lat] as [number, number];
+    // Back on the first point closes the outline.
+    if (drawn.length >= 3) {
+      const first = map.project(drawn[0]);
+      if (Math.hypot(first.x - e.point.x, first.y - e.point.y) < 12) return endDraw(true);
+    }
+    drawn.push(p);
+    showDrawn();
+  });
+  map.on('dblclick', (e) => {
+    if (!drawing) return;
+    e.preventDefault();
+    // The double-click's two clicks each added a point: one is enough.
+    drawn.pop();
+    endDraw(true);
+  });
+  map.on('mousemove', (e) => {
+    if (!drawing) return;
+    hover = [e.lngLat.lng, e.lngLat.lat];
+    showDrawn();
+  });
+  window.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (drawing) endDraw(false);
+    else {
+      popup.remove();
+      stopTour();
+    }
+  });
+
+  // "This view" follows the map; the whole area does not need recounting.
+  map.on('moveend', () => {
+    if (scope === 'view' && !flying) recountView();
+  });
+
+  keyEl.addEventListener('click', (e) => {
+    if ((e.target as HTMLElement).id !== 'solo-off') return;
+    solo = -1;
+    render();
+    push();
+  });
+
+  // ---- A link to this model --------------------------------------------------
+  // The whole model -- layers, thresholds, weights, how they combine, the
+  // two-score names and breaks, the cut-off -- lives in the address, so a
+  // link reopens exactly what was on screen. Written as the model changes
+  // (replacing, not adding to, the history), read once on opening.
+  type Saved = {
+    v: 1;
+    m: Mode;
+    o: Op;
+    a: [string, string];
+    b: [[number, number], [number, number]];
+    c: number;
+    i: [string, number, number, number, 0 | 1, Record<number, number>?][];
+    /** A drawn area, when there is one. */
+    d?: [number, number][];
+    /** How steady is showing. */
+    s?: 1;
+    /** A flyover's views: lng, lat, zoom, turn, tilt, ground height, and
+     *  the callout's title and text. */
+    f?: [number, number, number, number, number, number?, string?, string?][];
+  };
+  const r4 = (v: number) => Number(v.toPrecision(4));
+  let hashTimer = 0;
+  const MAX_VIEWS = 30;
+  const TITLE_MAX = 60;
+  const TEXT_MAX = 240;
+  /** A flyover's view, with its callout if it has one. */
+  type FlyView = View & { title?: string; text?: string };
+  let flyViews: FlyView[] = [];
+  const hasCallout = (v: FlyView) => !!(v.title?.trim() || v.text?.trim());
+  // The model in the address, as JSON: deflated (#z=) where the browser can,
+  // which makes a link with a flyover about a third as long -- and its QR code
+  // coarser, so it prints sharper. Plain (#m=) otherwise, and still read.
+  const toB64 = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const fromB64 = (b64: string) => Uint8Array.from(atob(b64.replace(/-/g, '+').replace(/_/g, '/')), (ch) => ch.charCodeAt(0));
+  const through = async (bytes: Uint8Array, stream: CompressionStream | DecompressionStream) =>
+    new Uint8Array(await new Response(new Blob([bytes as BlobPart]).stream().pipeThrough(stream)).arrayBuffer());
+  let hashRun = 0;
+  /** The address brought up to date a moment after the last change. */
+  function saveHash() {
+    clearTimeout(hashTimer);
+    hashTimer = window.setTimeout(writeHash, 250);
+  }
+  /** The address brought up to date now, for a link or code made from it. */
+  function flushHash() {
+    clearTimeout(hashTimer);
+    return writeHash();
+  }
+  async function writeHash() {
+    const me = ++hashRun;
+    if (!items.length) {
+      history.replaceState(null, '', location.pathname + location.search);
+      return;
+    }
+    const saved: Saved = {
+      v: 1,
+      m: mode,
+      o: op,
+      a: axisNames,
+      b: breaks,
+      c: Number(cutIn.value),
+      i: items.map((it) => [it.id, it.weight, r4(it.bad), r4(it.good), it.axis, ...(it.scores ? [it.scores] : [])] as Saved['i'][number]),
+      ...(steadyIn.checked ? { s: 1 as const } : {}),
+      ...(drawn.length >= 3 ? { d: drawn.map(([x, y]) => [Number(x.toFixed(5)), Number(y.toFixed(5))] as [number, number]) } : {}),
+      ...(flyViews.length
+        ? {
+            f: flyViews.map(
+              (v) =>
+                [
+                  Number(v.lng.toFixed(5)),
+                  Number(v.lat.toFixed(5)),
+                  Number(v.zoom.toFixed(3)),
+                  Number(v.bearing.toFixed(1)),
+                  Number(v.pitch.toFixed(1)),
+                  Math.round(v.elevation),
+                  ...(hasCallout(v) ? [v.title?.trim() ?? '', v.text?.trim() ?? ''] : []),
+                ] as NonNullable<Saved['f']>[number],
+            ),
+          }
+        : {}),
+    };
+    const json = new TextEncoder().encode(JSON.stringify(saved));
+    let hash = `m=${toB64(json)}`;
+    if (typeof CompressionStream !== 'undefined') {
+      try {
+        hash = `z=${toB64(await through(json, new CompressionStream('deflate-raw')))}`;
+      } catch {}
+    }
+    // A newer save started while this one was deflating: that one wins.
+    if (me !== hashRun) return;
+    history.replaceState(null, '', `${location.pathname}${location.search}#${hash}`);
+  }
+  async function loadHash() {
+    const m = location.hash.match(/^#([mz])=([A-Za-z0-9_-]+)/);
+    if (!m) return false;
+    try {
+      let bytes = fromB64(m[2]);
+      if (m[1] === 'z') bytes = await through(bytes, new DecompressionStream('deflate-raw'));
+      const saved = JSON.parse(new TextDecoder().decode(bytes)) as Saved;
+      if (saved.v !== 1) return false;
+      items = saved.i
+        .filter(([id]) => byId.has(id))
+        .slice(0, MAX_CRITERIA)
+        .map(([id, weight, bad, good, axis, scores]) => ({ id, weight, bad, good, axis, scores }));
+      mode = saved.m === 'two' ? 'two' : 'one';
+      op = (['mean', 'and', 'or'] as Op[]).includes(saved.o) ? saved.o : 'mean';
+      axisNames = [String(saved.a?.[0] ?? AXIS_NAMES[0]).slice(0, 24), String(saved.a?.[1] ?? AXIS_NAMES[1]).slice(0, 24)];
+      if (Array.isArray(saved.b)) breaks = saved.b;
+      if (saved.c) cutIn.value = String(saved.c);
+      if (Array.isArray(saved.d) && saved.d.length >= 3) drawn = saved.d.slice(0, 200);
+      steadyIn.checked = saved.s === 1;
+      if (Array.isArray(saved.f))
+        flyViews = saved.f.slice(0, MAX_VIEWS).map(([lng, lat, zoom, bearing, pitch, elevation, title, text]) => ({
+          lng,
+          lat,
+          zoom,
+          bearing,
+          pitch,
+          elevation: elevation ?? 0,
+          title: String(title ?? '').slice(0, TITLE_MAX),
+          text: String(text ?? '').slice(0, TEXT_MAX),
+        }));
+      return items.length > 0;
+    } catch {
+      return false;
+    }
+  }
+  document.getElementById('share')!.addEventListener('click', async () => {
+    await flushHash();
+    try {
+      await navigator.clipboard.writeText(location.href);
+      say(items.length ? 'Link copied: it opens this exact sandbox.' : 'Link copied.');
+    } catch {
+      say('Copy the address bar to share this sandbox.');
+    }
+  });
+
+  // ---- Taking it away ---------------------------------------------------------
+  // The map as an image, and the numbers as a table -- for a report or a
+  // meeting. The image is the map as drawn, with the key and the model under
+  // it, so it stands on its own.
+  const loadingBar = document.getElementById('loading-bar')!;
+  map.on('render', () => loadingBar.classList.toggle('on', items.length > 0 && score.pending > 0));
+
+  const download = (name: string, href: string) => {
+    const a = document.createElement('a');
+    a.href = href;
+    a.download = name;
+    a.click();
+  };
+  const stamp = () => new Date().toISOString().slice(0, 10);
+  /** One line per layer, as the panel has it. */
+  const modelLines = () =>
+    criteria().map((c) => {
+      const l = byId.get(c.layer.id)!;
+      const how = c.scores
+        ? 'scored by kind'
+        : `poor at ${fmt(l, c.bad)}, best at ${fmt(l, c.good)}`;
+      const wt = op === 'mean' && !soloing() ? `, ×${c.weight}` : '';
+      const axis = effectiveMode() === 'two' ? `[${axisNames[c.axis ?? 0]}] ` : '';
+      return `${axis}${l.name}: ${how}${wt}`;
+    });
+
+  // The save button's menu: the whole area as a finished map, the view, or
+  // the numbers.
+  const saveWrap = document.getElementById('save-wrap')!;
+  const saveBtn = document.getElementById('save-btn')!;
+  const saveMenu = document.getElementById('save-menu')!;
+  const showSave = (open: boolean) => {
+    saveMenu.hidden = !open;
+    saveBtn.setAttribute('aria-expanded', String(open));
+  };
+  let saving = false;
+  saveBtn.addEventListener('click', () => {
+    if (!items.length) return say('Add a layer first.');
+    if (saveMenu.hidden) closeOthers();
+    showSave(saveMenu.hidden);
+  });
+  saveMenu.addEventListener('click', async (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-save]');
+    if (!b || saving) return;
+    const all = saveMenu.querySelectorAll('button');
+    saving = true;
+    for (const x of all) x.disabled = true;
+    try {
+      await ({ full: saveFull, view: saveView, csv: saveCsv, qr: saveQr } as Record<string, () => unknown>)[b.dataset.save!]();
+      showSave(false);
+    } finally {
+      saving = false;
+      for (const x of all) x.disabled = false;
+    }
+  });
+  document.addEventListener('click', (e) => {
+    if (!saveMenu.hidden && !saving && !saveWrap.contains(e.target as Node)) showSave(false);
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !saveMenu.hidden && !saving) showSave(false);
+  });
+
+  /** The canvas as it is drawn next: it is only readable during a render. */
+  const grab = () =>
+    new Promise<HTMLCanvasElement>((done) => {
+      map.once('render', () => {
+        const src = map.getCanvas();
+        const c = document.createElement('canvas');
+        c.width = src.width;
+        c.height = src.height;
+        c.getContext('2d')!.drawImage(src, 0, 0);
+        done(c);
+      });
+      map.triggerRepaint();
+    });
+
+  /** The view as it is, with the key and the model under it. */
+  async function saveView() {
+    const src = await grab();
+    const dpr = src.width / el.clientWidth;
+    const lines = modelLines();
+    const headline =
+      effectiveMode() === 'two'
+        ? `${biPct.textContent} ${biKm.textContent?.replace(/\s+/g, ' ')}`
+        : `${pctEl.textContent} (${kmEl.textContent?.replace(/\s+/g, ' ')})`;
+    const pad = 18 * dpr, line = 17 * dpr, foot = pad * 2 + line * (lines.length + 3);
+    const out = document.createElement('canvas');
+    out.width = src.width;
+    out.height = src.height + foot;
+    const ctx = out.getContext('2d')!;
+    ctx.fillStyle = '#0d1210';
+    ctx.fillRect(0, 0, out.width, out.height);
+    ctx.drawImage(src, 0, 0);
+    ctx.fillStyle = '#eef2ee';
+    ctx.font = `600 ${14 * dpr}px system-ui, sans-serif`;
+    let y = src.height + pad + line * 0.8;
+    ctx.fillText(`EcoScapes Data Sandbox: ${headline}`, pad, y);
+    ctx.font = `${12 * dpr}px system-ui, sans-serif`;
+    ctx.fillStyle = '#9aa79f';
+    y += line * 1.2;
+    ctx.fillText(`Calculation type: ${opLabel()}. Numbers ${WHERE[scope]}. ${stamp()}`, pad, y);
+    for (const l of lines) ctx.fillText(l, pad, (y += line));
+    download(`ecoscapes-data-sandbox-${stamp()}.png`, out.toDataURL('image/png'));
+  }
+
+  /** Everything in view drawn: the map's own tiles and the scores'. */
+  const settled = () =>
+    new Promise<void>((done) => {
+      const until = Date.now() + 30000;
+      let calm = 0;
+      const check = () => {
+        const ready = !map.isMoving() && map.areTilesLoaded() && score.pending === 0;
+        calm = ready ? calm + 1 : 0;
+        if (calm >= 3 || Date.now() > until) return done();
+        map.triggerRepaint();
+        setTimeout(check, 150);
+      };
+      map.once('render', () => setTimeout(check, 150));
+      map.triggerRepaint();
+    });
+
+  const logo = new Image();
+  logo.src = config.logo;
+  const emblem = new Image();
+  emblem.src = config.emblem;
+
+  /** A code that opens this model, on its own: dark on white for any phone
+   *  to read, with the EcoScapes emblem in the middle. The most error
+   *  correction the link leaves room for, so the emblem can cover the
+   *  middle and the code still reads. */
+  async function saveQr() {
+    await flushHash();
+    const { default: qrcode } = await import('qrcode-generator');
+    let qr: ReturnType<typeof qrcode> | null = null;
+    let level = '';
+    for (const l of ['H', 'Q', 'M', 'L'] as const) {
+      try {
+        const q = qrcode(0, l);
+        q.addData(location.href);
+        q.make();
+        [qr, level] = [q, l];
+        break;
+      } catch {}
+    }
+    if (!qr) return say('This link is too long for a code.');
+    if (!emblem.complete) await new Promise((r) => (emblem.onload = emblem.onerror = r));
+    const n = qr.getModuleCount();
+    const quiet = 4;
+    const cell = Math.max(8, Math.ceil(1200 / (n + quiet * 2)));
+    const size = (n + quiet * 2) * cell;
+    const out = document.createElement('canvas');
+    out.width = out.height = size;
+    const ctx = out.getContext('2d')!;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, size, size);
+    ctx.fillStyle = '#0d1210';
+    for (let r = 0; r < n; r++)
+      for (let c = 0; c < n; c++) if (qr.isDark(r, c)) ctx.fillRect((c + quiet) * cell, (r + quiet) * cell, cell, cell);
+    // The emblem: about a fifth of the code across with high correction, less
+    // as the correction drops, on a white ring so its edge stays clean.
+    if (emblem.naturalWidth) {
+      const share = { H: 0.24, Q: 0.2, M: 0.15, L: 0.1 }[level as 'H' | 'Q' | 'M' | 'L'];
+      const d = n * cell * share;
+      const mid = size / 2;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(mid, mid, d / 2 + cell, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.drawImage(emblem, mid - d / 2, mid - d / 2, d, d);
+    }
+    download(`ecoscapes-data-sandbox-qr-${stamp()}.png`, out.toDataURL('image/png'));
+  }
+
+  /** The whole study area to its dashed edge, flat and north up, drawn
+   *  sharper than the screen and finished as a map: north, a scale, the key,
+   *  the model, where it all comes from, and a code that opens this model.
+   *  The camera goes back after. */
+  async function saveFull() {
+    const out = await drawFull();
+    download(`ecoscapes-data-sandbox-full-${stamp()}.png`, out.toDataURL('image/png'));
+  }
+  async function drawFull() {
+    stopTour();
+    popup.remove();
+    say('Drawing the full map…');
+    const before = { center: map.getCenter(), zoom: map.getZoom(), pitch: map.getPitch(), bearing: map.getBearing() };
+    const ratio = map.getPixelRatio();
+    const [[bw, bs], [be, bn]] = config.limit;
+    let shot: HTMLCanvasElement, crop: { x: number; y: number; w: number; h: number }, zoom: number, lat: number;
+    try {
+      map.setMaxBounds(null);
+      map.jumpTo({ ...map.cameraForBounds(config.limit, { padding: 6 })!, pitch: 0, bearing: 0 });
+      // Sharper than the screen: about 3200 pixels on the long side, within
+      // what the graphics card takes.
+      const nw = map.project([bw, bn]), se = map.project([be, bs]);
+      const long = Math.max(se.x - nw.x, se.y - nw.y);
+      const gl = map.getCanvas().getContext('webgl2');
+      const maxSide = Math.min(8192, gl ? (gl.getParameter(gl.MAX_RENDERBUFFER_SIZE) as number) : 4096);
+      map.setPixelRatio(Math.max(ratio, Math.min(4, 3200 / long, maxSide / Math.max(el.clientWidth, el.clientHeight))));
+      await settled();
+      shot = await grab();
+      // Out by a pixel, so the dashed edge is inside the picture whole.
+      const k = shot.width / el.clientWidth;
+      const x0 = Math.round((nw.x - 1) * k), y0 = Math.round((nw.y - 1) * k);
+      crop = { x: x0, y: y0, w: Math.round((se.x + 1) * k) - x0, h: Math.round((se.y + 1) * k) - y0 };
+      zoom = map.getZoom();
+      lat = map.getCenter().lat;
+    } finally {
+      map.setPixelRatio(ratio);
+      map.jumpTo(before);
+      map.setMaxBounds(ROOM);
+    }
+    if (!logo.complete) await new Promise((r) => (logo.onload = logo.onerror = r));
+
+    await flushHash();
+    const { default: qrcode } = await import('qrcode-generator');
+    const qr = qrcode(0, 'L');
+    qr.addData(location.href);
+    qr.make();
+
+    // Laid out in units of a thousandth of the map's width.
+    const u = crop.w / 1000;
+    const M = 36 * u;
+    const out = document.createElement('canvas');
+    const ctx = out.getContext('2d')!;
+    const font = (size: number, weight = 400) => (ctx.font = `${weight} ${size * u}px system-ui, -apple-system, 'Segoe UI', sans-serif`);
+    /** Text broken into lines no wider than w. */
+    const wrap = (text: string, w: number) => {
+      const rows: string[] = [];
+      let row = '';
+      for (const word of text.split(' ')) {
+        const next = row ? `${row} ${word}` : word;
+        if (row && ctx.measureText(next).width > w) {
+          rows.push(row);
+          row = word;
+        } else row = next;
+      }
+      return row ? [...rows, row] : rows;
+    };
+
+    // The foot's height first: the model, the layers' descriptions and the
+    // sources in one column, the code beside them.
+    // The code in the head's right-hand corner; everything under the head
+    // the full width.
+    const qrSize = 76 * u;
+    const textW = crop.w;
+    // The model as a chart per layer: its values across the area, shaded by
+    // the score each gets, with the poor and best marks on it.
+    const crits = criteria();
+    const cols = crits.length > 1 ? 2 : 1;
+    const rowsN = Math.ceil(crits.length / cols);
+    const chartGap = 26 * u, chartH = 34 * u, cellH = 84 * u;
+    const chartW = (textW - chartGap * (cols - 1)) / cols;
+    font(10.5);
+    // How to read them, in plain words.
+    const explain = wrap(
+      'Each bar is a slice of the study area, low values on the left to high on the right; taller means more land. ' +
+        'Colour is the score: dark counts little, bright counts most. ' +
+        'E.g. a tall bright bar is a lot of land that scores well; a short dark one, a little that scores poorly.',
+      textW,
+    );
+    const used = crits.map((c) => byId.get(c.layer.id)!);
+    const from = [...new Set(used.map((l) => l.detail?.source).filter(Boolean))].join('; ') || 'TerrAdapt-Cascadia, Nature Squamish';
+    font(10);
+    const sources = wrap(
+      `${stamp()} · Layers: ${from} · Relief © Mapterhorn · Base map © OpenStreetMap, Protomaps · A demo, not a recommendation`,
+      textW,
+    );
+    const headH = 50 * u;
+
+    // About each layer: its description, in two columns when there is more
+    // than one, each block to the shorter column.
+    const aboutLH = 15 * u, aboutGap = 26 * u;
+    const withText = used.filter((l) => l.detail);
+    const aboutCols = withText.length > 1 ? 2 : 1;
+    const aboutW = (textW - aboutGap * (aboutCols - 1)) / aboutCols;
+    font(10.5);
+    const blocks = withText.map((l) => {
+      // Paragraphs apart by an empty row.
+      const rows = l.detail!.text.flatMap((t, i) => [...(i ? [''] : []), ...wrap(t, aboutW)]);
+      return { l, rows, h: 18 * u + rows.length * aboutLH + 16 * u };
+    });
+    const colH = Array(aboutCols).fill(0) as number[];
+    const placed = blocks.map((b) => {
+      const c = colH.indexOf(Math.min(...colH));
+      const at = { ...b, col: c, y: colH[c] };
+      colH[c] += b.h;
+      return at;
+    });
+    const modelH = 12 * u + explain.length * 15 * u + 10 * u + rowsN * cellH;
+    const aboutH = blocks.length ? 30 * u + 12 * u + Math.max(...colH) : 0;
+    const bodyH = modelH + aboutH + 14 * u + sources.length * 15 * u;
+    // The head as tall as the code and its words under it.
+    const footH = 24 * u + qrSize + 16 * u + 14 * u + 18 * u + bodyH;
+    out.width = Math.round(crop.w + M * 2);
+    out.height = Math.round(crop.h + M * 2 + footH);
+
+    ctx.fillStyle = '#0d1210';
+    ctx.fillRect(0, 0, out.width, out.height);
+    ctx.drawImage(shot, crop.x, crop.y, crop.w, crop.h, M, M, crop.w, crop.h);
+
+    // North, top right, inside the dashed edge.
+    const ax = M + crop.w - 44 * u, ay = M + 44 * u;
+    ctx.fillStyle = 'rgba(13,18,16,0.75)';
+    ctx.beginPath();
+    ctx.arc(ax, ay, 28 * u, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#eef2ee';
+    ctx.beginPath();
+    ctx.moveTo(ax, ay - 2 * u);
+    ctx.lineTo(ax + 8 * u, ay + 21 * u);
+    ctx.lineTo(ax, ay + 16 * u);
+    ctx.lineTo(ax - 8 * u, ay + 21 * u);
+    ctx.closePath();
+    ctx.fill();
+    font(12, 700);
+    ctx.textAlign = 'center';
+    ctx.fillText('N', ax, ay - 8 * u);
+    ctx.textAlign = 'left';
+
+    // A scale, bottom left, inside the edge: a round distance near a fifth of
+    // the width.
+    const metresPerPx = (40075016.686 * Math.cos((lat * Math.PI) / 180)) / (512 * 2 ** zoom) / (shot.width / el.clientWidth);
+    const want = (crop.w / 5) * metresPerPx;
+    const step = 10 ** Math.floor(Math.log10(want));
+    const dist = [5, 2, 1].map((f) => f * step).find((d) => d <= want)!;
+    const barW = dist / metresPerPx, sx = M + 30 * u, sy = M + crop.h - 30 * u;
+    ctx.fillStyle = 'rgba(13,18,16,0.75)';
+    ctx.fillRect(sx - 12 * u, sy - 28 * u, barW + 24 * u, 44 * u);
+    ctx.fillStyle = '#eef2ee';
+    ctx.fillRect(sx, sy, barW / 2, 6 * u);
+    ctx.strokeStyle = '#eef2ee';
+    ctx.lineWidth = 1.5 * u;
+    ctx.strokeRect(sx, sy, barW, 6 * u);
+    font(12);
+    ctx.fillText('0', sx, sy - 8 * u);
+    ctx.textAlign = 'right';
+    ctx.fillText(`${dist >= 1000 ? dist / 1000 : dist} ${dist >= 1000 ? 'km' : 'm'}`, sx + barW, sy - 8 * u);
+    ctx.textAlign = 'left';
+
+    // The head of the foot: the logo and title, the key, and the code at the
+    // right, the rest centred on the code.
+    const headTop = M + crop.h + 24 * u;
+    let y = headTop + (qrSize - headH) / 2;
+    const lw = logo.naturalWidth ? (logo.naturalWidth / logo.naturalHeight) * headH : 0;
+    if (lw) ctx.drawImage(logo, M, y, lw, headH);
+    ctx.fillStyle = '#3a4843';
+    ctx.fillRect(M + lw + 20 * u, y + 4 * u, 1.5 * u, headH - 8 * u);
+    const tx = M + lw + 40 * u;
+    ctx.fillStyle = '#eef2ee';
+    font(23, 650);
+    ctx.fillText('Sea-to-Sky Data Sandbox', tx, y + 22 * u);
+    ctx.fillStyle = '#9aa79f';
+    font(13);
+    const two = effectiveMode() === 'two';
+    const t = tallies.region;
+    let headline = '';
+    if (t && t.total) {
+      if (two) {
+        const cell = only >= 0 ? only : 8;
+        headline = `${Math.round((t.cells[cell] / t.total) * 100)}% of the study area ${cellName(cell).toLowerCase()} (${km2(t.cells[cell])})`;
+      } else {
+        headline = `${Math.round((t.above / t.total) * 100)}% of the study area scores ${Math.round(cut() * 100)} or more (${km2(t.above)})`;
+      }
+    }
+    ctx.fillText(headline, tx, y + 44 * u);
+
+    const kx = M + crop.w - qrSize - 36 * u;
+    if (two) {
+      const c = 20 * u, g = 3 * u, gx = kx - 3 * c - 2 * g;
+      [6, 7, 8, 3, 4, 5, 0, 1, 2].forEach((cell, i) => {
+        ctx.fillStyle = PALETTE[cell];
+        ctx.fillRect(gx + (i % 3) * (c + g), y - 6 * u + Math.floor(i / 3) * (c + g), c, c);
+      });
+      font(11);
+      ctx.fillStyle = '#9aa79f';
+      ctx.textAlign = 'right';
+      ctx.fillText(`${axisNames[1]} ↑`, gx - 10 * u, y + 10 * u);
+      ctx.fillText(`${axisNames[0]} →`, gx - 10 * u, y + 52 * u);
+      ctx.textAlign = 'left';
+    } else {
+      const rw = 200 * u, rh = 12 * u, rx = kx - rw, ry = y + 8 * u;
+      const grad = ctx.createLinearGradient(rx, 0, rx + rw, 0);
+      for (let i = 0; i <= 10; i++) grad.addColorStop(i / 10, rampCss(i / 10));
+      ctx.fillStyle = grad;
+      ctx.fillRect(rx, ry, rw, rh);
+      ctx.fillStyle = '#eef2ee';
+      ctx.fillRect(rx + rw * cut() - u, ry - 4 * u, 2 * u, rh + 8 * u);
+      font(11);
+      ctx.fillStyle = '#9aa79f';
+      ctx.fillText('Poor fit', rx, ry + rh + 17 * u);
+      ctx.textAlign = 'right';
+      ctx.fillText('Best fit', rx + rw, ry + rh + 17 * u);
+      ctx.textAlign = 'left';
+    }
+
+    // The body: the model and the sources, the full width.
+    y = headTop + qrSize + 16 * u + 14 * u;
+    ctx.fillStyle = '#2a3430';
+    ctx.fillRect(M, y, crop.w, 1.5 * u);
+    y += 18 * u;
+    ctx.fillStyle = '#eef2ee';
+    font(12, 650);
+    ctx.fillText(`The model · Calculation type: ${opLabel()}`, M, y + 10 * u);
+    font(10.5);
+    ctx.fillStyle = '#9aa79f';
+    let ey = y + 10 * u;
+    for (const row of explain) ctx.fillText(row, M, (ey += 15 * u));
+    const gridTop = ey + 14 * u;
+    const fit = (text: string, w: number) => {
+      let t = text;
+      while (ctx.measureText(t).width > w && t.length > 4) t = t.slice(0, -2);
+      return t === text ? text : `${t}…`;
+    };
+    crits.forEach((c, i) => {
+      const l = byId.get(c.layer.id)!;
+      const cx = M + (i % cols) * (chartW + chartGap);
+      const cy = gridTop + Math.floor(i / cols) * cellH;
+      // Name, and the weight at the right.
+      font(11, 650);
+      const wt = op === 'mean' && !soloing() ? `×${c.weight.toFixed(1)} · ${weightWord(c.weight)}` : '';
+      const wtW = wt ? ctx.measureText(wt).width + 10 * u : 0;
+      let nx = cx;
+      if (two) {
+        ctx.fillStyle = AXIS_COLOURS[c.axis ?? 0];
+        ctx.beginPath();
+        ctx.arc(cx + 4 * u, cy + 7 * u, 4 * u, 0, Math.PI * 2);
+        ctx.fill();
+        nx += 13 * u;
+      }
+      ctx.fillStyle = '#eef2ee';
+      ctx.fillText(fit(l.name, chartW - wtW - (nx - cx)), nx, cy + 11 * u);
+      if (wt) {
+        font(10);
+        ctx.fillStyle = '#9aa79f';
+        ctx.textAlign = 'right';
+        ctx.fillText(wt, cx + chartW, cy + 11 * u);
+        ctx.textAlign = 'left';
+      }
+      // The chart: square-root heights, as the panel draws it, so a layer
+      // mostly at one value still shows the rest.
+      const by = cy + 18 * u, n = l.hist.length;
+      const max = Math.sqrt(Math.max(...l.hist)) || 1;
+      const bw = chartW / n;
+      l.hist.forEach((count, b) => {
+        const h = (Math.sqrt(count) / max) * (chartH - 2 * u);
+        const mid = l.lo + ((b + 0.5) / n) * (l.hi - l.lo);
+        ctx.fillStyle = rampCss(scoreOf(c, mid));
+        ctx.fillRect(cx + b * bw, by + chartH - h, Math.max(bw - 0.6 * u, 0.5 * u), h);
+      });
+      const at = (v: number) => cx + ((v - l.lo) / (l.hi - l.lo || 1)) * chartW;
+      if (!c.scores) {
+        ctx.fillStyle = '#9aa79f';
+        ctx.fillRect(at(c.bad) - u, by - 2 * u, 2 * u, chartH + 4 * u);
+        ctx.fillStyle = rgb(STOPS[4]);
+        ctx.fillRect(at(c.good) - u, by - 2 * u, 2 * u, chartH + 4 * u);
+      }
+      // Under it: the ends, and the settings.
+      font(9.5);
+      ctx.fillStyle = '#7d8a83';
+      ctx.fillText(fmt(l, l.lo), cx, by + chartH + 12 * u);
+      ctx.textAlign = 'right';
+      ctx.fillText(fmt(l, l.hi), cx + chartW, by + chartH + 12 * u);
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#c9d2cc';
+      const how = c.scores
+        ? 'Scored kind by kind'
+        : `Poor at ${fmt(l, c.bad)} · Best at ${fmt(l, c.good)} · ${c.good >= c.bad ? 'Higher = better' : 'Lower = better'}`;
+      ctx.fillText(fit(how, chartW - 90 * u), cx + chartW / 2, by + chartH + 12 * u);
+      ctx.textAlign = 'left';
+    });
+    y += modelH;
+
+    // About these layers, in the same column.
+    if (blocks.length) {
+      y += 30 * u;
+      ctx.fillStyle = '#eef2ee';
+      font(12, 650);
+      ctx.fillText('About these layers', M, y);
+      y += 12 * u;
+      for (const b of placed) {
+        const bx = M + b.col * (aboutW + aboutGap);
+        let by = y + b.y + 14 * u;
+        ctx.fillStyle = '#eef2ee';
+        font(11, 650);
+        ctx.fillText(b.l.name, bx, by);
+        ctx.fillStyle = '#b7c1bb';
+        font(10.5);
+        for (const row of b.rows) ctx.fillText(row, bx, (by += aboutLH));
+      }
+      y += Math.max(...colH);
+    }
+    y += 24 * u;
+    font(10);
+    ctx.fillStyle = '#7d8a83';
+    for (const row of sources) {
+      ctx.fillText(row, M, y);
+      y += 15 * u;
+    }
+
+    // A code that opens this exact model, light on dark as a phone reads it.
+    // Each square a whole number of pixels on whole pixels, so none blurs
+    // into the next; the code centred in its light square.
+    const n = qr.getModuleCount();
+    const cell = Math.max(1, Math.floor(qrSize / (n + 4)));
+    const qx = M + crop.w - qrSize, qy = headTop;
+    const [cx0, cy0] = [Math.round(qx + (qrSize - n * cell) / 2), Math.round(qy + (qrSize - n * cell) / 2)];
+    ctx.fillStyle = '#eef2ee';
+    ctx.fillRect(qx, qy, qrSize, qrSize);
+    ctx.fillStyle = '#0d1210';
+    for (let r = 0; r < n; r++)
+      for (let c = 0; c < n; c++) if (qr.isDark(r, c)) ctx.fillRect(cx0 + c * cell, cy0 + r * cell, cell, cell);
+    font(9);
+    ctx.fillStyle = '#9aa79f';
+    ctx.textAlign = 'center';
+    ctx.fillText('Open this sandbox', qx + qrSize / 2, qy + qrSize + 12 * u);
+    ctx.textAlign = 'left';
+
+    return out;
+  }
+
+  /** On a phone, the shared model as the full map image, to look at and
+   *  keep: drawn behind the screen, then shown in place of it. */
+  async function showOnPhone() {
+    const see = document.getElementById('gate-see') as HTMLButtonElement;
+    const busy = document.getElementById('gate-busy')!;
+    const view = document.getElementById('phone-view')!;
+    const root = document.documentElement;
+    const fail = (why: string) => {
+      busy.textContent = why;
+      root.classList.remove('phone-render');
+    };
+    see.disabled = true;
+    busy.hidden = false;
+    if (!document.createElement('canvas').getContext('webgl2')) return fail('This phone cannot draw the map. Email yourself the link instead.');
+    if (!items.length) return fail('This link has no model in it to draw.');
+    try {
+      if (!map.loaded()) await new Promise((r) => map.once('load', r));
+      // The whole area's count, for the headline under the map.
+      const until = Date.now() + 30000;
+      while (!tallies.region && Date.now() < until) await new Promise((r) => setTimeout(r, 200));
+      const out = await drawFull();
+      const blob = await new Promise<Blob | null>((r) => out.toBlob(r, 'image/png'));
+      if (!blob) throw new Error('no image');
+      const url = URL.createObjectURL(blob);
+      (document.getElementById('view-img') as HTMLImageElement).src = url;
+      const save = document.getElementById('view-save') as HTMLAnchorElement;
+      save.href = url;
+      save.download = `ecoscapes-data-sandbox-${stamp()}.png`;
+      // Done with the map: its memory back for the picture.
+      map.remove();
+      root.classList.remove('phone-render');
+      const open = (on: boolean) => {
+        root.classList.toggle('phone-viewing', on);
+        view.hidden = !on;
+        scrollTo(0, 0);
+      };
+      open(true);
+      busy.hidden = true;
+      see.disabled = false;
+      see.addEventListener('click', () => open(true));
+      document.getElementById('view-back')!.addEventListener('click', () => open(false));
+    } catch {
+      fail('Could not draw the map on this phone. Email yourself the link instead.');
+    }
+  }
+
+  /** The model and its areas as a table. */
+  function saveCsv() {
+    const t = current();
+    if (!items.length || !t) return say('Add a layer first.');
+    const q = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+    const rows: (string | number)[][] = [
+      ['EcoScapes Data Sandbox', stamp()],
+      ['Counted', WHERE[scope]],
+      ['Calculation type', opLabel()],
+      [],
+      ['Layer', 'Group', 'Poor at', 'Best at', 'Weight'],
+      ...criteria().map((c) => {
+        const l = byId.get(c.layer.id)!;
+        return [l.name, effectiveMode() === 'two' ? axisNames[c.axis ?? 0] : '', c.scores ? 'by kind' : fmt(l, c.bad), c.scores ? 'by kind' : fmt(l, c.good), c.weight];
+      }),
+      [],
+      ['Area covered by these layers (km²)', t.total.toFixed(1)],
+    ];
+    if (effectiveMode() === 'two') {
+      rows.push([], ['Cell', 'Area (km²)', 'Share (%)']);
+      for (let c = 8; c >= 0; c--) rows.push([cellName(c), t.cells[c].toFixed(1), ((t.cells[c] / t.total) * 100).toFixed(2)]);
+    } else {
+      rows.push([`Scoring ${Math.round(cut() * 100)} or more (km²)`, t.above.toFixed(1)], ['Average score', (t.mean * 100).toFixed(1)]);
+      rows.push([], ['Score from', 'Score to', 'Area (km²)', 'Share (%)']);
+      t.hist.forEach((a, i) =>
+        rows.push([(i * 100) / t.hist.length, ((i + 1) * 100) / t.hist.length, a.toFixed(1), ((a / t.total) * 100).toFixed(2)]),
+      );
+    }
+    const csv = rows.map((r) => r.map(q).join(',')).join('\r\n');
+    download(`ecoscapes-data-sandbox-${stamp()}.csv`, URL.createObjectURL(new Blob([csv], { type: 'text/csv' })));
+  }
+
+  const opacity = document.getElementById('opacity') as HTMLInputElement;
+  opacity.addEventListener('input', () => score.setOpacity(Number(opacity.value)));
+
+  const fold = document.getElementById('fold')!;
+  const panelBody = document.getElementById('panel-body')!;
+  fold.addEventListener('click', () => {
+    const open = fold.getAttribute('aria-expanded') !== 'true';
+    fold.setAttribute('aria-expanded', String(open));
+    fold.setAttribute('aria-label', open ? 'Fold the panel' : 'Open the panel');
+    panelBody.hidden = !open;
+    if (scope === 'view') recountView();
+  });
+
+  // ---- Why this place --------------------------------------------------------
+  const popup = new maplibregl.Popup({ maxWidth: '20rem', focusAfterOpen: false });
+  map.on('click', (e) => {
+    // Not while recording or flying a flyover: a click there is for moving
+    // the map, not reading it.
+    if (drawing || flyOpen || flying || Date.now() - drawEnded < 400) return;
+    stopTour();
+    if (items.length) showWhy(e.lngLat);
+  });
+  /** Why a place scored what it did, in a popup there. */
+  async function showWhy(at: maplibregl.LngLat, title = '') {
+    const { lng, lat } = at;
+    const { rows, total, second } = await score.explain(lng, lat);
+    const how = op === 'and' ? 'its weakest layer' : op === 'or' ? 'its strongest layer' : 'weighed up';
+    const band = (v: number, [lo, hi]: [number, number]) => (v < lo ? 0 : v < hi ? 1 : 2);
+    let head: string;
+    // One layer shown alone is one score, whichever mode the model is in.
+    const two = effectiveMode() === 'two';
+    if (two) {
+      head =
+        total === null || second === null
+          ? `<div class="why-total"><span>Both scores need data here.</span></div>`
+          : `<div class="why-total"><i class="why-sw" style="background:${PALETTE[band(second, breaks[1]) * 3 + band(total, breaks[0])]}"></i>` +
+            `<span><b>${esc(cellName(band(second, breaks[1]) * 3 + band(total, breaks[0])))}</b><br>` +
+            `${esc(axisNames[0])} ${Math.round(total * 100)} · ${esc(axisNames[1])} ${Math.round(second * 100)} · ${how}</span></div>`;
+    } else {
+      head =
+        total === null
+          ? `<div class="why-total"><span>No data here for these layers.</span></div>`
+          : `<div class="why-total"><b>${Math.round(total * 100)}</b><span>out of 100 · ${how}</span></div>`;
+    }
+    const html =
+      head +
+      `<table class="why">${rows
+        .map(({ c, value, score: sc }) => {
+          const l = byId.get(c.layer.id)!;
+          const right =
+            value === null
+              ? `<span class="dim">no data</span>`
+              : `${esc(fmt(l, value))}<span class="why-bar"><i style="width:${Math.round(sc! * 100)}%"></i></span>`;
+          const wt = op === 'mean' ? ` <span class="dim">×${c.weight}</span>` : '';
+          const dot = two ? `<i class="why-dot" style="background:${AXIS_COLOURS[c.axis ?? 0]}"></i>` : '';
+          return `<tr><td>${dot}${esc(l.name)}${wt}</td><td>${right}</td></tr>`;
+        })
+        .join('')}</table>`;
+    popup.setLngLat(at).setHTML((title ? `<p class="why-title">${esc(title)}</p>` : '') + html).addTo(map);
+  }
+
+  // ---- The best places, and a tour of them -------------------------------------
+  // Named by the nearest town, so "12 km north-east of Pemberton" rather than
+  // coordinates. Approximate positions, enough for "near".
+  const TOWNS: [string, number, number][] = [
+    ['Squamish', -123.156, 49.702], ['Brackendale', -123.157, 49.771], ['Britannia Beach', -123.203, 49.625],
+    ['Lions Bay', -123.236, 49.458], ['Horseshoe Bay', -123.273, 49.373], ['Whistler', -122.957, 50.116],
+    ['Pemberton', -122.803, 50.319], ['Mount Currie', -122.717, 50.32], ["D'Arcy", -122.48, 50.549],
+    ['Birken', -122.62, 50.48], ['Lillooet', -121.937, 50.686], ['Seton Portage', -122.292, 50.706],
+    ['Gold Bridge', -122.841, 50.853], ['Gibsons', -123.508, 49.399], ['Sechelt', -123.755, 49.474],
+    ['Pender Harbour', -124.03, 49.63], ['Egmont', -123.93, 49.75], ['Powell River', -124.525, 49.835],
+    ['Vancouver', -123.121, 49.283], ['Harrison Hot Springs', -121.786, 49.301], ['Hope', -121.442, 49.386],
+    ['Chilliwack', -121.952, 49.158], ['Mission', -122.311, 49.134], ['Bralorne', -122.816, 50.778],
+    ['Lytton', -121.582, 50.232], ['Boston Bar', -121.444, 49.866], ['Port Mellon', -123.486, 49.523],
+  ];
+  const km = (a: [number, number], b: [number, number]) => {
+    const r = Math.PI / 180;
+    const x = Math.sin(((b[1] - a[1]) * r) / 2) ** 2 + Math.cos(a[1] * r) * Math.cos(b[1] * r) * Math.sin(((b[0] - a[0]) * r) / 2) ** 2;
+    return 12742 * Math.asin(Math.sqrt(x));
+  };
+  function near(lng: number, lat: number) {
+    const [name, tl, tt] = TOWNS.reduce((a, t) => (km([t[1], t[2]], [lng, lat]) < km([a[1], a[2]], [lng, lat]) ? t : a));
+    const d = km([tl, tt], [lng, lat]);
+    if (d < 3) return `at ${name}`;
+    const deg = (Math.atan2((lng - tl) * Math.cos((lat * Math.PI) / 180), lat - tt) * 180) / Math.PI;
+    const dirs = ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'];
+    return `${Math.round(d)} km ${dirs[Math.round(((deg + 360) % 360) / 45) % 8]} of ${name}`;
+  }
+  const lngLatOf = (x: number, y: number) => {
+    const n = 2 ** (grid?.z ?? 12) * 256;
+    return new maplibregl.LngLat((x / n) * 360 - 180, (Math.atan(Math.sinh(Math.PI * (1 - (2 * y) / n))) * 180) / Math.PI);
+  };
+
+  const bestBtn = document.getElementById('best-btn')!;
+  const bestList = document.getElementById('best-list')!;
+  const bestMenu = document.getElementById('best-menu')!;
+  let bestOpen = false;
+  let pins: maplibregl.Marker[] = [];
+  const spots = () => {
+    const t = current();
+    return (t?.best ?? []).map((b) => ({ at: lngLatOf(b.x, b.y), v: b.v }));
+  };
+  const spotValue = (v: number) => (effectiveMode() === 'two' ? `${Math.round(v * 100)}% high both` : String(Math.round(v * 100)));
+
+  /** The list and the pins, from the latest count (called whenever it lands). */
+  function showBest() {
+    for (const p of pins) p.remove();
+    pins = [];
+    const list = spots();
+    bestBtn.toggleAttribute('disabled', !list.length && !bestOpen);
+    const note = document.getElementById('best-note')!;
+    bestMenu.hidden = !bestOpen;
+    if (!bestOpen) return;
+    if (!list.length) {
+      bestList.innerHTML = '';
+      note.textContent = items.length ? 'Still counting…' : 'Add a layer to find the best places.';
+      return;
+    }
+    note.textContent =
+      (effectiveMode() === 'two'
+        ? 'The places with the most land high on both scores, '
+        : 'The places with the highest average score, ') +
+      `each over about 3 km around the pin, ${WHERE[scope]}. A tap gives one spot's own score.`;
+    bestList.innerHTML = list
+      .map((s, i) => `<li><button type="button" data-i="${i}"><b>${i + 1}</b><span>${esc(near(s.at.lng, s.at.lat))}</span><em>${spotValue(s.v)}</em></button></li>`)
+      .join('');
+    pins = list.map((s, i) => {
+      const elp = document.createElement('div');
+      elp.className = 'best-pin';
+      elp.textContent = String(i + 1);
+      elp.addEventListener('click', (e) => {
+        e.stopPropagation();
+        visit(i);
+      });
+      return new maplibregl.Marker({ element: elp }).setLngLat(s.at).addTo(map);
+    });
+  }
+  function mark(i: number) {
+    pins.forEach((p, j) => p.getElement().classList.toggle('on', j === i));
+    bestList.querySelectorAll('button').forEach((b, j) => b.classList.toggle('on', j === i));
+  }
+  function visit(i: number, duration = 1600) {
+    const s = spots()[i];
+    if (!s) return Promise.resolve();
+    mark(i);
+    return new Promise<void>((done) => {
+      let arrived = false;
+      const arrive = () => {
+        if (arrived) return;
+        arrived = true;
+        showWhy(s.at, `${i + 1} · ${near(s.at.lng, s.at.lat)}`);
+        done();
+      };
+      map.once('moveend', arrive);
+      // Already there, there is no move to end: arrive anyway.
+      setTimeout(arrive, duration + 600);
+      map.flyTo({ center: s.at, zoom: Math.max(map.getZoom(), 11), duration, essential: true });
+    });
+  }
+  /** Opened, the places are toured at once; pressed again, the tour stops,
+   *  and once more, the places go. */
+  function setBest(open: boolean) {
+    bestOpen = open;
+    bestBtn.setAttribute('aria-expanded', String(open));
+    const label = touring ? 'Stop the tour' : open ? 'Hide the best places' : 'Best places';
+    bestBtn.title = label;
+    bestBtn.setAttribute('aria-label', label);
+    showBest();
+  }
+  bestBtn.addEventListener('click', () => {
+    if (touring) stopTour();
+    else if (bestOpen) setBest(false);
+    else {
+      closeOthers();
+      tour();
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && bestOpen) {
+      stopTour();
+      setBest(false);
+    }
+  });
+  bestList.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button');
+    if (b) {
+      stopTour();
+      visit(Number(b.dataset.i));
+    }
+  });
+
+  /** Every toolbar menu shut, before another opens. */
+  function closeOthers() {
+    showPalettes(false);
+    showFly(false);
+    showSave(false);
+    if (bestOpen) {
+      stopTour();
+      setBest(false);
+    }
+  }
+
+  // The tour: to each place in turn, explaining it, until it ends or the map
+  // is touched.
+  let touring = 0;
+  function stopTour() {
+    if (!touring) return;
+    touring = 0;
+    setBest(bestOpen);
+  }
+  async function tour() {
+    const me = (touring = Date.now());
+    setBest(true);
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    for (let i = 0; i < spots().length && touring === me; i++) {
+      await visit(i, reduce ? 0 : 3200);
+      await new Promise((r) => setTimeout(r, 3800));
+    }
+    if (touring === me) {
+      stopTour();
+      map.flyTo({ center: map.getCenter(), zoom: 8.2, duration: reduce ? 0 : 2400 });
+    }
+  }
+  for (const ev of ['dragstart', 'wheel', 'touchstart'] as const) map.on(ev, () => stopTour());
+
+  // ---- The flyover -----------------------------------------------------------
+  // While the menu is open, each "add" keeps the view on screen -- where,
+  // how close, turned and tilted. Play flies through them in order on one
+  // smooth path (flyover.ts), the panels out of the way and the legend left.
+  const flyBtn = document.getElementById('fly-btn')!;
+  const flyMenu = document.getElementById('fly-menu')!;
+  const flyList = document.getElementById('fly-list')!;
+  const flyNote = document.getElementById('fly-note')!;
+  const flyPlay = document.getElementById('fly-play') as HTMLButtonElement;
+  const flyClear = document.getElementById('fly-clear') as HTMLButtonElement;
+  const flySpeed = document.getElementById('fly-speed') as HTMLInputElement;
+  const flyStop = document.getElementById('fly-stop')!;
+  const flyLive = document.getElementById('fly-live') as HTMLButtonElement;
+  const flySave = document.getElementById('fly-save')!;
+  const flyVideo = document.getElementById('fly-video') as HTMLVideoElement;
+  let flyOpen = false;
+  const viewNow = (): View => {
+    const c = map.getCenter();
+    return { lng: c.lng, lat: c.lat, zoom: map.getZoom(), bearing: map.getBearing(), pitch: map.getPitch(), elevation: map.getCenterElevation() };
+  };
+  const plan = () => flight(flyViews, { w: el.clientWidth, h: el.clientHeight }, Number(flySpeed.value), flyViews.map(hasCallout));
+  const flyCallout = document.getElementById('fly-callout')!;
+  /** The view whose callout is open for editing in the list, if any. */
+  let editing = -1;
+  // ?flyover-debug: the path drawn on the map and charted (flyover-debug.ts).
+  const flyDebug = new URLSearchParams(location.search).has('flyover-debug')
+    ? new FlightDebug(map, page, () => `score in view missing ${score.pending} loading ${score.loading} held ${score.held}`)
+    : null;
+  if (flyDebug) score.onTile = (key, ms) => flyDebug.note('score-tile-in', `${key} upload ${ms.toFixed(1)}ms`);
+  const flyLabel = (v: FlyView) => {
+    if (v.title?.trim()) return v.title.trim();
+    const at = near(v.lng, v.lat);
+    return at[0].toUpperCase() + at.slice(1);
+  };
+  const CALLOUT_ICON =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M5 4.5h14a1.5 1.5 0 011.5 1.5v8a1.5 1.5 0 01-1.5 1.5h-5.5L12 19l-1.5-3.5H5A1.5 1.5 0 013.5 14V6A1.5 1.5 0 015 4.5z" /><path d="M8 8.5h8M8 11.5h5" /></svg>';
+  function renderFly() {
+    flyList.innerHTML = flyViews
+      .map(
+        (v, i) =>
+          `<li><button type="button" class="fly-go" data-go="${i}" title="Go to this view"><b>${i + 1}</b><span>${esc(flyLabel(v))}</span></button>` +
+          `<button type="button" class="fly-pen${hasCallout(v) ? ' on' : ''}" data-edit="${i}" aria-expanded="${editing === i}" aria-label="Callout for view ${i + 1}" title="Callout: words pinned to this spot as the flight passes, slowing down for them">${CALLOUT_ICON}</button>` +
+          `<button type="button" class="fly-del" data-del="${i}" aria-label="Remove view ${i + 1}" title="Remove">×</button></li>` +
+          (editing === i
+            ? `<li class="fly-edit"><input data-title="${i}" maxlength="${TITLE_MAX}" placeholder="Callout title" value="${esc(v.title ?? '')}" />` +
+              `<textarea data-text="${i}" maxlength="${TEXT_MAX}" rows="2" placeholder="A sentence or two (optional)">${esc(v.text ?? '')}</textarea></li>`
+            : ''),
+      )
+      .join('');
+    renderFlyStatus();
+  }
+  /** Everything but the list, so typing a callout keeps its place. */
+  function renderFlyStatus() {
+    const stops = flyViews.filter(hasCallout).length;
+    flyNote.textContent =
+      flyViews.length >= 2
+        ? `${flyViews.length} views${stops ? `, ${stops} with a callout` : ''}, about ${Math.round(plan().duration)} seconds.${stops ? '' : ' The speech bubble on a view adds a callout.'}`
+        : flyViews.length
+          ? 'Now move to the next view and add that too. The speech bubble on a view gives it a callout, pinned to that spot, and the flight slows to show it.'
+          : 'Move the map to where the flight starts, as close and as tilted as you want it, and add it. Then the next, and the next. A right-drag turns the camera where it stands, to aim it. The speech bubble on a view gives it a callout, and the flight slows to show it.';
+    flyPlay.disabled = flyLive.disabled = flyViews.length < 2;
+    // Made already, and nothing changed since: it plays at once.
+    const made = !!video && video.key === videoKey();
+    flySave.hidden = !made;
+    flyPlay.textContent = made ? 'Replay' : 'Play';
+    flyClear.disabled = !flyViews.length;
+    flyDebug?.set(flyViews.length >= 2 ? plan() : null);
+  }
+  function showFly(open: boolean) {
+    // Leaving, the middle of the view back on the ground (see looking round).
+    if (!open && looked && !flying) {
+      looked = false;
+      map.setCenterClampedToGround(true);
+    }
+    flyOpen = open;
+    flyMenu.hidden = !open;
+    page.classList.toggle('fly-open', open);
+    if (open) popup.remove();
+    flyBtn.setAttribute('aria-expanded', String(open));
+    if (open) renderFly();
+  }
+  flyBtn.addEventListener('click', () => {
+    if (flyOpen) return showFly(false);
+    closeOthers();
+    showFly(true);
+  });
+  document.getElementById('fly-add')!.addEventListener('click', () => {
+    if (flyViews.length >= MAX_VIEWS) return say(`A flyover takes up to ${MAX_VIEWS} views.`);
+    flyViews.push(viewNow());
+    editing = -1;
+    renderFly();
+    flyList.lastElementChild?.scrollIntoView({ block: 'nearest' });
+    saveHash();
+  });
+  flyList.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button');
+    if (!b) return;
+    if (b.dataset.del !== undefined) {
+      flyViews.splice(Number(b.dataset.del), 1);
+      editing = -1;
+      renderFly();
+      saveHash();
+    } else if (b.dataset.edit !== undefined) {
+      const i = Number(b.dataset.edit);
+      editing = editing === i ? -1 : i;
+      renderFly();
+      flyList.querySelector('.fly-edit')?.scrollIntoView({ block: 'nearest' });
+      flyList.querySelector<HTMLInputElement>(`[data-title="${i}"]`)?.focus({ preventScroll: true });
+    } else {
+      const v = flyViews[Number(b.dataset.go)];
+      map.easeTo({ center: [v.lng, v.lat], zoom: v.zoom, bearing: v.bearing, pitch: v.pitch, duration: 900 });
+    }
+  });
+  flyList.addEventListener('input', (e) => {
+    const f = e.target as HTMLInputElement | HTMLTextAreaElement;
+    const i = Number(f.dataset.title ?? f.dataset.text);
+    const v = flyViews[i];
+    if (!v) return;
+    if (f.dataset.title !== undefined) v.title = f.value;
+    else v.text = f.value;
+    const row = flyList.querySelector(`[data-go="${i}"] span`);
+    if (row) row.textContent = flyLabel(v);
+    flyList.querySelector(`[data-edit="${i}"]`)?.classList.toggle('on', hasCallout(v));
+    renderFlyStatus();
+    saveHash();
+  });
+  flyClear.addEventListener('click', () => {
+    editing = -1;
+    flyViews = [];
+    renderFly();
+    saveHash();
+  });
+  flySpeed.addEventListener('input', renderFly);
+  flyPlay.addEventListener('click', play);
+  flyLive.addEventListener('click', playLive);
+  flySave.addEventListener('click', () => {
+    if (video) download(`ecoscapes-flyover-${stamp()}.mp4`, video.url);
+  });
+
+  // Looking round, while the flyover is open: a right-drag (or ctrl-drag)
+  // turns the camera where it stands, across and up and down, rather than
+  // swinging it round the middle of the view -- aiming it without moving it.
+  // The middle of the view is then off the ground, wherever the gaze puts it,
+  // and a flight flies it just so.
+  let look: { x: number; y: number; cam: number[]; bearing: number; pitch: number } | null = null;
+  let looked = false;
+  const TURN_PER_PX = 0.25;
+  el.addEventListener(
+    'mousedown',
+    (e) => {
+      if (!flyOpen || flying || !(e.button === 2 || (e.button === 0 && e.ctrlKey))) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const v = viewNow();
+      look = {
+        x: e.clientX,
+        y: e.clientY,
+        cam: cameraAt(v, el.clientHeight, map.getVerticalFieldOfView(), metreAt(v.lat)).camera,
+        bearing: v.bearing,
+        pitch: v.pitch,
+      };
+      map.setCenterClampedToGround(false);
+      looked = true;
+    },
+    true,
+  );
+  el.addEventListener('contextmenu', (e) => {
+    if (flyOpen) e.preventDefault();
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!look) return;
+    const bearing = look.bearing + (e.clientX - look.x) * TURN_PER_PX;
+    const pitch = Math.min(80, Math.max(0, look.pitch - (e.clientY - look.y) * TURN_PER_PX));
+    const c = lookFrom(look.cam, bearing, pitch, map.getZoom(), el.clientHeight, map.getVerticalFieldOfView());
+    map.jumpTo({ center: [c.lng, c.lat], elevation: c.elevation, bearing, pitch });
+  });
+  window.addEventListener('mouseup', () => (look = null));
+
+  let flying = 0;
+  let restorePR = 0;
+  const flyCover = document.getElementById('fly-cover')!;
+  /** Once every tile the view needs -- ground, heights, scores -- is in, or
+   *  after `limit` ms whatever is still missing. Two frames first, for the
+   *  map to see what the new view needs. */
+  const ready = (limit: number) =>
+    new Promise<boolean>((done) => {
+      const t0 = performance.now();
+      const check = () => {
+        if (map.areTilesLoaded() && score.pending === 0) done(true);
+        else if (performance.now() - t0 > limit) done(false);
+        else requestAnimationFrame(check);
+      };
+      requestAnimationFrame(() => requestAnimationFrame(check));
+    });
+  /** The flight flown once in steps before it plays, under a cover, each step
+   *  held until its tiles are in: the real flight then never waits on one.
+   *  Backwards, so it ends at the first view, whose tiles are then the
+   *  freshest kept. */
+  async function preload(f: ReturnType<typeof plan>, me: number) {
+    const steps = Math.max(2, Math.ceil(f.duration / 0.35));
+    cover('Getting the flight ready', 0);
+    for (let k = 0; k <= steps; k++) {
+      if (flying !== me) return false;
+      const v = f.at(f.duration * (1 - k / steps));
+      map.jumpTo({ center: [v.lng, v.lat], zoom: v.zoom, bearing: v.bearing, pitch: v.pitch, elevation: v.elevation });
+      cover('Getting the flight ready', k / steps);
+      const t0 = performance.now();
+      const done = await ready(5000);
+      flyDebug?.note('preload', `step ${k}/${steps} at t ${(f.duration * (1 - k / steps)).toFixed(2)}: ${done ? 'ready' : 'gave up waiting'} after ${(performance.now() - t0).toFixed(0)} ms`);
+    }
+    hideCover();
+    return flying === me;
+  }
+  // The cards (cards.md) in turn while the cover is up, each for its own
+  // seconds, carrying on from where the last cover left off.
+  const cardEl = document.getElementById('fly-card')!;
+  let cardAt = 0;
+  let cardTimer = 0;
+  const pics = [...cardEl.querySelectorAll<HTMLImageElement>('.fly-pics img')];
+  const caption = cardEl.querySelector('figcaption')!;
+  let front = -1;
+  let cardRun = 0;
+  const pause = (ms: number) => new Promise((r) => (cardTimer = window.setTimeout(r, ms)));
+  async function showCard(run: number) {
+    const list = config.cards;
+    const c = list[cardAt++ % list.length];
+    // The picture decoded in the back one first; nothing on screen changes
+    // until it is ready.
+    const back = pics[front === 0 ? 1 : 0];
+    if (c.image) {
+      back.src = c.image;
+      try {
+        await back.decode();
+      } catch {}
+    }
+    if (run !== cardRun) return;
+    // The words out, the picture across, the words in.
+    if (front >= 0) {
+      caption.classList.add('out');
+      await pause(350);
+      if (run !== cardRun) return;
+    }
+    cardEl.classList.toggle('tall', c.tall);
+    cardEl.classList.toggle('nopic', !c.image);
+    caption.querySelector('h2')!.textContent = c.title;
+    caption.querySelector('div')!.innerHTML = c.text.map((t) => `<p>${esc(t)}</p>`).join('');
+    if (c.image) {
+      pics.forEach((p) => p.classList.toggle('on', p === back));
+      front = pics.indexOf(back);
+    }
+    caption.classList.remove('out');
+    await pause(c.seconds * 1000);
+    if (run === cardRun) showCard(run);
+  }
+  function startCards() {
+    if (!config.cards.length) return;
+    cardEl.hidden = false;
+    showCard(++cardRun);
+  }
+  function hideCover() {
+    flyCover.hidden = true;
+    cardRun++;
+    clearTimeout(cardTimer);
+    cardEl.hidden = true;
+  }
+  /** The cover over the map while a flight is got ready or made. */
+  function cover(what: string, done: number, note = '') {
+    if (flyCover.hidden) {
+      startCards();
+      // From empty, not sliding back from wherever the last one ended.
+      const bar = flyCover.querySelector<HTMLElement>('.fly-bar i')!;
+      bar.style.transition = 'none';
+      flyCover.style.setProperty('--done', '0');
+      void bar.offsetWidth;
+      bar.style.transition = '';
+    }
+    flyCover.hidden = false;
+    flyCover.querySelector('b')!.textContent = what;
+    flyCover.querySelector('span')!.textContent = `${Math.round(done * 100)}%`;
+    flyCover.style.setProperty('--done', String(done));
+    flyCover.querySelector('small')!.textContent = note;
+  }
+  /** Out of the way for a flight: the panels, the tour, the popup. */
+  function takeOff() {
+    const me = ++flying;
+    showFly(false);
+    stopTour();
+    popup.remove();
+    page.classList.add('flying');
+    flyStop.hidden = false;
+    // The middle of the view at the flight's own height, not the ground's:
+    // held to the ground, the camera rides up and down every ridge it passes.
+    map.setCenterClampedToGround(false);
+    return me;
+  }
+  const jumpTo = (v: View) => map.jumpTo({ center: [v.lng, v.lat], zoom: v.zoom, bearing: v.bearing, pitch: v.pitch, elevation: v.elevation });
+
+  // ---- The flight as a video ---------------------------------------------------
+  // Made frame by frame, each drawn complete before it is kept, then played
+  // over the map: perfectly smooth in any browser, after a wait. Kept for as
+  // long as nothing it shows changes -- the flight, the model, the colours,
+  // the window -- so playing it again is at once, and it can be saved.
+  let video: { key: string; url: string; start: number } | null = null;
+  /** The title card the saved video opens with: the logo and the model --
+   *  its layers, how they are weighed, the colours. Skipped when played here. */
+  const INTRO = 3;
+  function titleCard(ctx: CanvasRenderingContext2D, w: number, h: number) {
+    const css = getComputedStyle(page);
+    const colour = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback;
+    const u = h / 1000;
+    const font = (size: number, weight = 400) => (ctx.font = `${weight} ${size * u}px system-ui, -apple-system, 'Segoe UI', sans-serif`);
+    ctx.fillStyle = colour('--bg', '#0d1210');
+    ctx.fillRect(0, 0, w, h);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    const lines = modelLines();
+    // Fewer lines, larger; up to MAX_CRITERIA fits.
+    const size = lines.length > 5 ? 28 : 34;
+    const gap = size * 1.55;
+    const block = 90 + 70 + 60 + lines.length * gap + (effectiveMode() === 'two' ? 0 : 90);
+    let y = Math.max(120, (1000 - block) / 2);
+    if (logo.complete && logo.naturalWidth) {
+      const lh = 90 * u;
+      const lw = (logo.naturalWidth / logo.naturalHeight) * lh;
+      ctx.drawImage(logo, (w - lw) / 2, y * u, lw, lh);
+    }
+    y += 90 + 70;
+    font(22, 600);
+    ctx.fillStyle = colour('--accent', '#7fe0a8');
+    if ('letterSpacing' in ctx) (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = `${3 * u}px`;
+    ctx.fillText('DATA SANDBOX · FLYOVER', w / 2, y * u);
+    if ('letterSpacing' in ctx) (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = '0px';
+    y += 50;
+    font(24);
+    ctx.fillStyle = colour('--ink-dim', '#9aa79f');
+    ctx.fillText(`Calculation type: ${opLabel()}`, w / 2, y * u);
+    y += 20;
+    font(size);
+    ctx.fillStyle = colour('--ink', '#eef2ee');
+    for (const line of lines) ctx.fillText(line, w / 2, (y += gap) * u);
+    // The colours, poor to best (two scores have their own nine).
+    if (effectiveMode() !== 'two') {
+      y += 60;
+      const [rw, rh] = [420 * u, 12 * u];
+      const g = ctx.createLinearGradient((w - rw) / 2, 0, (w + rw) / 2, 0);
+      STOPS.forEach((c, i) => g.addColorStop(i / (STOPS.length - 1), rgb(c)));
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.roundRect((w - rw) / 2, y * u, rw, rh, rh / 2);
+      ctx.fill();
+      font(20);
+      ctx.fillStyle = colour('--ink-dim', '#9aa79f');
+      ctx.textAlign = 'left';
+      ctx.fillText('Poor fit', (w - rw) / 2, (y + 42) * u);
+      ctx.textAlign = 'right';
+      ctx.fillText('Best fit', (w + rw) / 2, (y + 42) * u);
+    }
+  }
+  /** Where a view's callout is pinned on screen, in CSS pixels: the ground
+   *  at its spot, or null when that is behind the camera or off screen. */
+  function pinOf(v: FlyView) {
+    const p = map.project([v.lng, v.lat]);
+    const [w, h] = [el.clientWidth, el.clientHeight];
+    return Number.isFinite(p.x) && Number.isFinite(p.y) && p.x > -40 && p.x < w + 40 && p.y > -40 && p.y < h + 40 ? p : null;
+  }
+  /** The stem from the spot up to the card, in CSS pixels. */
+  const STEM = 56;
+  /** A view's callout drawn into a video frame, as it looks on the live map:
+   *  a dot on its spot, a stem up, a dark card on top. */
+  function drawCallout(ctx: CanvasRenderingContext2D, w: number, h: number, v: FlyView, alpha: number) {
+    const pin = pinOf(v);
+    if (!pin) return;
+    const css = getComputedStyle(page);
+    const colour = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback;
+    // CSS pixels to the frame's.
+    const u = w / el.clientWidth;
+    const [px, py] = [pin.x * u, pin.y * u];
+    const font = (size: number, weight = 400) => (ctx.font = `${weight} ${size * u}px system-ui, -apple-system, 'Segoe UI', sans-serif`);
+    const most = Math.min(352 * u, w - 32 * u) - 29 * u;
+    /** Words into lines no wider than `most`, in the font set now. */
+    const wrap = (text: string) => {
+      const lines: string[] = [];
+      for (const word of text.split(/\s+/).filter(Boolean)) {
+        const last = lines[lines.length - 1];
+        if (last !== undefined && ctx.measureText(`${last} ${word}`).width <= most) lines[lines.length - 1] = `${last} ${word}`;
+        else lines.push(word);
+      }
+      return lines;
+    };
+    const [title, text] = [v.title?.trim() ?? '', v.text?.trim() ?? ''];
+    font(16, 600);
+    const tl = wrap(title);
+    const tw = Math.max(0, ...tl.map((l) => ctx.measureText(l).width));
+    font(13.6);
+    const bl = wrap(text);
+    const bw = Math.max(0, ...bl.map((l) => ctx.measureText(l).width));
+    const [padX, padY, th, bh, gap] = [14.4 * u, 10 * u, 20 * u, 19 * u, tl.length && bl.length ? 4 * u : 0];
+    const boxW = Math.max(tw, bw) + 2 * padX;
+    const boxH = tl.length * th + gap + bl.length * bh + 2 * padY;
+    const [x, y] = [px - boxW / 2, py - (STEM + 5) * u - boxH];
+    const accent = colour('--accent', '#7fe0a8');
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = accent;
+    ctx.fillRect(px - 1 * u, py - (STEM + 5) * u, 2 * u, STEM * u);
+    ctx.beginPath();
+    ctx.arc(px, py, 8 * u, 0, 2 * Math.PI);
+    ctx.fillStyle = 'rgba(13, 18, 16, 0.6)';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(px, py, 5 * u, 0, 2 * Math.PI);
+    ctx.fillStyle = accent;
+    ctx.fill();
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+    ctx.shadowBlur = 24 * u;
+    ctx.shadowOffsetY = 6 * u;
+    ctx.fillStyle = 'rgba(13, 18, 16, 0.88)';
+    ctx.beginPath();
+    ctx.roundRect(x, y, boxW, boxH, 10 * u);
+    ctx.fill();
+    ctx.shadowColor = 'transparent';
+    ctx.fillStyle = accent;
+    ctx.fillRect(x + 8 * u, y + boxH - 2 * u, boxW - 16 * u, 2 * u);
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    let ty = y + padY;
+    font(16, 600);
+    ctx.fillStyle = colour('--ink', '#eef2ee');
+    for (const l of tl) {
+      ctx.fillText(l, x + padX, ty + 1 * u);
+      ty += th;
+    }
+    ty += gap;
+    font(13.6);
+    ctx.fillStyle = colour('--ink-dim', '#9aa79f');
+    for (const l of bl) {
+      ctx.fillText(l, x + padX, ty + 2 * u);
+      ty += bh;
+    }
+    ctx.restore();
+  }
+  /** The live flight's callout, as it is now: pinned to its spot. */
+  let calloutAt = -1;
+  function showCallout(c: { i: number; a: number } | null) {
+    const pin = c && pinOf(flyViews[c.i]);
+    flyCallout.hidden = !pin;
+    if (!c || !pin) return (calloutAt = -1);
+    if (calloutAt !== c.i) {
+      calloutAt = c.i;
+      flyCallout.querySelector('h3')!.textContent = flyViews[c.i].title?.trim() ?? '';
+      flyCallout.querySelector('p')!.textContent = flyViews[c.i].text?.trim() ?? '';
+    }
+    flyCallout.style.transform = `translate(${pin.x}px, ${pin.y}px)`;
+    flyCallout.style.opacity = String(c.a);
+  }
+  const videoKey = () =>
+    JSON.stringify([location.hash, flyViews, flySpeed.value, getComputedStyle(page).getPropertyValue('--ramp'), map.getCanvas().width, map.getCanvas().height]);
+  /** Drawn complete: redrawn at once, and again each frame until every tile
+   *  is in (or 8 s pass), the view set again each time in case anything
+   *  moved it. The last draw is the one copied, in the same task. */
+  async function settle(v: View, me: number) {
+    const t0 = performance.now();
+    for (;;) {
+      // Stopped: let go at once, so a flight made after it has the map to
+      // itself.
+      if (flying !== me) return;
+      jumpTo(v);
+      map.redraw();
+      if ((map.areTilesLoaded() && score.pending === 0) || performance.now() - t0 > 8000) return;
+      await new Promise((r) => requestAnimationFrame(r));
+    }
+  }
+  async function play() {
+    if (flyViews.length < 2) return;
+    const f = plan();
+    const key = videoKey();
+    const me = takeOff();
+    if (!video || video.key !== key) {
+      const dbg = map.getLayer('flight-debug') ? map.getLayoutProperty('flight-debug', 'visibility') : null;
+      if (dbg !== null) map.setLayoutProperty('flight-debug', 'visibility', 'none');
+      cover('Preparing your flight', 0, 'Each frame is drawn in full, so it plays smoothly.');
+      const t0 = performance.now();
+      let blob: Blob | null = null;
+      try {
+        if (!logo.complete) await new Promise((r) => (logo.onload = logo.onerror = r));
+        const { recordFlight } = await import('./lib/flyover-video');
+        blob = await recordFlight({
+          duration: f.duration,
+          size: { w: map.getCanvas().width, h: map.getCanvas().height },
+          draw: async (t, ctx, w, h) => {
+            await settle(f.at(t), me);
+            if (flying !== me) return;
+            ctx.drawImage(map.getCanvas(), 0, 0, w, h);
+            const c = f.callout(t);
+            if (c) drawCallout(ctx, w, h, flyViews[c.i], c.a);
+          },
+          onProgress: (k, n) => {
+            if (flying !== me) return;
+            const left = ((performance.now() - t0) / k) * (n - k) / 1000;
+            cover('Preparing your flight', k / n, k > 30 ? `About ${left > 90 ? `${Math.round(left / 60)} min` : `${Math.ceil(left)} s`} left.` : 'Each frame is drawn in full, so it plays smoothly.');
+          },
+          cancelled: () => flying !== me,
+          intro: { seconds: INTRO, draw: titleCard },
+        });
+      } catch (err) {
+        say(err instanceof Error ? err.message : 'Could not make the video.');
+      }
+      if (dbg !== null) map.setLayoutProperty('flight-debug', 'visibility', dbg ?? 'visible');
+      if (!blob || flying !== me) return endFly(flying === me);
+      if (video) URL.revokeObjectURL(video.url);
+      video = { key, url: URL.createObjectURL(blob), start: INTRO };
+    } else {
+      // Under the video, the map waits at the last view, for the hand-back.
+      jumpTo(f.at(f.duration));
+    }
+    hideCover();
+    // Past the title card: that is for the saved copy.
+    if (flyVideo.src !== video.url) flyVideo.src = video.url;
+    flyVideo.currentTime = video.start;
+    flyVideo.hidden = false;
+    flyVideo.onended = () => {
+      if (flying === me) endFly(true);
+    };
+    try {
+      await flyVideo.play();
+    } catch {
+      endFly(true);
+    }
+  }
+
+  // ---- The flight on the live map ------------------------------------------------
+  async function playLive() {
+    if (flyViews.length < 2) return;
+    const f = plan();
+    const me = takeOff();
+    score.keep = 2400;
+    // ?fly-pr=N: the flight drawn at N pixels to the CSS pixel, to see whether
+    // the GPU keeping up is what stutters.
+    const pr = Number(new URLSearchParams(location.search).get('fly-pr'));
+    if (pr > 0) {
+      restorePR = map.getPixelRatio();
+      map.setPixelRatio(pr);
+    }
+    flyDebug?.begin({
+      'fly-pr': pr > 0 ? `${pr} (was ${restorePR})` : `off, drawn at ${map.getPixelRatio()}`,
+      'fly-cache': new URLSearchParams(location.search).get('fly-cache') ?? '12 (default here)',
+      speed: flySpeed.value,
+      duration: `${f.duration.toFixed(2)} s`,
+      'view at s': f.times.map((t) => Number(t.toFixed(2))),
+      views: flyViews,
+    });
+    if (!(await preload(f, me))) return;
+    flyDebug?.note('play', 'preload done, flying');
+    // At the first view now: away.
+    let t0 = 0;
+    const frame = (now: number) => {
+      if (flying !== me) return;
+      t0 ||= now;
+      const t = (now - t0) / 1000;
+      const v = f.at(t);
+      const j0 = performance.now();
+      map.jumpTo({ center: [v.lng, v.lat], zoom: v.zoom, bearing: v.bearing, pitch: v.pitch, elevation: v.elevation });
+      showCallout(f.callout(t));
+      flyDebug?.frame(now, t, v, performance.now() - j0);
+      flyDebug?.playhead(t, v);
+      if (t >= f.duration) {
+        flyDebug?.end('reached the last view');
+        endFly(true);
+      }
+      else requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+  }
+  function endFly(reopen = false) {
+    if (!flying) return;
+    flyDebug?.end('stopped');
+    flying = 0;
+    if (restorePR) {
+      map.setPixelRatio(restorePR);
+      restorePR = 0;
+    }
+    hideCover();
+    flyVideo.pause();
+    flyVideo.hidden = true;
+    showCallout(null);
+    score.keep = 700;
+    map.setCenterClampedToGround(true);
+    flyDebug?.playhead(-1);
+    page.classList.remove('flying');
+    flyStop.hidden = true;
+    if (scope === 'view') recountView();
+    if (reopen) showFly(true);
+  }
+  flyVideo.addEventListener('click', () => endFly(true));
+  flyStop.addEventListener('click', () => {
+    flyDebug?.end('stopped with the button');
+    endFly(true);
+  });
+  for (const ev of ['mousedown', 'wheel', 'touchstart'] as const)
+    map.on(ev, () => {
+      if (flying) flyDebug?.end(`stopped by ${ev} on the map`);
+      endFly(true);
+    });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (flying) {
+      flyDebug?.end('stopped with Esc');
+      endFly(true);
+    }
+    else if (flyOpen) showFly(false);
+  });
+
+  // ---- Where I am ---------------------------------------------------------------
+  let hereDot: maplibregl.Marker | null = null;
+  document.getElementById('here')!.addEventListener('click', () => {
+    if (!('geolocation' in navigator)) return say('This browser cannot tell where you are.');
+    say('Finding where you are…');
+    navigator.geolocation.getCurrentPosition(
+      (p) => {
+        const at = new maplibregl.LngLat(p.coords.longitude, p.coords.latitude);
+        const [[w0, s0], [e0, n0]] = config.limit;
+        if (at.lng < w0 || at.lng > e0 || at.lat < s0 || at.lat > n0) return say('You are outside the study area, so there is nothing to score here.');
+        stopTour();
+        const dot = document.createElement('div');
+        dot.className = 'here-dot';
+        hereDot?.remove();
+        hereDot = new maplibregl.Marker({ element: dot }).setLngLat(at).addTo(map);
+        map.once('moveend', () => (items.length ? showWhy(at, 'Where you are') : say('Add a layer to score where you are.')));
+        map.flyTo({ center: at, zoom: 13, essential: true });
+      },
+      () => say('Could not tell where you are.'),
+      { enableHighAccuracy: true, timeout: 12000 },
+    );
+  });
+
+  // Opens empty -- the map and the choice are the visitor's -- unless the
+  // address carries a model (a shared link).
+  loadHash().then((shared) => {
+    renderFly();
+    render();
+    showNumbers();
+    if (shared) push();
+    if (onPhone) showOnPhone();
+  });
+</script>

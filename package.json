@@ -10,7 +10,7 @@
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro",
-    "hero": "node tools/hero.mjs"
+    "hero": "node posts/tools/hero.mjs"
   },
   "dependencies": {
     "@photo-sphere-viewer/core": "^5.15.1",
@@ -27,6 +27,7 @@
     "esbuild": true
   },
   "devDependencies": {
+    "@types/node": "^22.20.4",
     "js-yaml": "^5.4.2",
     "playwright": "^1.62.1",
     "sharp": "^0.35.4"

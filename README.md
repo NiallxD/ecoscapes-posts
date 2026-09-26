@@ -19,12 +19,44 @@ npm run preview  # serves dist/ (use this to test the service worker)
 The service worker only registers over HTTPS or on localhost, so offline
 behaviour must be tested against `npm run preview`, not `npm run dev`.
 
+## Where things are
+
+One folder for each part of the site, each with its own README:
+
+| Folder | Part |
+| --- | --- |
+| `posts/` | The field post pages, `/p/<slug>/` |
+| `map/` | The EcoScapes map, `/map/` |
+| `dst/` | The Data Sandbox, `/ecoscapes-dst/` |
+| `shared/` | What more than one part uses |
+
+In each: `content/` is the words and settings to edit by hand, the `*Page.astro`
+file is the page, `lib/` and `components/` its code, `tools/` its scripts.
+
+Two folders stay where Astro wants them: `src/pages/` holds one short file per
+web address, each just loading its part's page, and `public/` holds files served
+as they are (`public/media/` for posts, `public/tiles/` for the maps).
+`src/content.config.ts` describes every field a post or map file can have.
+`archive/` is old material, kept locally and not in git.
+
+## The map files, from nothing
+
+Every `.pmtiles` file the maps read, in order. Needs `brew install gdal
+pmtiles` and `pip install numpy pillow`; run from the repo root. Files land in
+`public/tiles/` (not committed) and the last step puts them on tiles.niallbell.com.
+
+1. `shared/tools/extract-basemap.py` -- the basemap and its label font
+2. `shared/tools/extract-terrain.py` -- the relief and 3D
+3. `map/tools/build-map.py` -- the /map/ layers
+4. `dst/tools/build-dst.py` -- the Data Sandbox layers
+5. `shared/tools/upload-tiles.py` -- upload what changed; commit `shared/tools/tiles-manifest.json`
+
 ## Adding a location
 
 One markdown file plus one media folder. No admin UI needed.
 
 ```
-src/content/locations/<slug>.md      # the content
+posts/content/<slug>.md           # the content
 public/media/<slug>/pano.jpg         # 4096x2048 equirectangular
 public/media/<slug>/pano-card.jpg    # 1200x600 crop for the index
 public/media/<slug>/frames/<year>.webp
@@ -40,7 +72,7 @@ Source 360s come off the stitcher around 7500x3750 and 4-7 MB, which is far too
 heavy for a trailhead. This resizes and strips them:
 
 ```bash
-tools/prepare-pano.sh path/to/source_pano.jpg <slug>
+posts/tools/prepare-pano.sh path/to/source_pano.jpg <slug>
 ```
 
 4096x2048 is the practical ceiling for a phone sphere and stays inside the max
@@ -129,7 +161,7 @@ hero:
   vfov: 95
 ```
 
-`tools/hero-integration.mjs` runs on `astro:build:start` and, in dev, on every
+`posts/tools/hero-integration.mjs` runs on `astro:build:start` and, in dev, on every
 save of a location's markdown. Change an angle and the still is re-rendered
 before the page reloads -- nothing to run by hand.
 
@@ -170,7 +202,7 @@ the repo. Delete it once real exports land.
 **Photo submissions do not upload anywhere.** Sharing hands the file to the
 phone's share sheet so it can go to email or Instagram. A static host cannot
 accept uploads; the seam for a real endpoint is the share handler in
-`src/components/Capture.astro`.
+`posts/components/Capture.astro`.
 
 The obvious next step is a Cloudflare Worker issuing presigned R2 uploads, at
 which point the ghost-overlay alignment feature (showing the previous
@@ -184,7 +216,7 @@ the capture itself, is what makes repeat photography work.
 - Pages are network-first and fall back to cache, then to `offline.html`.
   Media and build-hashed assets are cache-first.
 - The cache name carries a version stamped at build time from a hash of the
-  media's bytes (`tools/sw-version.mjs`). Media is cache-first at a fixed URL,
+  media's bytes (`shared/tools/sw-version.mjs`). Media is cache-first at a fixed URL,
   so without this a re-rendered hero or a replaced panorama would never reach
   anyone who had already visited. Hashing contents rather than mtimes keeps a
   routine deploy from throwing away every visitor's cache; changing an asset

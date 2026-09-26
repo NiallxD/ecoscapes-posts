@@ -1,0 +1,422 @@
+---
+import { render } from 'astro:content';
+import Shell from '../shared/layouts/Shell.astro';
+import Panorama from './components/Panorama.astro';
+import TimeSeries from './components/TimeSeries.astro';
+import Animal from './components/Animal.astro';
+import Capture from './components/Capture.astro';
+import Closing from './components/Closing.astro';
+import { asset, locationAssets } from '../shared/lib/paths';
+
+const { entry } = Astro.props;
+const { data } = entry;
+const { Content } = await render(entry);
+const offlineList = JSON.stringify(locationAssets(entry));
+const installed = data.installed.toLocaleDateString('en-CA', { year: 'numeric', month: 'long' });
+// One page per playthrough of the time series, like a run of stories: each
+// callout gets forty years of its own, and its own segment in the bar.
+const runs = data.series.video && data.series.callouts?.length ? data.series.callouts : [undefined];
+const runIds = runs.map((_, i) => (i === 0 ? 'change' : `change-${i + 1}`));
+const coords = `${Math.abs(data.lat).toFixed(2)}°${data.lat >= 0 ? 'N' : 'S'} ${Math.abs(data.lng).toFixed(2)}°${data.lng >= 0 ? 'E' : 'W'}`;
+---
+
+<Shell title={`${data.title} · EcoScapes`} description={data.intro}>
+  <main class="deck" id="deck">
+    <Panorama
+      src={data.pano.src}
+      caption={data.pano.caption}
+      north={data.pano.north}
+      startYaw={data.pano.startYaw}
+      startPitch={data.pano.startPitch}
+      declination={data.pano.declination}
+      rail={data.pano.rail}
+      markers={data.pano.markers}
+      next="#change"
+    >
+      <div class="intro-copy" slot="intro" data-assets={offlineList}>
+        <p class="eyebrow">{data.place}</p>
+        <h1>{data.title}</h1>
+        <p class="intro-lede">{data.intro}</p>
+        <div class="intro-body"><Content /></div>
+        <p class="intro-meta">{coords} · Installed {installed}</p>
+      </div>
+    </Panorama>
+    {runs.map((callout, i) => (
+      <TimeSeries
+        {...data.series}
+        title={callout?.pageTitle ?? data.series.title}
+        id={runIds[i]}
+        callouts={callout ? [callout] : []}
+        run={callout ? { at: i + 1, of: runs.length } : undefined}
+        prev={i === 0 ? '#view' : `#${runIds[i - 1]}`}
+        next={i === runs.length - 1 ? '#add' : `#${runIds[i + 1]}`}
+      />
+    ))}
+    <Capture
+      prompt={data.capture.prompt}
+      shareTo={data.capture.shareTo}
+      title={data.title}
+      prev={`#${runIds.at(-1)}`}
+      next="#onward"
+    />
+    <Closing prev="#add" copy={data.closing} wall={data.wall} />
+  </main>
+
+  <!-- Behind the bar, so its segments hold against a pale sky or snow. -->
+  <div class="story-scrim" aria-hidden="true"></div>
+  <!-- The lighter one, for the pages that are all picture -- the view and the
+       series -- where a solid edge closes the picture in. -->
+  <div class="story-scrim story-scrim-soft" aria-hidden="true"></div>
+  <!-- Its mirror at the foot: every page's picture comes up out of the dark
+       rather than stopping at the screen's hard bottom edge. -->
+  <div class="foot-scrim" aria-hidden="true"></div>
+  <nav class="story" aria-label="Sections">
+    <a href="#view" data-for="view"><i></i><span class="sr">Panorama</span></a>
+    {runIds.map((id, i) => (
+      <a href={`#${id}`} data-for={id}>
+        <i></i><span class="sr">Change over time{runs.length > 1 ? `, ${i + 1} of ${runs.length}` : ''}</span>
+      </a>
+    ))}
+    <a href="#add" data-for="add"><i></i><span class="sr">Add your photograph</span></a>
+    <a href="#onward" data-for="onward"><i></i><span class="sr">Take this with you</span></a>
+  </nav>
+
+  <!-- The ways of looking, each a page of its own opened from the pill in the
+       near corner of the pages that go with it. The Raven carries on from the
+       series to the end: having travelled forty years here, you become it and
+       tell the story. The Bear is the map's (map/MapPage.astro). -->
+  <Animal animal="eagle" {...data.pano.rail} />
+  <Animal animal="raven" {...data.series.rail} />
+</Shell>
+
+<style>
+  /* The opening words, laid over the view by the panorama. */
+  .intro-copy { max-width: 30rem; margin: 0 auto; }
+  .intro-copy h1 { font-size: clamp(2.1rem, 8.5vw, 3rem); line-height: 1.08; margin: 0.4rem 0 0.8rem; }
+  .intro-lede { font-size: 1.02rem; line-height: 1.55; margin: 0 0 1rem; }
+  .intro-body { font-size: 0.9rem; line-height: 1.6; color: var(--ink-dim); }
+  .intro-body :global(p) { margin: 0 0 0.8rem; }
+  /* The credit line, under a rule. */
+  .intro-meta {
+    font-size: 0.72rem;
+    color: var(--ink-dim);
+    letter-spacing: 0.04em;
+    margin: 0.4rem 0 0;
+    padding-top: 0.8rem;
+    border-top: 1px solid var(--line);
+  }
+
+  /* Story-style progress bar: one segment per panel, filled up to where you are.
+     Sits above everything, including the panorama canvas. */
+  .story {
+    position: fixed;
+    top: calc(var(--safe-t) + 0.5rem);
+    left: 0.55rem;
+    right: 0.55rem;
+    display: flex;
+    gap: 4px;
+    z-index: 6;
+  }
+  .story a {
+    flex: 1;
+    /* The visible bar is 3px; the padding makes it a real touch target. */
+    padding: 9px 0;
+    display: block;
+  }
+  .story i {
+    display: block;
+    height: 3px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.26);
+    overflow: hidden;
+    position: relative;
+  }
+  /* As a story's bar: the panels behind you are full, the ones ahead are
+     empty, and only the one you are on moves. The script sets each segment's
+     fill and how long it takes to get there -- nothing for a snap, the rest of
+     a minute for a page's own slow fill -- so no two can ever be moving. */
+  .story i::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 3px;
+    background: #fff;
+    transform: scaleX(var(--p, 0));
+    transform-origin: left;
+    transition: transform var(--t, 0s) linear;
+  }
+  /* A snap takes the transition away rather than making it instant: a zero
+     length does not stop a fill already running to the same place, so the
+     page you just left would carry on filling behind you. */
+  .story a[data-snap] i::after { transition: none; }
+  /* A band of shade under the bar, the same dark as the foot of the opening
+     page's words and eased off the same way, so it has no edge. The picture
+     under it is anything from snow to night sky, and a 3px white line on its
+     own disappears against half of it. */
+  .story-scrim {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: calc(var(--safe-t) + 3.2rem);
+    z-index: 5;
+    pointer-events: none;
+    /* Solid page colour at the very edge -- the colour the browser's own
+       bars are painted -- so the page runs into them with no line. */
+    background: linear-gradient(
+      rgb(13, 18, 16) 0%,
+      rgba(13, 18, 16, 0.62) 30%,
+      rgba(13, 18, 16, 0.22) 65%,
+      rgba(13, 18, 16, 0) 100%
+    );
+  }
+  /* The view and the series are the picture and nothing else, and solid edges
+     top and bottom box them in. On those the top goes back to a light shade,
+     just enough for the bar, and the foot is left clear. */
+  .story-scrim-soft {
+    background: linear-gradient(
+      rgba(6, 10, 9, 0.62) 0%,
+      rgba(6, 10, 9, 0.44) 35%,
+      rgba(6, 10, 9, 0.16) 70%,
+      rgba(6, 10, 9, 0) 100%
+    );
+    opacity: 0;
+  }
+  .story-scrim,
+  .foot-scrim { transition: opacity 0.3s ease; }
+  :global(body[data-open-edges]) .story-scrim { opacity: 0; }
+  :global(body[data-open-edges]) .story-scrim-soft { opacity: 1; }
+  :global(body[data-open-edges]) .foot-scrim { opacity: 0; }
+
+  /* Short and soft, and under each page's controls -- they are at level 4 in
+     the page, this is 3 and later, so it is over the picture and anything else
+     at 3 but never over a button. */
+  .foot-scrim {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: calc(var(--foot) + 8rem);
+    z-index: 3;
+    pointer-events: none;
+    /* Solid at the edge, as the top is. */
+    background: linear-gradient(
+      to top,
+      rgb(13, 18, 16) 0,
+      rgba(13, 18, 16, 0.6) calc(var(--foot) + 1.8rem),
+      rgba(13, 18, 16, 0.22) calc(var(--foot) + 4.4rem),
+      rgba(13, 18, 16, 0) 100%
+    );
+  }
+  /* Edge-to-edge reads fine on a phone held upright, but stretched across a
+     landscape screen the segments look like a loading bar. Cap and centre them
+     so they stay a deliberate piece of chrome. */
+  @media (orientation: landscape), (min-width: 40rem) {
+    .story {
+      left: 50%;
+      right: auto;
+      transform: translateX(-50%);
+      width: min(30rem, calc(100% - 1.5rem));
+    }
+  }
+  .sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+</style>
+
+<script>
+  // ---- Story position -----------------------------------------------------
+  // The segments mark where you are; the deck is moved by hand, with the arrows
+  // on the foot of each panel. (The autoplay clock that used to advance it is
+  // out for now.)
+  const segs = Array.from(document.querySelectorAll<HTMLAnchorElement>('.story a'));
+  const order = segs.map((s) => s.dataset.for!);
+
+  /** Set a segment's fill, taking `secs` to get there (0 snaps). */
+  const fill = (i: number, p: number, secs = 0) => {
+    segs[i].toggleAttribute('data-snap', !secs);
+    segs[i].style.setProperty('--t', `${secs}s`);
+    segs[i].style.setProperty('--p', String(p));
+  };
+
+  // As a story's bar: everything behind full, everything ahead empty, both at
+  // once, and the page you are on started again from empty -- whichever way
+  // you arrived. A page with a clock fills its segment as it plays (see
+  // below); any other runs a slow half-minute across it, so the bar still says the
+  // page is live without hurrying anyone. Nothing turns the page at the end.
+  const SLOW = 30; // seconds to fill a page with no clock of its own
+  let shown = -1;
+  const showUpTo = (i: number) => {
+    segs.forEach((_, k) => fill(k, k < i ? 1 : 0));
+    shown = i;
+    // The pages that are all picture take the lighter edges; see the styles.
+    const page = document.getElementById(order[i]);
+    document.body.toggleAttribute('data-open-edges', order[i] === 'view' || !!page?.classList.contains('ts-panel'));
+    if (clocked(i)) return;
+    // Laid out at empty first, or the browser would see empty and full in the
+    // same frame and run from wherever the segment last was.
+    getComputedStyle(segs[i].querySelector('i')!, '::after').transform;
+    fill(i, 1, SLOW);
+  };
+
+  // The time series pages fill their segment with the clip, as a story's
+  // segment runs with its video: the page reports how far through it is, and
+  // only the page being shown is listened to.
+  const clocked = (k: number) => document.getElementById(order[k])?.hasAttribute('data-clock') ?? false;
+  document.addEventListener('story:progress', (e) => {
+    const k = order.indexOf((e.target as HTMLElement).id);
+    if (k < 0 || k !== shown) return;
+    // Driven a frame at a time, so no transition of its own: it would trail
+    // behind the clock and make a steady fill look like it is catching up.
+    fill(k, (e as CustomEvent<number>).detail);
+  });
+
+  // The observer is the single source of truth for which panel we are on.
+  let idx = 0;
+  const spy = new IntersectionObserver(
+    (entries) => {
+      for (const e of entries) {
+        if (!e.isIntersecting) continue;
+        const i = order.indexOf(e.target.id);
+        if (i < 0) continue;
+        idx = i;
+        showUpTo(i);
+      }
+    },
+    { threshold: 0.55 },
+  );
+  document.querySelectorAll('.panel').forEach((el) => spy.observe(el));
+  showUpTo(0);
+
+  // ---- Tap to move --------------------------------------------------------
+  // Story convention: the outer thirds of the panel step back and forward. Done
+  // by watching for a tap rather than by laying invisible targets over the
+  // panel -- an overlay would swallow the drag that turns the panorama, and
+  // would have to be cut around every control on the way.
+  const go = (d: number) => {
+    const next = idx + d;
+    if (next < 0 || next >= order.length) return;
+    document.getElementById(order[next])?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const TAP_SLOP = 10; // px of travel still counted as a tap, not a drag
+  const TAP_MS = 350;
+  // Anything you can operate is left alone, wherever it happens to sit -- and
+  // so is anything that is handling its own touches, like the opening words.
+  const CONTROLS = 'a, button, input, label, select, textarea, [role="button"], [data-no-tap]';
+
+  let downX = 0;
+  let downY = 0;
+  let downAt = 0;
+  addEventListener(
+    'pointerdown',
+    (e) => {
+      downX = e.clientX;
+      downY = e.clientY;
+      downAt = performance.now();
+    },
+    { passive: true },
+  );
+
+  addEventListener(
+    'pointerup',
+    (e) => {
+      if (performance.now() - downAt > TAP_MS) return;
+      if (Math.hypot(e.clientX - downX, e.clientY - downY) > TAP_SLOP) return;
+      if ((e.target as Element | null)?.closest?.(CONTROLS)) return;
+
+      // The foot of the panel belongs to the arrows and whatever shares their
+      // row, so the zones stop at the top of it rather than at a guessed inset.
+      const nav = document.getElementById(order[idx])?.querySelector('.panel-nav');
+      const floor = nav ? nav.getBoundingClientRect().top : innerHeight;
+      if (e.clientY >= floor) return;
+
+      const third = innerWidth / 3;
+      if (e.clientX < third) go(-1);
+      else if (e.clientX > innerWidth - third) go(1);
+    },
+    { passive: true },
+  );
+
+  // ---- Offline ------------------------------------------------------------
+  // The whole location is pulled down on every visit rather than offered on a
+  // button. Someone reaching a post has usually walked out of coverage to get
+  // there, and the panel they need is the one they have not scrolled to yet --
+  // so waiting for them to ask is waiting until it is too late to fetch.
+  //
+  // It costs a few MB per location. That is paid for once: the worker skips
+  // anything already in the cache, so a return visit fetches nothing.
+  // The clips ask for nothing until the panorama has its picture; then the
+  // first is loaded whole, so it is ready when it is swiped to. Only ever
+  // upward from nothing: a clip the series has already asked more of (the
+  // next playthrough, set to auto when the one before comes into view) keeps
+  // what it was given.
+  const preloadClips = () =>
+    document.querySelectorAll<HTMLVideoElement>('video[data-preload]').forEach((v) => {
+      if (v.preload === 'none') v.preload = v.dataset.preload as 'auto' | 'metadata';
+    });
+  if ((window as any).__panoSettled) preloadClips();
+  else document.addEventListener('pano:settled', preloadClips, { once: true });
+
+  const stage = document.querySelector<HTMLElement>('[data-assets]');
+  if (stage?.dataset.assets && 'serviceWorker' in navigator) {
+    const all: string[] = JSON.parse(stage.dataset.assets);
+    const path = (u: string) => new URL(u, location.href).pathname;
+
+    /** Of a clip's two encodes, the one this browser actually plays -- known
+     *  for certain only once it has loaded or failed one, since a browser can
+     *  say it might play HEVC and then not manage it. Waits for that, up to a
+     *  point, then falls back to asking. */
+    const chosen = (v: HTMLVideoElement) =>
+      new Promise<string | null>((resolve) => {
+        const sources = [...v.querySelectorAll('source')];
+        const settle = () => {
+          clearTimeout(timer);
+          v.removeEventListener('loadedmetadata', settle);
+          if (v.currentSrc && !v.error) return resolve(path(v.currentSrc));
+          const guess = sources.find((s) => v.canPlayType(s.type) === 'probably') ?? sources.find((s) => v.canPlayType(s.type) !== '');
+          resolve(guess ? path(guess.src) : null);
+        };
+        if (v.readyState >= 1) return settle();
+        v.addEventListener('loadedmetadata', settle);
+        const timer = setTimeout(settle, 20000);
+      });
+
+    // After the panorama has its picture, and then only when the main thread
+    // is free: a background convenience that must never compete with the
+    // panorama or the first paint for bandwidth. The worker shares one
+    // download between this and the clip's own playback, so nothing is
+    // fetched twice.
+    const prefetch = async () => {
+      try {
+        const unplayed = new Set<string>();
+        await Promise.all(
+          [...document.querySelectorAll<HTMLVideoElement>('video')].map(async (v) => {
+            const sources = [...v.querySelectorAll('source')].map((s) => path(s.src));
+            if (sources.length < 2) return;
+            const pick = await chosen(v);
+            for (const s of sources) if (s !== pick) unplayed.add(s);
+          }),
+        );
+        const assets = all.filter((u) => !unplayed.has(path(u)));
+        const reg = await navigator.serviceWorker.ready;
+        reg.active?.postMessage({ type: 'cache-location', assets, page: location.pathname });
+      } catch {
+        // No worker, no offline copy -- every panel still works over the
+        // network, so there is nothing to report.
+      }
+    };
+    const idle = () =>
+      'requestIdleCallback' in window
+        ? (window as any).requestIdleCallback(prefetch, { timeout: 5000 })
+        : setTimeout(prefetch, 1200);
+    if ((window as any).__panoSettled) idle();
+    else document.addEventListener('pano:settled', idle, { once: true });
+  }
+</script>

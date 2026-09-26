@@ -1,12 +1,12 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 
-import heroes from './tools/hero-integration.mjs';
-import swVersion from './tools/sw-version.mjs';
+import heroes from './posts/tools/hero-integration.mjs';
+import swVersion from './shared/tools/sw-version.mjs';
 
 // GitHub Pages project sites live under /<repo>/. Both are read from the env so
 // `npm run dev` stays at the root and the deploy workflow supplies the real
-// values. Everything that builds a URL goes through src/lib/paths.ts.
+// values. Everything that builds a URL goes through shared/lib/paths.ts.
 const base = process.env.PUBLIC_BASE_PATH || '/';
 const site = process.env.PUBLIC_SITE_URL || 'http://localhost:4321';
 

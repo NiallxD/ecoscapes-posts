@@ -23,8 +23,8 @@ pnpm-debug.log*
 # jetbrains setting folder
 .idea/
 
-# TerrAdapt login kept by tools/capture-terradapt.mjs --login
-tools/.terradapt-auth.json
+# TerrAdapt login kept by posts/tools/capture-terradapt.mjs --login
+posts/tools/.terradapt-auth.json
 
 # Local copies of the map files (served from R2) and working files kept here
 public/tiles/*.pmtiles
@@ -33,3 +33,6 @@ public/tiles/ecoscapes/
 poster.afpub
 poster-gemini.pdf
 transcript.md
+
+# Scripts and files no longer used, kept locally only
+archive/
