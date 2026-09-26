@@ -6,8 +6,10 @@ written here, round again if the video takes longer than all of them.
 How to edit:
 
 - Put each picture in this folder (`src/data/flyover-cards/`), next to this
-  file: a JPEG, PNG or WebP, landscape, any size -- the build shrinks it to
-  1600 px wide. Name it plainly, e.g. `squamish-estuary.jpg`.
+  file: a JPEG, PNG or WebP, landscape, any size. Name it plainly, e.g.
+  `squamish-estuary.jpg`. Then run `node tools/prepare-flyover-cards.mjs`,
+  which turns it into a WebP no wider than 2000 px (and changes its name
+  here to match), so the repo stays small.
 - Each card is a `##` heading with its title, then these lines, then its text:
   - `Image: squamish-estuary.jpg` -- the file name exactly as it is in this
     folder. A name with no file stops the site build, so a typo shows up
