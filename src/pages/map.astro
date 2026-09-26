@@ -44,6 +44,24 @@ const themes = portalThemes.map((t) => ({
   subthemes: [...t.subthemes, ...data.subthemes.filter((s) => s.theme === t.id)].sort((a, b) => a.id.localeCompare(b.id)),
 }));
 
+// What the lens's rim can be narrowed to: plain groups of the layers, by
+// subtheme. A subtheme with no layers on this map drops out of its group.
+const lensGroups = [
+  { name: 'Ecosystems', subthemes: ['01-01-ecosystem-resilience', '01-02-ecosystem-risk', '02-01-habitat-values'] },
+  { name: 'Threats and loss', subthemes: ['02-02-habitat-threats', '02-03-habitat-loss'] },
+  { name: 'Climate and connections', subthemes: ['04-01-climate-refugia', '05-01-habitat-cores', '05-02-priority-linkages'] },
+  { name: 'Wide-ranging animals', subthemes: ['05-03-wildland-explorers'] },
+  { name: 'Forest and alpine animals', subthemes: ['05-04-forest-and-alpine-specialists'] },
+  { name: 'Valley animals', subthemes: ['05-05-valley-dwellers-and-commuters'] },
+]
+  .map((g, i) => ({ id: `g${i}`, name: g.name, layers: layers.filter((l) => g.subthemes.includes(l.subtheme!)).map((l) => l.id) }))
+  .filter((g) => g.layers.length > 0);
+{
+  const grouped = new Set(lensGroups.flatMap((g) => g.layers));
+  const loose = layers.filter((l) => !grouped.has(l.id)).map((l) => l.id);
+  if (loose.length) throw new Error(`lens groups: no group for ${loose.join(', ')}`);
+}
+
 // Everything the script needs, with every path already through asset() so the
 // map works under a GitHub Pages project path as well as at a root.
 const config = {
@@ -55,6 +73,7 @@ const config = {
   glyphs: asset('/tiles/fonts/{fontstack}/{range}.pbf'),
   layers,
   themes,
+  lensGroups,
   callouts: data.callouts.map((c) => ({ ...c, image: c.image ? asset(c.image) : undefined })),
   posts,
   // Opened in the sheet, like a story, rather than as a full-screen animal
@@ -69,6 +88,50 @@ const config = {
 <Shell title="EcoScapes map" description={data.intro}>
   <main class="map-page">
     <div class="map" id="map" data-config={JSON.stringify(config)}></div>
+
+    <!-- The lens: a circle dragged over the map that looks through it to one
+         layer of its own, its rim turning it on down the stack (lens.ts). -->
+    <div class="lens" id="lens" hidden>
+      <div class="lens-map"></div>
+      <div class="lens-ring" tabindex="0" role="slider" aria-label="Lens: turn the rim or use the arrow keys for the next layer">
+        <svg class="lens-dial" aria-hidden="true">
+          <circle class="lens-grip" cx="0" cy="0" />
+          {Array.from({ length: 12 }, (_, i) => <line x1="0" x2="0" transform={`rotate(${i * 30})`} />)}
+        </svg>
+        <i class="lens-mark" aria-hidden="true"></i>
+      </div>
+      <!-- Stood off the rim at the right, not turning with it: the handles. -->
+      <div class="lens-tab">
+        <button class="lens-size" type="button" aria-label="Lens size: drag, or use the arrow keys">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 18L18 6M11 6h7v7M6 11v7h7" /></svg>
+        </button>
+        <button class="lens-move" type="button" aria-label="Move the lens: drag, or use the arrow keys">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18M3 12h18M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3" /></svg>
+        </button>
+      </div>
+      <!-- And on the left, the groups the rim turns through. -->
+      <div class="lens-tab lens-tab-left">
+        <button class="lens-groups-btn" type="button" aria-expanded="false" aria-label="Which layers the lens turns through">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M7 12h10M10 17h4" /></svg>
+        </button>
+        <!-- Pressed, the rim turns the map's top layer rather than the lens's. -->
+        <button class="lens-target-btn" type="button" aria-pressed="false" aria-label="Turn the map's top layer with the rim, not the lens's">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true"><path d="M12 4l8.5 4.5L12 13 3.5 8.5z" /><path d="M3.5 12.5L12 17l8.5-4.5" opacity="0.45" /><path d="M3.5 16.5L12 21l8.5-4.5" opacity="0.45" /></svg>
+        </button>
+      </div>
+      <div class="lens-tag">
+        <button class="lens-prev" type="button" aria-label="The layer above">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
+        </button>
+        <span class="lens-text"><span class="lens-name-row"><span class="lens-which"></span><span class="lens-name"></span></span><span class="lens-key" aria-hidden="true"></span></span>
+        <button class="lens-next" type="button" aria-label="The layer below">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- The lens's list of groups: outside it, so it is over your dot too. -->
+    <div class="lens-groups" id="lens-groups" role="group" aria-label="Lens layers" hidden></div>
 
     <!-- Appears once the map knows where you are and there is something close. -->
     <button class="chip nearby" id="nearby" type="button" hidden></button>
@@ -117,6 +180,11 @@ const config = {
       <!-- Flat, or tilted over the ground's own shape. The tilt slides out of
            the button while 3D is on: a mouse's way to it (a right-drag also
            tilts). Not on a touch screen, where two fingers do it. -->
+      <button class="step" id="lens-btn" type="button" aria-pressed="false" aria-label="Lens" title="Lens: look through the map to another layer">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+          <circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="5" stroke-dasharray="2 2.2" />
+        </svg>
+      </button>
       <div class="tilt-wrap">
         <label class="tilt" id="tilt" aria-hidden="true">
           <span>Tilt</span>
@@ -158,6 +226,184 @@ const config = {
 <style>
   .map-page { position: relative; height: 100dvh; overflow: hidden; }
   .map { position: absolute; inset: 0; background: var(--bg); }
+
+  /* The lens: its map as big as the page's, cut to the circle; the rim a
+     band just outside it, the grip for moving and turning it. */
+  .lens { position: absolute; inset: 0; z-index: 2; pointer-events: none; --rim: 22px; }
+  .lens[hidden] { display: none; }
+  .lens-map { position: absolute; inset: 0; clip-path: circle(var(--r) at var(--x) var(--y)); }
+  .lens-ring {
+    position: absolute;
+    left: var(--x);
+    top: var(--y);
+    width: calc(2 * (var(--r) + var(--rim)));
+    height: calc(2 * (var(--r) + var(--rim)));
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    border: var(--rim) solid rgba(13, 18, 16, 0.78);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.22), inset 0 0 0 1px rgba(255, 255, 255, 0.28), 0 6px 24px rgba(0, 0, 0, 0.45);
+  }
+  /* The rim band is the only part that takes a touch; inside, the map. */
+  .lens-grip { fill: none; stroke: transparent; pointer-events: stroke; touch-action: none; cursor: grab; }
+  .lens-ring.turning .lens-grip { cursor: grabbing; }
+  .lens-ring:focus { outline: none; }
+  .lens-ring:focus-visible { box-shadow: 0 0 0 2px var(--accent), 0 6px 24px rgba(0, 0, 0, 0.45); }
+  /* The ticks go round with the rim; the mark at the top stays put. */
+  .lens-dial {
+    position: absolute;
+    inset: calc(-1 * var(--rim));
+    width: calc(100% + 2 * var(--rim));
+    height: calc(100% + 2 * var(--rim));
+    transform: rotate(var(--turn, 0deg));
+    stroke: rgba(255, 255, 255, 0.55);
+    stroke-width: 2;
+    stroke-linecap: round;
+    pointer-events: none;
+  }
+  .lens-dial.settling { transition: transform 0.22s ease-out; }
+  .lens-ring.turning .lens-dial line { stroke: var(--accent); }
+  .lens-mark {
+    position: absolute;
+    left: 50%;
+    top: calc(-1 * var(--rim) - 1px);
+    width: 0;
+    height: 0;
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-top: 7px solid var(--accent);
+    border-bottom: 0;
+  }
+  /* The tab: out from the rim at three o'clock, the rim's own dark, cut
+     round the rim's outer edge so the two read as one piece. */
+  .lens-tab {
+    --out: calc(var(--r) + var(--rim));
+    position: absolute;
+    left: calc(var(--x) + var(--out) - 14px);
+    top: var(--y);
+    transform: translateY(-50%);
+    display: grid;
+    gap: 6px;
+    padding: 9px 8px 9px 20px;
+    border-radius: 0 18px 18px 0;
+    background: rgba(13, 18, 16, 0.78);
+    -webkit-mask-image: radial-gradient(circle at calc(14px - var(--out)) 50%, transparent var(--out), #000 calc(var(--out) + 0.5px));
+    mask-image: radial-gradient(circle at calc(14px - var(--out)) 50%, transparent var(--out), #000 calc(var(--out) + 0.5px));
+    pointer-events: auto;
+  }
+  /* The same, mirrored, on the left. */
+  .lens-tab-left {
+    left: auto;
+    right: calc(100% - var(--x) + var(--out) - 14px);
+    padding: 9px 20px 9px 8px;
+    border-radius: 18px 0 0 18px;
+    -webkit-mask-image: radial-gradient(circle at calc(100% - 14px + var(--out)) 50%, transparent var(--out), #000 calc(var(--out) + 0.5px));
+    mask-image: radial-gradient(circle at calc(100% - 14px + var(--out)) 50%, transparent var(--out), #000 calc(var(--out) + 0.5px));
+  }
+  .lens-groups-btn { cursor: pointer; }
+  /* Narrowed to some of the groups: lit, so it is plain the rim is not
+     going through everything. */
+  .lens-groups-btn.narrowed, .lens-groups-btn[aria-expanded='true'] { color: var(--accent); border-color: var(--accent); }
+  .lens-groups {
+    position: absolute;
+    z-index: 4;
+    width: 15rem;
+    display: grid;
+    gap: 0.1rem;
+    padding: 0.45rem;
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    background: rgba(13, 18, 16, 0.94);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    pointer-events: auto;
+    animation: drop-down 0.16s ease-out;
+  }
+  .lens-groups[hidden] { display: none; }
+  .lens-groups :global(label) {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.45rem 0.5rem;
+    border-radius: 9px;
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
+  .lens-groups :global(label:hover) { background: rgba(255, 255, 255, 0.06); }
+  .lens-groups :global(input) { accent-color: var(--accent); margin: 0; }
+  .lens-groups :global(span) { flex: 1; }
+  .lens-groups :global(em) { font-style: normal; font-size: 0.72rem; color: var(--ink-dim); }
+  .lens-tab button {
+    appearance: none;
+    -webkit-appearance: none;
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    background: #070a09;
+    color: var(--ink);
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .lens-tab svg { width: 17px; height: 17px; }
+  .lens-size { cursor: nwse-resize; }
+  .lens-move { cursor: move; }
+  .lens-tab button:hover, .sizing .lens-size, .moving .lens-move { color: var(--accent); border-color: var(--accent); }
+  .lens-tab button:focus { outline: none; }
+  .lens-tab button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  /* Its name and key, under it. */
+  .lens-tag {
+    position: absolute;
+    left: var(--x);
+    top: calc(var(--y) + var(--r) + var(--rim) + 8px);
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 0.2rem;
+    /* One width whatever the name, so it does not jump about as the rim turns. */
+    width: min(16rem, calc(100vw - 2rem));
+    padding: 0.2rem;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: rgba(13, 18, 16, 0.9);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    pointer-events: auto;
+  }
+  .lens-tag button {
+    appearance: none;
+    -webkit-appearance: none;
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: none;
+    color: var(--ink);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .lens-tag button:hover { color: var(--accent); }
+  .lens-tag button:focus { outline: none; }
+  .lens-tag button:focus-visible { outline: 2px solid var(--accent); }
+  .lens-tag button svg { width: 16px; height: 16px; }
+  .lens-text { flex: 1; min-width: 0; display: grid; gap: 3px; padding: 0.15rem 0.2rem; text-align: center; }
+  .lens-name-row { display: flex; align-items: baseline; justify-content: center; gap: 0.4rem; min-width: 0; }
+  .lens-name { min-width: 0; font-size: 0.78rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* Which the rim is turning: the lens's layer, or the map's. */
+  .lens-which { flex: none; font-size: 0.6rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-dim); }
+  .turning-map .lens-which { color: var(--accent); }
+  .lens-target-btn { cursor: pointer; }
+  .lens-target-btn[aria-pressed='true'] { color: var(--bg); background: var(--accent); border-color: var(--accent); }
+  .lens-key { display: flex; height: 5px; border-radius: 2px; overflow: hidden; }
+  .lens-key :global(i) { flex: 1; }
+  .lens-open .layers-pill, .lens-open #layers-btn { display: none; }
+  #lens-btn[aria-pressed='true'] { color: var(--accent); border-color: var(--accent); }
 
   /* The control column: bottom right, level with the Bear's pill opposite. */
   .map-side {
@@ -706,7 +952,8 @@ const config = {
      one more pin -- and, once the phone says which way it faces, a soft cone
      that way, about as wide as its camera sees. The marker is a wrapper round
      the two, so the cone can sit behind the dot. */
-  :global(.me-wrap) { position: relative; width: 18px; height: 18px; }
+  /* Over the lens too (z-index 2), so you are never lost under it. */
+  :global(.me-wrap) { position: relative; width: 18px; height: 18px; z-index: 3; }
   :global(.me-cone) {
     position: absolute;
     left: 50%;
@@ -727,7 +974,9 @@ const config = {
     border-radius: 50%;
     background: #6fb6ff;
     border: 3px solid #fff;
-    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
+    /* A dark edge outside the white, so it stands off pale layers as well
+       as dark ones. */
+    box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.7), 0 1px 6px rgba(0, 0, 0, 0.5);
     position: relative;
   }
   :global(.me::after) {
@@ -771,6 +1020,7 @@ const config = {
   import { PMTiles, Protocol, TileType } from 'pmtiles';
   import { studyStyle } from '../lib/study-style';
   import { addRelief, addSky, tilting } from '../lib/terrain';
+  import { lens, whenDrawn, snapOpacity, fadeOpacity, FADE } from '../lib/lens';
   import { confirmLeave } from '../lib/leave';
   import { headingOf as compassHeading, requestCompass, hasCompassApi, needsTap, ORIENTATION_EVENTS } from '../lib/compass';
 
@@ -806,6 +1056,7 @@ const config = {
     glyphs: string;
     layers: Layer[];
     themes: Theme[];
+    lensGroups: { id: string; name: string; layers: string[] }[];
     callouts: Callout[];
     posts: Post[];
     bear: { title: string; body: string; image?: string };
@@ -918,12 +1169,73 @@ const config = {
   // it is flat and north-up (terrain.ts).
   tilting(map, abs(config.terrain), document.getElementById('three-d')!, document.getElementById('tilt')!);
 
+  // ---- The lens ------------------------------------------------------------
+  // Down the stack from the top; opened on the layer under the topmost one
+  // that is on, so it looks through what is showing to what lies beneath.
+  const stack = [...config.layers].reverse();
+  const lensUi = lens(map, {
+    root: document.getElementById('lens')!,
+    button: document.getElementById('lens-btn')!,
+    layers: stack,
+    groups: config.lensGroups,
+    style: () => studyStyle({ basemap: abs(config.basemap), glyphs: abs(config.glyphs), limit: config.limit }),
+    terrain: config.terrain,
+    abs,
+    start: () => {
+      const top = stack.findIndex((l) => state.get(l.id)!.on);
+      return top < 0 ? 0 : top + 1;
+    },
+    // The layers list and its button put away while the lens is out: the
+    // lens has its own way through the layers, and the two clash.
+    onToggle: (on) => {
+      main.classList.toggle('lens-open', on);
+      if (on && sheetFor === 'layers') closeSheet();
+    },
+    mainTop: () => stack.find((l) => state.get(l.id)!.on)?.id,
+    // One layer faded into the next: the new one on, clear, and brought up
+    // once its tiles are drawn, the old one taken down under it and only then
+    // switched off.
+    mainSwap: (off, on) => {
+      const layer = config.layers.find((l) => l.id === on)!;
+      state.get(on)!.on = true;
+      if (!map.getLayer(on)) addToMap(layer);
+      if (map.getLayer(on)) {
+        snapOpacity(map, on, 0);
+        map.setLayoutProperty(on, 'visibility', 'visible');
+      }
+      if (off) state.get(off)!.on = false;
+      syncCallouts();
+      renderLegend();
+      lensUi.refresh();
+      whenDrawn(map, () => {
+        // Turned off again before its tiles were in: left at its own
+        // opacity, for the next time it is switched on.
+        if (map.getLayer(on)) (state.get(on)!.on ? fadeOpacity : snapOpacity)(map, on, state.get(on)!.opacity);
+        if (!off || !map.getLayer(off) || state.get(off)!.on) return;
+        fadeOpacity(map, off, 0);
+        setTimeout(() => {
+          if (state.get(off)!.on || !map.getLayer(off)) return;
+          map.setLayoutProperty(off, 'visibility', 'none');
+          snapOpacity(map, off, state.get(off)!.opacity);
+        }, FADE);
+      });
+      // The layers list, if it is open, ticked to match.
+      for (const [id, v] of [[off, false], [on, true]] as const) {
+        const row = id && document.querySelector<HTMLElement>(`#sheet-body [data-layer="${id}"]`);
+        if (!row) continue;
+        row.classList.toggle('on', v);
+        row.querySelector<HTMLInputElement>('input[type="checkbox"]')!.checked = v;
+      }
+    },
+  });
+
   const setLayer = (id: string, on: boolean) => {
     state.get(id)!.on = on;
     if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none');
     else if (on) addToMap(config.layers.find((l) => l.id === id)!);
     syncCallouts();
     renderLegend();
+    lensUi.refresh();
   };
 
   // ---- The legend ----------------------------------------------------------
