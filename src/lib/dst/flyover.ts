@@ -42,9 +42,11 @@ const SHORT = 20;
 const SLOW = 0.2;
 const REACH = 2.5;
 const HOLD = 3;
-/** The callout is up for this share of REACH either side of its view, and
- *  fades in and out over FADE seconds. */
-const SHOW = 0.6;
+/** The callout is up from this share of REACH before its view -- in from
+ *  before the slowing starts -- to this share after, and fades in and out
+ *  over FADE seconds. */
+const BEFORE = 1.4;
+const AFTER = 0.8;
 const FADE = 0.5;
 
 const h00 = (s: number) => 2 * s ** 3 - 3 * s ** 2 + 1;
@@ -241,8 +243,8 @@ export function flight(views: View[], screen: { w: number; h: number }, speed = 
       : [
           {
             i,
-            from: i === 0 ? -FADE : clockOf(times[i] - SHOW * REACH),
-            to: i === n - 1 ? total + FADE : i === 0 ? clockOf(SHOW * REACH) : clockOf(times[i] + SHOW * REACH),
+            from: i === 0 ? -FADE : clockOf(times[i] - BEFORE * REACH),
+            to: i === n - 1 ? total + FADE : i === 0 ? clockOf(AFTER * REACH) : clockOf(times[i] + AFTER * REACH),
           },
         ],
   );
