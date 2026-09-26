@@ -123,7 +123,7 @@ const config = {
       document.getElementById('gate-mail').href =
         'mailto:?subject=' + encodeURIComponent('EcoScapes Data Sandbox') +
         '&body=' + encodeURIComponent('Open the EcoScapes Data Sandbox on a computer or tablet:\n\n' + location.href + '\n');
-      if (/^#m=/.test(location.hash)) document.getElementById('gate-see').hidden = false;
+      if (/^#[mz]=/.test(location.hash)) document.getElementById('gate-see').hidden = false;
     </script>
   </section>
   <!-- The picture, once drawn: the page itself pinches to zoom it. -->
@@ -2465,51 +2465,75 @@ const config = {
   type FlyView = View & { title?: string; text?: string };
   let flyViews: FlyView[] = [];
   const hasCallout = (v: FlyView) => !!(v.title?.trim() || v.text?.trim());
+  // The model in the address, as JSON: deflated (#z=) where the browser can,
+  // which makes a link with a flyover about a third as long -- and its QR code
+  // coarser, so it prints sharper. Plain (#m=) otherwise, and still read.
+  const toB64 = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const fromB64 = (b64: string) => Uint8Array.from(atob(b64.replace(/-/g, '+').replace(/_/g, '/')), (ch) => ch.charCodeAt(0));
+  const through = async (bytes: Uint8Array, stream: CompressionStream | DecompressionStream) =>
+    new Uint8Array(await new Response(new Blob([bytes as BlobPart]).stream().pipeThrough(stream)).arrayBuffer());
+  let hashRun = 0;
+  /** The address brought up to date a moment after the last change. */
   function saveHash() {
     clearTimeout(hashTimer);
-    hashTimer = window.setTimeout(() => {
-      if (!items.length) {
-        history.replaceState(null, '', location.pathname + location.search);
-        return;
-      }
-      const saved: Saved = {
-        v: 1,
-        m: mode,
-        o: op,
-        a: axisNames,
-        b: breaks,
-        c: Number(cutIn.value),
-        i: items.map((it) => [it.id, it.weight, r4(it.bad), r4(it.good), it.axis, ...(it.scores ? [it.scores] : [])] as Saved['i'][number]),
-        ...(steadyIn.checked ? { s: 1 as const } : {}),
-        ...(drawn.length >= 3 ? { d: drawn.map(([x, y]) => [Number(x.toFixed(5)), Number(y.toFixed(5))] as [number, number]) } : {}),
-        ...(flyViews.length
-          ? {
-              f: flyViews.map(
-                (v) =>
-                  [
-                    Number(v.lng.toFixed(5)),
-                    Number(v.lat.toFixed(5)),
-                    Number(v.zoom.toFixed(3)),
-                    Number(v.bearing.toFixed(1)),
-                    Number(v.pitch.toFixed(1)),
-                    Math.round(v.elevation),
-                    ...(hasCallout(v) ? [v.title?.trim() ?? '', v.text?.trim() ?? ''] : []),
-                  ] as NonNullable<Saved['f']>[number],
-              ),
-            }
-          : {}),
-      };
-      const json = JSON.stringify(saved);
-      const b64 = btoa(String.fromCharCode(...new TextEncoder().encode(json))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-      history.replaceState(null, '', `${location.pathname}${location.search}#m=${b64}`);
-    }, 250);
+    hashTimer = window.setTimeout(writeHash, 250);
   }
-  function loadHash() {
-    const m = location.hash.match(/^#m=([A-Za-z0-9_-]+)/);
+  /** The address brought up to date now, for a link or code made from it. */
+  function flushHash() {
+    clearTimeout(hashTimer);
+    return writeHash();
+  }
+  async function writeHash() {
+    const me = ++hashRun;
+    if (!items.length) {
+      history.replaceState(null, '', location.pathname + location.search);
+      return;
+    }
+    const saved: Saved = {
+      v: 1,
+      m: mode,
+      o: op,
+      a: axisNames,
+      b: breaks,
+      c: Number(cutIn.value),
+      i: items.map((it) => [it.id, it.weight, r4(it.bad), r4(it.good), it.axis, ...(it.scores ? [it.scores] : [])] as Saved['i'][number]),
+      ...(steadyIn.checked ? { s: 1 as const } : {}),
+      ...(drawn.length >= 3 ? { d: drawn.map(([x, y]) => [Number(x.toFixed(5)), Number(y.toFixed(5))] as [number, number]) } : {}),
+      ...(flyViews.length
+        ? {
+            f: flyViews.map(
+              (v) =>
+                [
+                  Number(v.lng.toFixed(5)),
+                  Number(v.lat.toFixed(5)),
+                  Number(v.zoom.toFixed(3)),
+                  Number(v.bearing.toFixed(1)),
+                  Number(v.pitch.toFixed(1)),
+                  Math.round(v.elevation),
+                  ...(hasCallout(v) ? [v.title?.trim() ?? '', v.text?.trim() ?? ''] : []),
+                ] as NonNullable<Saved['f']>[number],
+            ),
+          }
+        : {}),
+    };
+    const json = new TextEncoder().encode(JSON.stringify(saved));
+    let hash = `m=${toB64(json)}`;
+    if (typeof CompressionStream !== 'undefined') {
+      try {
+        hash = `z=${toB64(await through(json, new CompressionStream('deflate-raw')))}`;
+      } catch {}
+    }
+    // A newer save started while this one was deflating: that one wins.
+    if (me !== hashRun) return;
+    history.replaceState(null, '', `${location.pathname}${location.search}#${hash}`);
+  }
+  async function loadHash() {
+    const m = location.hash.match(/^#([mz])=([A-Za-z0-9_-]+)/);
     if (!m) return false;
     try {
-      const bin = atob(m[1].replace(/-/g, '+').replace(/_/g, '/'));
-      const saved = JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, (ch) => ch.charCodeAt(0)))) as Saved;
+      let bytes = fromB64(m[2]);
+      if (m[1] === 'z') bytes = await through(bytes, new DecompressionStream('deflate-raw'));
+      const saved = JSON.parse(new TextDecoder().decode(bytes)) as Saved;
       if (saved.v !== 1) return false;
       items = saved.i
         .filter(([id]) => byId.has(id))
@@ -2539,8 +2563,7 @@ const config = {
     }
   }
   document.getElementById('share')!.addEventListener('click', async () => {
-    saveHash();
-    await new Promise((r) => setTimeout(r, 300));
+    await flushHash();
     try {
       await navigator.clipboard.writeText(location.href);
       say(items.length ? 'Link copied: it opens this exact sandbox.' : 'Link copied.');
@@ -2680,6 +2703,7 @@ const config = {
    *  correction the link leaves room for, so the emblem can cover the
    *  middle and the code still reads. */
   async function saveQr() {
+    await flushHash();
     const { default: qrcode } = await import('qrcode-generator');
     let qr: ReturnType<typeof qrcode> | null = null;
     let level = '';
@@ -2762,6 +2786,7 @@ const config = {
     }
     if (!logo.complete) await new Promise((r) => (logo.onload = logo.onerror = r));
 
+    await flushHash();
     const { default: qrcode } = await import('qrcode-generator');
     const qr = qrcode(0, 'L');
     qr.addData(location.href);
@@ -3048,15 +3073,17 @@ const config = {
     }
 
     // A code that opens this exact model, light on dark as a phone reads it.
+    // Each square a whole number of pixels on whole pixels, so none blurs
+    // into the next; the code centred in its light square.
     const n = qr.getModuleCount();
-    const cell = qrSize / (n + 4);
+    const cell = Math.max(1, Math.floor(qrSize / (n + 4)));
     const qx = M + crop.w - qrSize, qy = headTop;
+    const [cx0, cy0] = [Math.round(qx + (qrSize - n * cell) / 2), Math.round(qy + (qrSize - n * cell) / 2)];
     ctx.fillStyle = '#eef2ee';
     ctx.fillRect(qx, qy, qrSize, qrSize);
     ctx.fillStyle = '#0d1210';
     for (let r = 0; r < n; r++)
-      for (let c = 0; c < n; c++)
-        if (qr.isDark(r, c)) ctx.fillRect(qx + (c + 2) * cell, qy + (r + 2) * cell, Math.ceil(cell), Math.ceil(cell));
+      for (let c = 0; c < n; c++) if (qr.isDark(r, c)) ctx.fillRect(cx0 + c * cell, cy0 + r * cell, cell, cell);
     font(9);
     ctx.fillStyle = '#9aa79f';
     ctx.textAlign = 'center';
@@ -4006,10 +4033,11 @@ const config = {
 
   // Opens empty -- the map and the choice are the visitor's -- unless the
   // address carries a model (a shared link).
-  const shared = loadHash();
-  renderFly();
-  render();
-  showNumbers();
-  if (shared) push();
-  if (onPhone) showOnPhone();
+  loadHash().then((shared) => {
+    renderFly();
+    render();
+    showNumbers();
+    if (shared) push();
+    if (onPhone) showOnPhone();
+  });
 </script>
