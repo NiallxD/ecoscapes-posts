@@ -6,13 +6,12 @@
 export type Palette = { id: string; name: string; stops: [number, number, number][] };
 
 export const PALETTES: Palette[] = [
-  { id: 'gold', name: 'Gold', stops: [[45, 35, 24], [111, 71, 18], [180, 110, 15], [233, 158, 31], [255, 221, 128]] },
   { id: 'ember', name: 'Ember', stops: [[44, 24, 22], [112, 28, 28], [190, 54, 26], [240, 122, 32], [255, 216, 124]] },
-  { id: 'glacier', name: 'Glacier', stops: [[20, 32, 44], [26, 66, 112], [44, 116, 184], [112, 176, 232], [218, 240, 255]] },
-  { id: 'lichen', name: 'Lichen', stops: [[22, 38, 34], [18, 88, 82], [26, 142, 124], [92, 204, 164], [206, 246, 214]] },
-  { id: 'fireweed', name: 'Fireweed', stops: [[88, 10, 60], [161, 27, 115], [211, 67, 164], [222, 146, 198], [241, 218, 234]] },
+  { id: 'gold', name: 'Gold', stops: [[45, 35, 24], [111, 71, 18], [180, 110, 15], [233, 158, 31], [255, 221, 128]] },
+  { id: 'glacier', name: 'Glacier', stops: [[3, 0, 29], [10, 15, 78], [22, 43, 125], [42, 80, 163], [75, 124, 191]] },
+  { id: 'forrest', name: 'Forrest', stops: [[2, 15, 4], [16, 73, 17], [47, 122, 38], [91, 163, 68], [144, 182, 121]] },
   { id: 'clear', name: 'Clear sight', stops: [[52, 22, 70], [62, 82, 140], [34, 144, 140], [96, 200, 98], [248, 228, 48]] },
-  { id: 'jungle', name: 'Jungle', stops: [[33, 46, 30], [110, 118, 45], [210, 107, 39], [225, 142, 89], [235, 179, 144]] },
+  { id: 'jungle', name: 'Jungle', stops: [[19, 34, 18], [66, 76, 28], [128, 121, 34], [200, 130, 30], [243, 115, 33]] },
 ];
 
 export const paletteById = (id: string | null) => PALETTES.find((p) => p.id === id) ?? PALETTES[0];

@@ -25,3 +25,11 @@ pnpm-debug.log*
 
 # TerrAdapt login kept by tools/capture-terradapt.mjs --login
 tools/.terradapt-auth.json
+
+# Local copies of the map files (served from R2) and working files kept here
+public/tiles/*.pmtiles
+public/tiles/dst/
+public/tiles/ecoscapes/
+poster.afpub
+poster-gemini.pdf
+transcript.md
