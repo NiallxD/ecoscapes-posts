@@ -267,6 +267,22 @@ const config = {
       <label class="key-op">Strength <input id="opacity" type="range" min="0.2" max="1" step="0.05" value="0.85" /></label>
       <p class="key-foot" id="key-foot"></p>
     </aside>
+    <!-- The flyover's views, in the numbers' place while it is open: views
+         added one by one, then flown through in order, the panels out of
+         the way. -->
+    <div class="pop-menu fly-menu" id="fly-menu" hidden>
+      <p class="pop-title">Flyover</p>
+      <p class="best-note" id="fly-note"></p>
+      <ol class="fly-list" id="fly-list"></ol>
+      <button type="button" class="fly-add" id="fly-add">+ Add this view</button>
+      <label class="fly-speed">Speed <input id="fly-speed" type="range" min="0.4" max="2" step="0.1" value="1" /></label>
+      <div class="fly-row">
+        <button type="button" class="fly-play" id="fly-play" title="Made into a video first, so it plays perfectly smoothly">Play</button>
+        <button type="button" id="fly-live" title="Flown on the live map, straight away">Live</button>
+        <button type="button" id="fly-clear">Clear</button>
+      </div>
+      <button type="button" class="fly-save" id="fly-save" hidden>Save the video</button>
+    </div>
 
     <div class="map-side">
       <!-- Flat, or the scores laid over the ground's own shape. -->
@@ -304,22 +320,8 @@ const config = {
           </svg>
         </button>
       </div>
-      <!-- A flyover: views added one by one while this is open, then flown
-           through in order, the panels out of the way. -->
+      <!-- A flyover: its views in the numbers' place (after .key). -->
       <div class="pop-wrap">
-        <div class="pop-menu fly-menu" id="fly-menu" hidden>
-          <p class="pop-title">Flyover</p>
-          <p class="best-note" id="fly-note"></p>
-          <ol class="fly-list" id="fly-list"></ol>
-          <button type="button" class="fly-add" id="fly-add">+ Add this view</button>
-          <label class="fly-speed">Speed <input id="fly-speed" type="range" min="0.4" max="2" step="0.1" value="1" /></label>
-          <div class="fly-row">
-            <button type="button" class="fly-play" id="fly-play" title="Made into a video first, so it plays perfectly smoothly">Play</button>
-            <button type="button" id="fly-live" title="Flown on the live map, straight away">Live</button>
-            <button type="button" id="fly-clear">Clear</button>
-          </div>
-          <button type="button" class="fly-save" id="fly-save" hidden>Save the video</button>
-        </div>
         <button class="step" id="fly-btn" type="button" aria-expanded="false" aria-controls="fly-menu" aria-label="Flyover" title="Flyover">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="5" cy="18" r="2" /><circle cx="19" cy="6" r="2" /><path d="M6.8 17c4-1 2.5-6 6-7.5 1.6-.7 3-1.3 4.4-2.3" stroke-dasharray="2.2 2.4" />
@@ -369,6 +371,9 @@ const config = {
       <div class="fly-bar" aria-hidden="true"><i></i></div>
       <small></small>
     </div>
+    <!-- A view's callout, pinned to its spot as the live flight passes it
+         (a video has it drawn in). -->
+    <div class="fly-callout" id="fly-callout" hidden><div><h3></h3><p></p></div></div>
     <button class="fly-stop" id="fly-stop" type="button" hidden>Stop the flyover</button>
     <div class="loading-bar" id="loading-bar" aria-hidden="true"></div>
     <p class="toast" id="toast" role="status" aria-live="polite" hidden></p>
@@ -920,16 +925,57 @@ const config = {
   .key-op input { width: 100%; margin: 0; accent-color: var(--accent); }
 
   /* The flyover: its views listed, added, flown. */
-  .fly-menu { width: 16rem; }
-  .fly-list { list-style: none; margin: 0.2rem 0 0; padding: 0; display: grid; gap: 0.1rem; max-height: min(16rem, 40dvh); overflow-y: auto; }
+  .fly-list { list-style: none; margin: 0.2rem 0 0; padding: 0; display: grid; gap: 0.1rem; max-height: min(22rem, 45dvh); overflow-x: hidden; overflow-y: auto; }
   .fly-list:empty { display: none; }
-  .fly-list :global(li) { display: flex; align-items: center; gap: 0.2rem; }
+  .fly-list :global(li) { display: flex; align-items: center; gap: 0.2rem; min-width: 0; }
   .fly-list :global(button) { appearance: none; border: 0; border-radius: 7px; background: none; color: var(--ink); font: inherit; font-size: 0.76rem; cursor: pointer; }
   .fly-list :global(button:hover) { background: var(--bg-lift); }
   .fly-list :global(.fly-go) { flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.45rem; padding: 0.35rem 0.45rem; text-align: left; }
-  .fly-list :global(.fly-go span) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fly-list :global(.fly-go span) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .fly-list :global(.fly-go b) { flex: none; display: grid; place-items: center; width: 1.3rem; height: 1.3rem; border-radius: 50%; background: var(--bg-lift); box-shadow: inset 0 0 0 1px var(--line); font-size: 0.68rem; }
-  .fly-list :global(.fly-del) { flex: none; width: 1.7rem; height: 1.7rem; color: var(--ink-dim); }
+  .fly-list :global(.fly-del), .fly-list :global(.fly-pen) { flex: none; width: 1.7rem; height: 1.7rem; color: var(--ink-dim); }
+  .fly-list :global(.fly-pen) { display: grid; place-items: center; }
+  .fly-list :global(.fly-pen svg) { width: 16px; height: 16px; }
+  .fly-list :global(.fly-pen.on) { color: var(--accent); }
+  .fly-list :global(li.fly-edit) { display: grid; gap: 0.3rem; padding: 0.15rem 0.2rem 0.45rem 2.2rem; }
+  .fly-list :global(.fly-edit input), .fly-list :global(.fly-edit textarea) {
+    width: 100%; box-sizing: border-box; padding: 0.35rem 0.45rem; border-radius: 7px; border: 1px solid var(--line);
+    background: var(--bg); color: var(--ink); font: inherit; font-size: 0.74rem; resize: vertical;
+  }
+  /* Pinned to the view's spot on the ground: a dot there, a stem up from
+     it, and the card on top. Moved into place each frame. */
+  .fly-callout { position: absolute; z-index: 6; left: 0; top: 0; width: 0; height: 0; pointer-events: none; }
+  .fly-callout[hidden] { display: none; }
+  .fly-callout::before {
+    content: '';
+    position: absolute;
+    left: -5px;
+    top: -5px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 3px rgba(13, 18, 16, 0.6);
+  }
+  .fly-callout::after { content: ''; position: absolute; left: -1px; bottom: 5px; width: 2px; height: 56px; background: var(--accent); }
+  .fly-callout div {
+    position: absolute;
+    bottom: 61px;
+    left: 0;
+    transform: translateX(-50%);
+    width: max-content;
+    max-width: min(22rem, calc(100vw - 2rem));
+    padding: 0.6rem 0.9rem 0.65rem;
+    border-radius: 10px;
+    border-bottom: 2px solid var(--accent);
+    background: rgba(13, 18, 16, 0.88);
+    color: var(--ink);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+  }
+  .fly-callout h3 { margin: 0; font-size: 1rem; font-weight: 600; }
+  .fly-callout p { margin: 0.25rem 0 0; font-size: 0.85rem; line-height: 1.4; color: var(--ink-dim); }
+  .fly-callout h3:empty, .fly-callout p:empty { display: none; }
+  .fly-callout h3:empty + p { margin-top: 0; }
   .fly-menu .fly-add { margin-top: 0.3rem; border: 1px dashed var(--line); justify-items: center; }
   .fly-speed { display: grid; gap: 0.15rem; margin: 0.5rem 0.3rem 0.2rem; font-size: 0.7rem; color: var(--ink-dim); }
   .fly-speed input { width: 100%; margin: 0; accent-color: var(--accent); }
@@ -943,7 +989,7 @@ const config = {
   .fly-row .fly-play { border-color: var(--accent); background: var(--accent); color: #0d1210; font-weight: 600; }
   #fly-btn[aria-expanded='true'] { border-color: var(--accent); color: var(--accent); }
   /* Flying: the map and its legend, nothing else but the way to stop. */
-  .flying .dst-panel, .flying .key, .flying .map-side, .flying .map :global(.maplibregl-popup), .flying :global(.best-pin) { display: none; }
+  .fly-open .key, .flying .dst-panel, .flying .key, .flying .map-side, .flying .map :global(.maplibregl-popup), .flying :global(.best-pin) { display: none; }
   .flying .left-col { top: calc(var(--safe-t) + 1rem); }
   .fly-stop {
     position: absolute;
@@ -1125,6 +1171,23 @@ const config = {
   .best-menu { width: 17rem; max-height: min(24rem, 70dvh); overflow-y: auto; }
   /* On a phone the buttons are at the top: their menus hang down. */
   @media (max-width: 47.99rem) { .pop-menu { top: 0; bottom: auto; } }
+  /* The flyover's panel, where the numbers are, which step aside for it. */
+  .pop-menu.fly-menu {
+    z-index: 4;
+    right: 0.9rem;
+    top: calc(var(--safe-t) + 1rem);
+    bottom: auto;
+    width: 19rem;
+    /* Clear of the buttons under it; the list scrolls, not the panel. */
+    max-height: max(18rem, calc(100dvh - var(--safe-t) - 2.6rem - 28.5rem));
+    display: flex;
+    flex-direction: column;
+    padding: 0.6rem 0.65rem 0.65rem;
+  }
+  .pop-menu.fly-menu .fly-list { flex: 0 1 auto; min-height: 3rem; max-height: none; }
+  .pop-menu.fly-menu > * { flex: none; }
+  .pop-menu.fly-menu > .fly-list { flex: 0 1 auto; }
+  @media (max-width: 47.99rem) { .pop-menu.fly-menu { top: calc(var(--safe-t) + 0.8rem); left: 0.9rem; right: auto; width: min(19rem, calc(100% - 5.5rem)); max-height: 70dvh; } }
   /* Wider screens: the numbers in the top right corner, the controls in the
      bottom right under them, and the attribution in the bottom left corner,
      under the panel. */
@@ -2389,13 +2452,19 @@ const config = {
     d?: [number, number][];
     /** How steady is showing. */
     s?: 1;
-    /** A flyover's views: lng, lat, zoom, turn, tilt, ground height. */
-    f?: [number, number, number, number, number, number?][];
+    /** A flyover's views: lng, lat, zoom, turn, tilt, ground height, and
+     *  the callout's title and text. */
+    f?: [number, number, number, number, number, number?, string?, string?][];
   };
   const r4 = (v: number) => Number(v.toPrecision(4));
   let hashTimer = 0;
   const MAX_VIEWS = 30;
-  let flyViews: View[] = [];
+  const TITLE_MAX = 60;
+  const TEXT_MAX = 240;
+  /** A flyover's view, with its callout if it has one. */
+  type FlyView = View & { title?: string; text?: string };
+  let flyViews: FlyView[] = [];
+  const hasCallout = (v: FlyView) => !!(v.title?.trim() || v.text?.trim());
   function saveHash() {
     clearTimeout(hashTimer);
     hashTimer = window.setTimeout(() => {
@@ -2415,7 +2484,18 @@ const config = {
         ...(drawn.length >= 3 ? { d: drawn.map(([x, y]) => [Number(x.toFixed(5)), Number(y.toFixed(5))] as [number, number]) } : {}),
         ...(flyViews.length
           ? {
-              f: flyViews.map((v) => [Number(v.lng.toFixed(5)), Number(v.lat.toFixed(5)), Number(v.zoom.toFixed(3)), Number(v.bearing.toFixed(1)), Number(v.pitch.toFixed(1)), Math.round(v.elevation)] as [number, number, number, number, number, number]),
+              f: flyViews.map(
+                (v) =>
+                  [
+                    Number(v.lng.toFixed(5)),
+                    Number(v.lat.toFixed(5)),
+                    Number(v.zoom.toFixed(3)),
+                    Number(v.bearing.toFixed(1)),
+                    Number(v.pitch.toFixed(1)),
+                    Math.round(v.elevation),
+                    ...(hasCallout(v) ? [v.title?.trim() ?? '', v.text?.trim() ?? ''] : []),
+                  ] as NonNullable<Saved['f']>[number],
+              ),
             }
           : {}),
       };
@@ -2443,7 +2523,16 @@ const config = {
       if (Array.isArray(saved.d) && saved.d.length >= 3) drawn = saved.d.slice(0, 200);
       steadyIn.checked = saved.s === 1;
       if (Array.isArray(saved.f))
-        flyViews = saved.f.slice(0, MAX_VIEWS).map(([lng, lat, zoom, bearing, pitch, elevation]) => ({ lng, lat, zoom, bearing, pitch, elevation: elevation ?? 0 }));
+        flyViews = saved.f.slice(0, MAX_VIEWS).map(([lng, lat, zoom, bearing, pitch, elevation, title, text]) => ({
+          lng,
+          lat,
+          zoom,
+          bearing,
+          pitch,
+          elevation: elevation ?? 0,
+          title: String(title ?? '').slice(0, TITLE_MAX),
+          text: String(text ?? '').slice(0, TEXT_MAX),
+        }));
       return items.length > 0;
     } catch {
       return false;
@@ -3300,28 +3389,46 @@ const config = {
     const c = map.getCenter();
     return { lng: c.lng, lat: c.lat, zoom: map.getZoom(), bearing: map.getBearing(), pitch: map.getPitch(), elevation: map.getCenterElevation() };
   };
-  const plan = () => flight(flyViews, { w: el.clientWidth, h: el.clientHeight }, Number(flySpeed.value));
+  const plan = () => flight(flyViews, { w: el.clientWidth, h: el.clientHeight }, Number(flySpeed.value), flyViews.map(hasCallout));
+  const flyCallout = document.getElementById('fly-callout')!;
+  /** The view whose callout is open for editing in the list, if any. */
+  let editing = -1;
   // ?flyover-debug: the path drawn on the map and charted (flyover-debug.ts).
   const flyDebug = new URLSearchParams(location.search).has('flyover-debug')
     ? new FlightDebug(map, page, () => `score in view missing ${score.pending} loading ${score.loading} held ${score.held}`)
     : null;
   if (flyDebug) score.onTile = (key, ms) => flyDebug.note('score-tile-in', `${key} upload ${ms.toFixed(1)}ms`);
+  const flyLabel = (v: FlyView) => {
+    if (v.title?.trim()) return v.title.trim();
+    const at = near(v.lng, v.lat);
+    return at[0].toUpperCase() + at.slice(1);
+  };
+  const CALLOUT_ICON =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M5 4.5h14a1.5 1.5 0 011.5 1.5v8a1.5 1.5 0 01-1.5 1.5h-5.5L12 19l-1.5-3.5H5A1.5 1.5 0 013.5 14V6A1.5 1.5 0 015 4.5z" /><path d="M8 8.5h8M8 11.5h5" /></svg>';
   function renderFly() {
     flyList.innerHTML = flyViews
-      .map((v, i) => {
-        const at = near(v.lng, v.lat);
-        return (
-          `<li><button type="button" class="fly-go" data-go="${i}" title="Go to this view"><b>${i + 1}</b><span>${esc(at[0].toUpperCase() + at.slice(1))}</span></button>` +
-          `<button type="button" class="fly-del" data-del="${i}" aria-label="Remove view ${i + 1}" title="Remove">×</button></li>`
-        );
-      })
+      .map(
+        (v, i) =>
+          `<li><button type="button" class="fly-go" data-go="${i}" title="Go to this view"><b>${i + 1}</b><span>${esc(flyLabel(v))}</span></button>` +
+          `<button type="button" class="fly-pen${hasCallout(v) ? ' on' : ''}" data-edit="${i}" aria-expanded="${editing === i}" aria-label="Callout for view ${i + 1}" title="Callout: words pinned to this spot as the flight passes, slowing down for them">${CALLOUT_ICON}</button>` +
+          `<button type="button" class="fly-del" data-del="${i}" aria-label="Remove view ${i + 1}" title="Remove">×</button></li>` +
+          (editing === i
+            ? `<li class="fly-edit"><input data-title="${i}" maxlength="${TITLE_MAX}" placeholder="Callout title" value="${esc(v.title ?? '')}" />` +
+              `<textarea data-text="${i}" maxlength="${TEXT_MAX}" rows="2" placeholder="A sentence or two (optional)">${esc(v.text ?? '')}</textarea></li>`
+            : ''),
+      )
       .join('');
+    renderFlyStatus();
+  }
+  /** Everything but the list, so typing a callout keeps its place. */
+  function renderFlyStatus() {
+    const stops = flyViews.filter(hasCallout).length;
     flyNote.textContent =
       flyViews.length >= 2
-        ? `${flyViews.length} views, about ${Math.round(plan().duration)} seconds.`
+        ? `${flyViews.length} views${stops ? `, ${stops} with a callout` : ''}, about ${Math.round(plan().duration)} seconds.${stops ? '' : ' The speech bubble on a view adds a callout.'}`
         : flyViews.length
-          ? 'Now move to the next view and add that too.'
-          : 'Move the map to where the flight starts, as close and as tilted as you want it, and add it. Then the next, and the next. A right-drag turns the camera where it stands, to aim it.';
+          ? 'Now move to the next view and add that too. The speech bubble on a view gives it a callout, pinned to that spot, and the flight slows to show it.'
+          : 'Move the map to where the flight starts, as close and as tilted as you want it, and add it. Then the next, and the next. A right-drag turns the camera where it stands, to aim it. The speech bubble on a view gives it a callout, and the flight slows to show it.';
     flyPlay.disabled = flyLive.disabled = flyViews.length < 2;
     // Made already, and nothing changed since: it plays at once.
     const made = !!video && video.key === videoKey();
@@ -3338,6 +3445,7 @@ const config = {
     }
     flyOpen = open;
     flyMenu.hidden = !open;
+    page.classList.toggle('fly-open', open);
     if (open) popup.remove();
     flyBtn.setAttribute('aria-expanded', String(open));
     if (open) renderFly();
@@ -3350,6 +3458,7 @@ const config = {
   document.getElementById('fly-add')!.addEventListener('click', () => {
     if (flyViews.length >= MAX_VIEWS) return say(`A flyover takes up to ${MAX_VIEWS} views.`);
     flyViews.push(viewNow());
+    editing = -1;
     renderFly();
     flyList.lastElementChild?.scrollIntoView({ block: 'nearest' });
     saveHash();
@@ -3359,14 +3468,35 @@ const config = {
     if (!b) return;
     if (b.dataset.del !== undefined) {
       flyViews.splice(Number(b.dataset.del), 1);
+      editing = -1;
       renderFly();
       saveHash();
+    } else if (b.dataset.edit !== undefined) {
+      const i = Number(b.dataset.edit);
+      editing = editing === i ? -1 : i;
+      renderFly();
+      flyList.querySelector('.fly-edit')?.scrollIntoView({ block: 'nearest' });
+      flyList.querySelector<HTMLInputElement>(`[data-title="${i}"]`)?.focus({ preventScroll: true });
     } else {
       const v = flyViews[Number(b.dataset.go)];
       map.easeTo({ center: [v.lng, v.lat], zoom: v.zoom, bearing: v.bearing, pitch: v.pitch, duration: 900 });
     }
   });
+  flyList.addEventListener('input', (e) => {
+    const f = e.target as HTMLInputElement | HTMLTextAreaElement;
+    const i = Number(f.dataset.title ?? f.dataset.text);
+    const v = flyViews[i];
+    if (!v) return;
+    if (f.dataset.title !== undefined) v.title = f.value;
+    else v.text = f.value;
+    const row = flyList.querySelector(`[data-go="${i}"] span`);
+    if (row) row.textContent = flyLabel(v);
+    flyList.querySelector(`[data-edit="${i}"]`)?.classList.toggle('on', hasCallout(v));
+    renderFlyStatus();
+    saveHash();
+  });
   flyClear.addEventListener('click', () => {
+    editing = -1;
     flyViews = [];
     renderFly();
     saveHash();
@@ -3597,6 +3727,103 @@ const config = {
       ctx.fillText('Best fit', (w + rw) / 2, (y + 42) * u);
     }
   }
+  /** Where a view's callout is pinned on screen, in CSS pixels: the ground
+   *  at its spot, or null when that is behind the camera or off screen. */
+  function pinOf(v: FlyView) {
+    const p = map.project([v.lng, v.lat]);
+    const [w, h] = [el.clientWidth, el.clientHeight];
+    return Number.isFinite(p.x) && Number.isFinite(p.y) && p.x > -40 && p.x < w + 40 && p.y > -40 && p.y < h + 40 ? p : null;
+  }
+  /** The stem from the spot up to the card, in CSS pixels. */
+  const STEM = 56;
+  /** A view's callout drawn into a video frame, as it looks on the live map:
+   *  a dot on its spot, a stem up, a dark card on top. */
+  function drawCallout(ctx: CanvasRenderingContext2D, w: number, h: number, v: FlyView, alpha: number) {
+    const pin = pinOf(v);
+    if (!pin) return;
+    const css = getComputedStyle(page);
+    const colour = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback;
+    // CSS pixels to the frame's.
+    const u = w / el.clientWidth;
+    const [px, py] = [pin.x * u, pin.y * u];
+    const font = (size: number, weight = 400) => (ctx.font = `${weight} ${size * u}px system-ui, -apple-system, 'Segoe UI', sans-serif`);
+    const most = Math.min(352 * u, w - 32 * u) - 29 * u;
+    /** Words into lines no wider than `most`, in the font set now. */
+    const wrap = (text: string) => {
+      const lines: string[] = [];
+      for (const word of text.split(/\s+/).filter(Boolean)) {
+        const last = lines[lines.length - 1];
+        if (last !== undefined && ctx.measureText(`${last} ${word}`).width <= most) lines[lines.length - 1] = `${last} ${word}`;
+        else lines.push(word);
+      }
+      return lines;
+    };
+    const [title, text] = [v.title?.trim() ?? '', v.text?.trim() ?? ''];
+    font(16, 600);
+    const tl = wrap(title);
+    const tw = Math.max(0, ...tl.map((l) => ctx.measureText(l).width));
+    font(13.6);
+    const bl = wrap(text);
+    const bw = Math.max(0, ...bl.map((l) => ctx.measureText(l).width));
+    const [padX, padY, th, bh, gap] = [14.4 * u, 10 * u, 20 * u, 19 * u, tl.length && bl.length ? 4 * u : 0];
+    const boxW = Math.max(tw, bw) + 2 * padX;
+    const boxH = tl.length * th + gap + bl.length * bh + 2 * padY;
+    const [x, y] = [px - boxW / 2, py - (STEM + 5) * u - boxH];
+    const accent = colour('--accent', '#7fe0a8');
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = accent;
+    ctx.fillRect(px - 1 * u, py - (STEM + 5) * u, 2 * u, STEM * u);
+    ctx.beginPath();
+    ctx.arc(px, py, 8 * u, 0, 2 * Math.PI);
+    ctx.fillStyle = 'rgba(13, 18, 16, 0.6)';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(px, py, 5 * u, 0, 2 * Math.PI);
+    ctx.fillStyle = accent;
+    ctx.fill();
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+    ctx.shadowBlur = 24 * u;
+    ctx.shadowOffsetY = 6 * u;
+    ctx.fillStyle = 'rgba(13, 18, 16, 0.88)';
+    ctx.beginPath();
+    ctx.roundRect(x, y, boxW, boxH, 10 * u);
+    ctx.fill();
+    ctx.shadowColor = 'transparent';
+    ctx.fillStyle = accent;
+    ctx.fillRect(x + 8 * u, y + boxH - 2 * u, boxW - 16 * u, 2 * u);
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    let ty = y + padY;
+    font(16, 600);
+    ctx.fillStyle = colour('--ink', '#eef2ee');
+    for (const l of tl) {
+      ctx.fillText(l, x + padX, ty + 1 * u);
+      ty += th;
+    }
+    ty += gap;
+    font(13.6);
+    ctx.fillStyle = colour('--ink-dim', '#9aa79f');
+    for (const l of bl) {
+      ctx.fillText(l, x + padX, ty + 2 * u);
+      ty += bh;
+    }
+    ctx.restore();
+  }
+  /** The live flight's callout, as it is now: pinned to its spot. */
+  let calloutAt = -1;
+  function showCallout(c: { i: number; a: number } | null) {
+    const pin = c && pinOf(flyViews[c.i]);
+    flyCallout.hidden = !pin;
+    if (!c || !pin) return (calloutAt = -1);
+    if (calloutAt !== c.i) {
+      calloutAt = c.i;
+      flyCallout.querySelector('h3')!.textContent = flyViews[c.i].title?.trim() ?? '';
+      flyCallout.querySelector('p')!.textContent = flyViews[c.i].text?.trim() ?? '';
+    }
+    flyCallout.style.transform = `translate(${pin.x}px, ${pin.y}px)`;
+    flyCallout.style.opacity = String(c.a);
+  }
   const videoKey = () =>
     JSON.stringify([location.hash, flyViews, flySpeed.value, getComputedStyle(page).getPropertyValue('--ramp'), map.getCanvas().width, map.getCanvas().height]);
   /** Drawn complete: redrawn at once, and again each frame until every tile
@@ -3633,7 +3860,10 @@ const config = {
           size: { w: map.getCanvas().width, h: map.getCanvas().height },
           draw: async (t, ctx, w, h) => {
             await settle(f.at(t), me);
-            if (flying === me) ctx.drawImage(map.getCanvas(), 0, 0, w, h);
+            if (flying !== me) return;
+            ctx.drawImage(map.getCanvas(), 0, 0, w, h);
+            const c = f.callout(t);
+            if (c) drawCallout(ctx, w, h, flyViews[c.i], c.a);
           },
           onProgress: (k, n) => {
             if (flying !== me) return;
@@ -3701,6 +3931,7 @@ const config = {
       const v = f.at(t);
       const j0 = performance.now();
       map.jumpTo({ center: [v.lng, v.lat], zoom: v.zoom, bearing: v.bearing, pitch: v.pitch, elevation: v.elevation });
+      showCallout(f.callout(t));
       flyDebug?.frame(now, t, v, performance.now() - j0);
       flyDebug?.playhead(t, v);
       if (t >= f.duration) {
@@ -3722,6 +3953,7 @@ const config = {
     hideCover();
     flyVideo.pause();
     flyVideo.hidden = true;
+    showCallout(null);
     score.keep = 700;
     map.setCenterClampedToGround(true);
     flyDebug?.playhead(-1);

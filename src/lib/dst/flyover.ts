@@ -8,7 +8,8 @@
  *  12 never passes 12). The ground moves at an even pace on screen, however
  *  the zoom changes: across a leg, progress over the ground goes with how far
  *  out the camera is at that moment, as MapLibre's own flyTo does, so a zoom
- *  in does not end in a rush. */
+ *  in does not end in a rush. Near a view with a callout the whole flight
+ *  slows, to give time to read it, and at the two ends it holds. */
 export type View = { lng: number; lat: number; zoom: number; bearing: number; pitch: number; elevation: number };
 
 // Web Mercator, the whole world 0..1 across and down.
@@ -32,13 +33,27 @@ const STEPS = 128;
  *  R seconds become sqrt(R * SHORT) -- 5 s to 10, 10 to 14 -- so a flight
  *  between two nearby views is not over in a blink. Longer ones as they are. */
 const SHORT = 20;
+/** Lingering at a view with a callout: the whole flight -- over the ground,
+ *  the zoom, the turn, the tilt -- eased down to SLOW of its pace and back up
+ *  over REACH seconds of flight either side of the view, so it drifts past
+ *  rather than stopping. At the first and last views, where it is still
+ *  anyway, held HOLD seconds instead. Seconds as flown, whatever the speed,
+ *  so there is always time to read. */
+const SLOW = 0.2;
+const REACH = 2.5;
+const HOLD = 3;
+/** The callout is up for this share of REACH either side of its view, and
+ *  fades in and out over FADE seconds. */
+const SHOW = 0.6;
+const FADE = 0.5;
 
 const h00 = (s: number) => 2 * s ** 3 - 3 * s ** 2 + 1;
 const h10 = (s: number) => s ** 3 - 2 * s ** 2 + s;
 const h01 = (s: number) => -2 * s ** 3 + 3 * s ** 2;
 const h11 = (s: number) => s ** 3 - s ** 2;
 
-export function flight(views: View[], screen: { w: number; h: number }, speed = 1) {
+/** `linger`: for each view, whether it has a callout, to slow down for. */
+export function flight(views: View[], screen: { w: number; h: number }, speed = 1, linger: boolean[] = []) {
   const side = Math.min(screen.w, screen.h);
   const n = views.length;
   // Where each view is on the world, and its turn taken the short way round
@@ -168,8 +183,8 @@ export function flight(views: View[], screen: { w: number; h: number }, speed = 
     return i;
   };
 
-  /** Where the camera is `t` seconds in. */
-  function at(t: number): View {
+  /** Where the camera is `t` seconds into the flight, before lingering. */
+  function flown(t: number): View {
     if (n === 1) return { ...views[0] };
     t = Math.min(Math.max(t, 0), duration);
     const i = leg(t);
@@ -180,7 +195,70 @@ export function flight(views: View[], screen: { w: number; h: number }, speed = 
     const xy = along(i, progress[i][k] + (progress[i][k + 1] - progress[i][k]) * (f - k));
     return { lng: lngOf(xy[0]), lat: latOf(xy[1]), zoom, bearing, pitch: Math.min(80, Math.max(0, pitch)), elevation };
   }
-  return { duration, times, at };
+
+  // Lingering: seconds of flight to seconds on the clock, through how fast
+  // the flight runs at each moment (1 but near a view with a callout).
+  const marks = times.filter((_, i) => linger[i] && i > 0 && i < n - 1);
+  const rate = (t: number) => {
+    let r = 1;
+    for (const m of marks) {
+      const u = Math.abs(t - m) / REACH;
+      if (u < 1) r = Math.min(r, 1 - ((1 - SLOW) * (1 + Math.cos(Math.PI * u))) / 2);
+    }
+    return r;
+  };
+  const lead = n > 1 && linger[0] ? HOLD : 0;
+  const tail = n > 1 && linger[n - 1] ? HOLD : 0;
+  const K = Math.max(1, Math.ceil(duration * 120));
+  const clock = [0];
+  for (let k = 1; k <= K; k++) {
+    const [t0, t1] = [((k - 1) * duration) / K, (k * duration) / K];
+    clock.push(clock[k - 1] + ((t1 - t0) * (1 / rate(t0) + 1 / rate(t1))) / 2);
+  }
+  const clockOf = (t: number) => {
+    const f = (Math.min(Math.max(t, 0), duration) / (duration || 1)) * K;
+    const k = Math.min(K - 1, Math.floor(f));
+    return lead + clock[k] + (clock[k + 1] - clock[k]) * (f - k);
+  };
+  const flownAt = (T: number) => {
+    T -= lead;
+    if (T <= 0) return 0;
+    if (T >= clock[K]) return duration;
+    let [lo, hi] = [0, K];
+    while (hi - lo > 1) {
+      const mid = (lo + hi) >> 1;
+      if (clock[mid] <= T) lo = mid;
+      else hi = mid;
+    }
+    return ((lo + (T - clock[lo]) / (clock[lo + 1] - clock[lo] || 1)) * duration) / K;
+  };
+  const total = n > 1 ? lead + clock[K] + tail : 0;
+  // When each callout is up, on the clock: from the start or to the end at
+  // the first and last views, where the flight holds.
+  const shown = views.flatMap((_, i) =>
+    !linger[i] || n < 2
+      ? []
+      : [
+          {
+            i,
+            from: i === 0 ? -FADE : clockOf(times[i] - SHOW * REACH),
+            to: i === n - 1 ? total + FADE : i === 0 ? clockOf(SHOW * REACH) : clockOf(times[i] + SHOW * REACH),
+          },
+        ],
+  );
+
+  /** Where the camera is `t` seconds in, lingering and all. */
+  const at = (t: number) => flown(flownAt(t));
+  /** The callout up `t` seconds in, if any: its view and how far faded in. */
+  function callout(t: number) {
+    let best: { i: number; a: number } | null = null;
+    for (const s of shown) {
+      const a = Math.min(1, (t - s.from) / FADE, (s.to - t) / FADE);
+      if (a > 0 && (!best || a > best.a)) best = { i: s.i, a };
+    }
+    return best;
+  }
+  return { duration: total, times: times.map(clockOf), at, callout };
 }
 
 /** Where the camera itself is for a view, in Web Mercator units (x, y, and
