@@ -37,7 +37,8 @@ bear:
 # (the last on top), and needs its name, file and place in the list.
 layers:
   - id: connectivity-linkages
-    on: true
+    # Off unless asked for: a post's "Explore the map" opens /map/ with
+    # ?layers=connectivity-linkages; plain /map/ opens with no layer on.
     # When you are standing in one: the tag beside your dot, and the card it
     # opens. Draft wording -- for Murray to check.
     here:

@@ -1,0 +1,7 @@
+# From the portal's Felt style. See shared/tools/build-vector-layers.py.
+# value  R   G   B   A
+nv       0   0   0   0
+1 40 138 71 255
+1.000001 40 138 71 255
+2 146 210 132 255
+2.000001 146 210 132 255

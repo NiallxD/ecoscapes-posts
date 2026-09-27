@@ -280,5 +280,61 @@
    "polygons": "",
    "colour": "112,168,0"
   }
+ },
+ {
+  "id": "invasive-species",
+  "name": "Invasive species",
+  "source": {
+   "vector": "invasive-species"
+  }
+ },
+ {
+  "id": "protected-areas-iucn",
+  "name": "Protected areas (IUCN category)",
+  "source": {
+   "vector": "protected-areas-iucn"
+  }
+ },
+ {
+  "id": "protected-areas-cpcad",
+  "name": "Protected and conserved areas",
+  "source": {
+   "vector": "protected-areas-cpcad"
+  }
+ },
+ {
+  "id": "bec-zones",
+  "name": "Biogeoclimatic zones",
+  "source": {
+   "vector": "bec-zones"
+  }
+ },
+ {
+  "id": "biodiversity-categories",
+  "name": "Biodiversity categories",
+  "source": {
+   "vector": "biodiversity-categories"
+  }
+ },
+ {
+  "id": "occurrences-mammals",
+  "name": "Mammal occurrences",
+  "source": {
+   "vector": "occurrences-mammals"
+  }
+ },
+ {
+  "id": "occurrences-herptiles",
+  "name": "Amphibian and reptile occurrences",
+  "source": {
+   "vector": "occurrences-herptiles"
+  }
+ },
+ {
+  "id": "occurrences-vascular-plants",
+  "name": "Vascular plant occurrences",
+  "source": {
+   "vector": "occurrences-vascular-plants"
+  }
  }
 ]

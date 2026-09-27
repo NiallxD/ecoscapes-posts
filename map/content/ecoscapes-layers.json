@@ -1508,5 +1508,333 @@
     "theme": "05-connectivity-network",
     "subtheme": "05-05-valley-dwellers-and-commuters",
     "about": "Where common garter snakes are most likely to find what they need to live: food, shelter and cover. Darker is better habitat."
+  },
+  {
+    "id": "invasive-species",
+    "name": "Invasive species",
+    "src": "/tiles/ecoscapes/invasive-species.pmtiles",
+    "source": "BC Invasive Species Observations (2025)",
+    "opacity": 0.8,
+    "resampling": "nearest",
+    "kind": "classes",
+    "legend": [
+      {
+        "colour": "#effd75",
+        "label": "Low"
+      },
+      {
+        "colour": "#f2d43d",
+        "label": "Moderate"
+      },
+      {
+        "colour": "#f98d3a",
+        "label": "High"
+      },
+      {
+        "colour": "#ce141f",
+        "label": "Very High"
+      }
+    ],
+    "indicators": [
+      "02-02-05-invasive-species"
+    ],
+    "theme": "02-ecosystem-integrity",
+    "subtheme": "02-02-habitat-threats",
+    "about": "Where invasive plants such as Japanese knotweed have been found, coloured by how much of a threat each one poses."
+  },
+  {
+    "id": "protected-areas-iucn",
+    "name": "Protected areas (IUCN category)",
+    "src": "/tiles/ecoscapes/protected-areas-iucn.pmtiles",
+    "source": "Canadian Protected and Conserved Areas Database (CPCAD)",
+    "opacity": 0.8,
+    "resampling": "nearest",
+    "kind": "categories",
+    "legend": [
+      {
+        "colour": "#288a47",
+        "label": "Ia: Strict Nature Reserve"
+      },
+      {
+        "colour": "#33b25b",
+        "label": "Ib: Wilderness Area"
+      },
+      {
+        "colour": "#53b466",
+        "label": "II: Designated Park"
+      },
+      {
+        "colour": "#0ee251",
+        "label": "III: National Monument or Feature"
+      },
+      {
+        "colour": "#6bb8c7",
+        "label": "IV: Habitat or Species Management Area"
+      },
+      {
+        "colour": "#edbe5e",
+        "label": "V: Protected Landscape or Seascape"
+      },
+      {
+        "colour": "#92d284",
+        "label": "OECM"
+      }
+    ],
+    "indicators": [
+      "01-01-02-habitat-protection"
+    ],
+    "theme": "01-biodiversity-conservation",
+    "subtheme": "01-01-ecosystem-resilience",
+    "about": "Parks, reserves and other conserved land, by how strictly each is protected under the IUCN's categories."
+  },
+  {
+    "id": "protected-areas-cpcad",
+    "name": "Protected and conserved areas",
+    "src": "/tiles/ecoscapes/protected-areas-cpcad.pmtiles",
+    "source": "Canadian Protected and Conserved Areas Database (CPCAD)",
+    "opacity": 0.6,
+    "resampling": "nearest",
+    "kind": "categories",
+    "legend": [
+      {
+        "colour": "#288a47",
+        "label": "IUCN Protected Area"
+      },
+      {
+        "colour": "#92d284",
+        "label": "OECM"
+      }
+    ],
+    "indicators": [
+      "01-01-02-habitat-protection"
+    ],
+    "theme": "01-biodiversity-conservation",
+    "subtheme": "01-01-ecosystem-resilience",
+    "about": "Land set aside for nature: formal protected areas, and other areas conserved in practice (OECMs)."
+  },
+  {
+    "id": "bec-zones",
+    "name": "Biogeoclimatic zones",
+    "src": "/tiles/ecoscapes/bec-zones.pmtiles",
+    "source": "BC Vegetation Resource Inventory (VRI-2025)",
+    "opacity": 0.8,
+    "resampling": "nearest",
+    "kind": "categories",
+    "legend": [
+      {
+        "colour": "#fcf800",
+        "label": "Bunchgrass"
+      },
+      {
+        "colour": "#f5fab3",
+        "label": "Boreal Altai Fescue Alpine"
+      },
+      {
+        "colour": "#ffd54f",
+        "label": "Interior Mountain-heather Alpine"
+      },
+      {
+        "colour": "#f8f868",
+        "label": "Ponderosa Pine"
+      },
+      {
+        "colour": "#bfea69",
+        "label": "Montane Spruce"
+      },
+      {
+        "colour": "#94dc04",
+        "label": "Engelmann Spruce  –  Subalpine Fir"
+      },
+      {
+        "colour": "#00ca87",
+        "label": "Interior Douglas-fir"
+      },
+      {
+        "colour": "#4ad804",
+        "label": "Coastal Mountain-heather Alpine"
+      },
+      {
+        "colour": "#4ce600",
+        "label": "Mountain Hemlock"
+      },
+      {
+        "colour": "#44b30c",
+        "label": "Coastal Western Hemlock"
+      },
+      {
+        "colour": "#008a5c",
+        "label": "Coastal Douglas-fir"
+      }
+    ],
+    "indicators": [
+      "03-01-01-biogeoclimatic-zones"
+    ],
+    "theme": "03-in-situ-biodiversity",
+    "subtheme": "03-01-forest-ecosystems",
+    "about": "The region's broad ecological zones, set by climate, from coastal rainforest to alpine meadows."
+  },
+  {
+    "id": "biodiversity-categories",
+    "name": "Biodiversity categories",
+    "src": "/tiles/ecoscapes/biodiversity-categories.pmtiles",
+    "source": "BC Terrestrial Ecosystem Information (TEI-2025)",
+    "opacity": 0.8,
+    "resampling": "nearest",
+    "kind": "categories",
+    "legend": [
+      {
+        "colour": "#e86316",
+        "label": "Highest"
+      },
+      {
+        "colour": "#ee7a36",
+        "label": "Very high"
+      },
+      {
+        "colour": "#f09b6a",
+        "label": "High"
+      },
+      {
+        "colour": "#f8df04",
+        "label": "Moderate to high"
+      },
+      {
+        "colour": "#f8ea6e",
+        "label": "Moderate (lower rarity)"
+      },
+      {
+        "colour": "#fff59e",
+        "label": "Moderate (intermediate rarity)"
+      },
+      {
+        "colour": "#3dee7d",
+        "label": "Low to moderate"
+      },
+      {
+        "colour": "#5cd7ea",
+        "label": "Low"
+      },
+      {
+        "colour": "#9df6ef",
+        "label": "Low (very low rarity)"
+      }
+    ],
+    "indicators": [
+      "03-02-01-site-series"
+    ],
+    "theme": "03-in-situ-biodiversity",
+    "subtheme": "03-02-ecological-communities",
+    "about": "How much rare, endemic and distinctive plant and animal life each ecosystem holds."
+  },
+  {
+    "id": "occurrences-mammals",
+    "name": "Mammal occurrences",
+    "src": "/tiles/ecoscapes/occurrences-mammals.pmtiles",
+    "source": "Global Biodiversity Information Facility (GBIF)",
+    "opacity": 0.95,
+    "resampling": "nearest",
+    "kind": "categories",
+    "legend": [
+      {
+        "colour": "#ae2a07",
+        "label": "Red List"
+      },
+      {
+        "colour": "#727fc0",
+        "label": "Blue List"
+      },
+      {
+        "colour": "#dbb807",
+        "label": "Yellow List"
+      },
+      {
+        "colour": "#c6910b",
+        "label": "Exotic"
+      },
+      {
+        "colour": "#828282",
+        "label": "Unlisted"
+      },
+      {
+        "colour": "#797979",
+        "label": "historical"
+      }
+    ],
+    "indicators": [
+      "03-03-02-mammals"
+    ],
+    "theme": "03-in-situ-biodiversity",
+    "subtheme": "03-03-species-at-risk",
+    "about": "Where mammals have been recorded, coloured by their conservation status in BC."
+  },
+  {
+    "id": "occurrences-herptiles",
+    "name": "Amphibian and reptile occurrences",
+    "src": "/tiles/ecoscapes/occurrences-herptiles.pmtiles",
+    "source": "Global Biodiversity Information Facility (GBIF)",
+    "opacity": 0.95,
+    "resampling": "nearest",
+    "kind": "categories",
+    "legend": [
+      {
+        "colour": "#b84210",
+        "label": "Red List"
+      },
+      {
+        "colour": "#2e89c2",
+        "label": "Blue List"
+      },
+      {
+        "colour": "#bcd00d",
+        "label": "Yellow List"
+      },
+      {
+        "colour": "#7f7f7f",
+        "label": "Unlisted"
+      },
+      {
+        "colour": "#979796",
+        "label": "Not Applicable"
+      }
+    ],
+    "indicators": [
+      "03-03-03-herpetofauna"
+    ],
+    "theme": "03-in-situ-biodiversity",
+    "subtheme": "03-03-species-at-risk",
+    "about": "Where frogs, toads, salamanders, lizards and snakes have been recorded, coloured by their conservation status in BC."
+  },
+  {
+    "id": "occurrences-vascular-plants",
+    "name": "Vascular plant occurrences",
+    "src": "/tiles/ecoscapes/occurrences-vascular-plants.pmtiles",
+    "source": "Global Biodiversity Information Facility (GBIF)",
+    "opacity": 0.95,
+    "resampling": "nearest",
+    "kind": "categories",
+    "legend": [
+      {
+        "colour": "#9e5008",
+        "label": "Red List"
+      },
+      {
+        "colour": "#4e8bd4",
+        "label": "Blue List"
+      },
+      {
+        "colour": "#dfc203",
+        "label": "Yellow List"
+      },
+      {
+        "colour": "#a7a7a8",
+        "label": "NA"
+      }
+    ],
+    "indicators": [
+      "03-03-01-vascular-plants"
+    ],
+    "theme": "03-in-situ-biodiversity",
+    "subtheme": "03-03-species-at-risk",
+    "about": "Where native and introduced plants have been recorded, coloured by their conservation status in BC."
   }
 ]

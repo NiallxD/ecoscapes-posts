@@ -12,6 +12,10 @@ A catalogue entry names where a layer's values come from:
 
   "source": {"drive": "<path under the EcoScapes Drive archive>"}
   "source": {"felt": "<pipeline_dataset_id in shared/tools/felt-layers.json>"}
+  "source": {"vector": "<id in shared/tools/build-vector-layers.py>"}
+
+A vector layer is one of the portal's shape layers, burned to values by
+shared/tools/build-vector-layers.py (kept under --work, as map/tools/build-map.py).
 
 A Drive layer is read as it is. `"mask": {"drive": ...}` clips a layer to
 another's footprint -- for the few that fill past their real edge with zeros. A Felt layer's values are fetched first
@@ -100,6 +104,10 @@ def source(e, a):
     s = e["source"]
     if "drive" in s:
         return os.path.join(a.drive, s["drive"])
+    if "vector" in s:
+        subprocess.run(["python3", "shared/tools/build-vector-layers.py", "--values-only", "--drive", a.drive,
+                        "--work", a.work, s["vector"]], check=True, stdout=subprocess.DEVNULL)
+        return os.path.join(a.work, "vector", f"{s['vector']}.tif")
     fid = s["felt"]
     tif = os.path.join(a.work, "felt", f"{fid}.tif")
     if not os.path.exists(tif):

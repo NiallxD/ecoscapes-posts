@@ -23,6 +23,12 @@ hand -- unless --restyle.
 A polygon layer is burned to a raster (map/tools/rasterize-polygons.py) and tiled
 the same way.
 
+  "source": {"vector": "<id in shared/tools/build-vector-layers.py>"}
+
+One of the portal's vector layers, burned to values by
+shared/tools/build-vector-layers.py (kept under --work, shared with
+build-dst.py) and coloured with its committed colour file.
+
 What the page shows for each layer (name, legend, theme, description) lives
 in map/content/ecoscapes-layers.json; this only makes the tile files it points to.
 """
@@ -56,6 +62,10 @@ def main():
                                check=True, stdout=subprocess.DEVNULL)
             subprocess.run(["python3", "map/tools/prepare-layer.py", tif, e["id"], "--colours", style, "--out", out_dir],
                            check=True)
+        elif "vector" in s:
+            tif = vector_values(s["vector"], a.work)
+            subprocess.run(["python3", "map/tools/prepare-layer.py", tif, e["id"], "--colours",
+                            os.path.join(STYLES, f"{e['id']}.txt"), "--out", out_dir], check=True)
         elif s.get("polygons"):
             with tempfile.TemporaryDirectory() as tmp:
                 tif = os.path.join(tmp, "burned.tif")
@@ -78,6 +88,13 @@ def fetch_felt(fid, work):
             check=True, stdout=subprocess.DEVNULL,
         )
     return tif
+
+
+def vector_values(vid, work):
+    """A portal vector layer's values as a GeoTIFF, burned once and kept (the
+    same place as dst/tools/build-dst.py looks)."""
+    subprocess.run(["python3", "shared/tools/build-vector-layers.py", "--values-only", "--work", work, vid], check=True)
+    return os.path.join(work, "vector", f"{vid}.tif")
 
 
 if __name__ == "__main__":
