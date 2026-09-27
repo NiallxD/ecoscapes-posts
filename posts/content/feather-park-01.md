@@ -19,12 +19,13 @@ pano:
   card: /media/feather-park-01/pano-card.jpg
   # The line under this panel.
   rail:
-    title: The Eagle
+    title: Eagle
     # The hero of this animal's page (portrait, under public/).
     image: /media/animals/eagle.jpg
     body: >-
-      The Eagle soars high and surveys the landscape. Take a moment to observe the place around you from the perspective of the Eagle, and situate
-      yourself in this incredible landscape.
+      Eagles see far more sharply than we do, and from high above they take
+      in a whole valley at once. Look around you and find your place in this
+      landscape.
   caption: A full turn from the heart of Squamish.
   # Where true north sits on the panorama's own scale. Derived from the true
   # bearings of Mt Garibaldi, Shannon Falls, downtown and the Chief as seen from
@@ -105,17 +106,16 @@ series:
   title: Placeholder series title
   source: TerrAdapt · Sea-to-Sky model area
   rail:
-    title: The Raven
+    title: Raven
     # The hero of this animal's page (portrait, under public/).
     image: /media/animals/raven.jpg
-    # The Raven carries on through capture and the closing page: having
-    # travelled forty years here, the visitor becomes the Raven and tells the
-    # story of what they see.
+    # The raven's page is also the one opened from the capture and closing
+    # panels: from looking back over the years to adding what is here now.
     body: >-
-      In Indigenous lore the Raven is a time shifter, moving freely through
-      time and space, and a trickster who teaches through the stories it
-      tells. Travel through forty years of change like the Raven, then become
-      it: photograph this place and tell us its story as you see it today.
+      Ravens are among the cleverest birds. They remember places and faces
+      for years, and notice when something has changed. Look back over forty
+      years of change here, then add what you see today: photograph this
+      place and tell us about it.
   # The layer's own palette, sampled from the TerrAdapt legend. Not all of it:
   # the classes that are actually read on this ground, in plain words -- mesic
   # and xeric are moisture, which is a word the map needs and a reader does not.

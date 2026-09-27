@@ -1,0 +1,171 @@
+[
+  {
+    "id": "T1",
+    "goal": "ES.1",
+    "name": "Connected landscapes for wildlife and people", "icon": "how-to-contribute",
+    "short": "Plans that link protected areas across boundaries.",
+    "text": "Strengthen governance and spatial planning so ecological networks link protected areas across scales and administrative boundaries.",
+    "act": "Agreement across jurisdictions about how to connect core habitat areas, and how to write it into formal strategy and land-use plans.",
+    "who": "District of Squamish, SLRD, Squamish Nation, Province, Community Forest",
+    "actions": [{"tool": "connected-landscapes-strategy"}, {"tool": "land-use-course"}, {"tool": "partner-plans"}],
+    "levels": {
+      "global": {"sdg": [15, 11, 17], "goal": "A", "target": "1", "text": "Plan and manage all areas to reduce biodiversity loss", "indicator": "1.1 Land covered by biodiversity-inclusive spatial plans"},
+      "national": {"goal": "A", "target": "1", "text": "Biodiversity-inclusive spatial planning for all areas"},
+      "regional": {"indicator": "Partners with the ecological network in their plans (to define)"}
+    }
+  },
+  {
+    "id": "T14",
+    "goal": "ES.1",
+    "name": "Two-Eyed Seeing", "icon": "two-eyed-seeing",
+    "short": "Indigenous and Western knowledge, side by side.",
+    "text": "A common framework of principles, targets and criteria drawing on the strengths of Indigenous and Western knowledge systems.",
+    "act": "Shared governance at work. A Collaborative Research Agreement with the Squamish Nation, signed in April 2024, binds this work to the Nation's core values and to two-eyed seeing. EcoScapes is designed to complement the stewardship the Nation leads under X̱ay Temíxw, its Sacred Land Use Plan.",
+    "who": "Squamish Nation, with project partners",
+    "actions": [{"tool": "nation-land-use-plan"}, {"tool": "research-agreement"}],
+    "levels": {
+      "global": {"sdg": [16, 17], "goal": "X", "target": "14, 21 & 22", "text": "Integrate biodiversity in decision-making; knowledge; participation", "indicator": null},
+      "national": {"goal": "X", "target": "14, 21 & 22", "text": "Biodiversity in decision-making, with Indigenous knowledge and participation"},
+      "regional": {"indicator": "To be defined with the Squamish Nation"}
+    }
+  },
+  {
+    "id": "T1F",
+    "goal": "ES.2",
+    "chip": "1F",
+    "half": "functional half",
+    "name": "Establish functional wildlife corridors", "icon": "priority-linkages",
+    "short": "Keep wildlife routes open, valley to mountaintop.",
+    "text": "Identify and map wildlife corridors that enable movement for the broadest possible range of species, from valley bottoms to mountaintops.",
+    "act": "Keep these routes open. Plan roads, trails and development around them, not through them.",
+    "who": "Planners, transport, Community Forest",
+    "actions": [{"map": "connectivity-linkages"}, {"map": "landscape-permeability"}, {"tool": "explore-map"}],
+    "levels": {
+      "global": {"sdg": [15], "goal": "A", "target": "1", "text": "Plan and manage all areas to reduce biodiversity loss", "indicator": "1.1 Land covered by biodiversity-inclusive spatial plans"},
+      "national": {"goal": "A", "target": "1", "text": "Biodiversity-inclusive spatial planning for all areas"},
+      "regional": {"indicator": "Functional connectivity: share of an area with moderate to high connectivity value"}
+    }
+  },
+  {
+    "id": "T1S",
+    "goal": "ES.2",
+    "chip": "1S",
+    "half": "structural half",
+    "name": "Restore structural connectivity", "icon": "wetland-riparian",
+    "short": "Reconnect the land along its streams.",
+    "text": "Target restoration on fish-bearing riparian networks and sensitive ecosystems within interconnected high-quality wildland habitat.",
+    "act": "Reconnect the landscape along its streams: culverts, crossings, streamside planting.",
+    "who": "Streamkeepers, transport, restoration groups",
+    "actions": [{"map": "human-footprint"}],
+    "levels": {
+      "global": {"sdg": [15, 6], "goal": "A", "target": "1", "text": "Plan and manage all areas to reduce biodiversity loss", "indicator": "1.1 Land covered by biodiversity-inclusive spatial plans"},
+      "national": {"goal": "A", "target": "1", "text": "Biodiversity-inclusive spatial planning for all areas"},
+      "regional": {"indicator": "Landscape permeability · Riparian network integrity"}
+    }
+  },
+  {
+    "id": "T11",
+    "goal": "ES.3",
+    "name": "Secure ecosystem functions", "icon": "ecosystem-integrity",
+    "short": "Keep nature's free services working.",
+    "text": "Maintain, enhance and restore ecosystem functions for their intrinsic value and the benefits they provide to people.",
+    "act": "Keep the places that give us clean water, flood protection and carbon storage working, and in natural cover.",
+    "who": "Local governments, water managers",
+    "actions": [{"map": "ecosystem-services"}],
+    "levels": {
+      "global": {"sdg": [15, 6], "goal": "B", "target": "11", "text": "Restore, maintain and enhance nature’s contributions to people", "indicator": "B.1 Services provided by ecosystems"},
+      "national": {"goal": "B", "target": "11", "text": "Restore, maintain and enhance nature’s contributions to people"},
+      "regional": {"indicator": "Ecosystem services value, by land cover"}
+    }
+  },
+  {
+    "id": "T2",
+    "goal": "ES.3",
+    "name": "Restore 30% of degraded ecosystems", "icon": "habitat-restoration",
+    "short": "Restore sensitive places where it counts most.",
+    "text": "Focus restoration on the top 30% of important, environmentally sensitive areas degraded by human activity and natural processes.",
+    "act": "Restore where it counts most: sensitive places that will still be buffered as the climate changes.",
+    "who": "Restoration groups, land trusts, resource managers",
+    "actions": [{"map": "sensitivity-buffer"}],
+    "levels": {
+      "global": {"sdg": [15, 13], "goal": "A", "target": "2", "text": "Restore 30% of all degraded ecosystems", "indicator": "2.2 Area under restoration"},
+      "national": {"goal": "A", "target": "2", "text": "30% of degraded ecosystems under effective restoration"},
+      "regional": {"indicator": "Restoration potential: sensitive, degraded land with high climate buffer"}
+    }
+  },
+  {
+    "id": "T3",
+    "goal": "ES.3",
+    "name": "Protect 30% of high-value habitat", "icon": "habitat-protection",
+    "short": "Protect the intact, high-value places first.",
+    "text": "Effectively conserve 30% of lands with high biodiversity value, and increase habitat with high adaptive capacity.",
+    "act": "Protect the intact, high-value places first. The gap between these and what is already protected is the 30×30 job.",
+    "who": "Planners (ESAs, OCPs), land trusts, Province, First Nations",
+    "actions": [{"map": "integrity-habitat"}, {"map": "connectivity-linkages"}],
+    "levels": {
+      "global": {"sdg": [15], "goal": "A", "target": "3", "text": "Conserve 30% of land, waters and seas", "indicator": "3.1 Coverage of protected areas and OECMs"},
+      "national": {"goal": "A", "target": "3", "text": "30% of land conserved and effectively managed (30×30)"},
+      "regional": {"indicator": "Share of high-integrity critical habitat protected"}
+    }
+  },
+  {
+    "id": "T8",
+    "goal": "ES.3",
+    "name": "Climate-informed conservation", "icon": "climate-change",
+    "short": "Conserve places that stay liveable as it warms.",
+    "text": "Increase land that will keep offering suitable habitat and buffer climate variability, so species can persist locally.",
+    "act": "Conserve the places that will stay liveable as the climate shifts: cool valleys, shaded slopes, high ground.",
+    "who": "Planners, Parks, Community Forest",
+    "actions": [{"map": "refugia"}],
+    "levels": {
+      "global": {"sdg": [13, 15], "goal": "A", "target": "8", "text": "Minimize the impact of climate change on biodiversity", "indicator": null},
+      "national": {"goal": "A", "target": "8", "text": "Minimize the impacts of climate change on biodiversity"},
+      "regional": {"indicator": "Share of an area in micro- or macro-refugia"}
+    }
+  },
+  {
+    "id": "T20",
+    "goal": "ES.4",
+    "name": "Adaptive land management", "icon": "community-mapping",
+    "short": "Skills to plan with connectivity in mind.",
+    "text": "Enhance capabilities to integrate connectivity and biodiversity into spatial planning and adaptive land management.",
+    "act": "Learn to use the tools, then act on them. The Planning Guide and the courses live here.",
+    "who": "Land managers, planners",
+    "actions": [{"tool": "planning-guide"}, {"tool": "short-courses"}, {"tool": "data-sandbox"}],
+    "levels": {
+      "global": {"sdg": [4, 17], "goal": "D", "target": "20", "text": "Strengthen capacity-building, technology transfer and cooperation", "indicator": null},
+      "national": {"goal": "D", "target": "20", "text": "Capacity-building and development"},
+      "regional": {"indicator": "People trained through the courses and Planning Guide (to define)"}
+    }
+  },
+  {
+    "id": "T21",
+    "goal": "ES.4",
+    "name": "Knowledge sharing", "icon": "local-knowledge",
+    "short": "The best information, in everyone's hands.",
+    "text": "Ensure the best available information is accessible to decision-makers, practitioners and community members.",
+    "act": "This is EcoScapes itself: every map, method and dataset, open and kept current.",
+    "who": "Nature Squamish",
+    "actions": [{"tool": "website"}, {"tool": "explore-map"}, {"tool": "data-sandbox"}, {"tool": "open-science"}, {"tool": "posts"}],
+    "levels": {
+      "global": {"sdg": [4, 17], "goal": "D", "target": "21", "text": "Ensure knowledge is available and accessible to guide action", "indicator": "21.1 Biodiversity information for monitoring"},
+      "national": {"goal": "D", "target": "21", "text": "Best available knowledge accessible to decision-makers and the public"},
+      "regional": {"indicator": "EcoScapes use: visits, downloads, partners using the data (to define)"}
+    }
+  },
+  {
+    "id": "M",
+    "supplementary": true,
+    "name": "40 years of change",
+    "short": "How the land has changed since 1985.",
+    "text": "Indicators that track how the landscape changes, from satellite records since 1985 to photos taken at the Posts today. They support every goal.",
+    "act": "Add to the record. Take a photo at a Post, log a sighting, join the Community Science course.",
+    "who": "Everyone: the public, volunteers, the university",
+    "actions": [{"map": "human-footprint-change"}, {"tool": "terradapt"}, {"tool": "posts"}, {"tool": "inaturalist"}, {"tool": "community-science"}],
+    "levels": {
+      "global": {"sdg": [15], "goal": "A", "target": null, "text": "Integrity, connectivity and resilience of all ecosystems", "indicator": "A.1 Red List of Ecosystems · A.2 Extent of natural ecosystems"},
+      "national": {"goal": "A", "target": null, "text": "Integrity, connectivity and resilience of all ecosystems"},
+      "regional": {"indicator": "Ecosystem resilience, 1985 to today · Change in human footprint · Land cover change"}
+    }
+  }
+]

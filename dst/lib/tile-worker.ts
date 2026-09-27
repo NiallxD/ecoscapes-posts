@@ -21,11 +21,14 @@ export type TileRequest =
   | { type: 'warm'; srcs: string[] }
   | { type: 'value'; id: number; src: string; z: number; x: number; y: number; px: number; py: number };
 export type TileReply =
-  | { type: 'tile'; id: number; data: Uint8Array | null }
+  /** `failed`: the fetch itself failed, which is not the same as no data. */
+  | { type: 'tile'; id: number; data: Uint8Array | null; failed?: true }
   | { type: 'value'; id: number; byte: number };
 
 const archives = new Map<string, PMTiles>();
-const decoded = new Map<string, Promise<Uint8Array | null>>();
+/** A tile's bytes; null for a tile with no data, undefined for a fetch that
+ *  failed. */
+const decoded = new Map<string, Promise<Uint8Array | null | undefined>>();
 const cancelled = new Set<number>();
 const CACHE = 256; // tiles, about 16 MB
 
@@ -62,7 +65,17 @@ function load(src: string, z: number, x: number, y: number) {
     p = archive(src)
       .getZxy(z, x, y)
       .then((t) => (t ? decode(t.data) : null))
-      .catch(() => null);
+      .catch(() => {
+        // A fetch that failed (a dropped connection) is not a tile with no
+        // data: forgotten, so the next time the view wants it, it is asked
+        // for again rather than left blank for the rest of the visit.
+        if (decoded.get(key) === p) decoded.delete(key);
+        // The reader too: PMTiles keeps a header that failed to arrive as a
+        // failure for good, so every tile of the file would fail after it.
+        // A fresh one asks for the header again.
+        archives.delete(src);
+        return undefined;
+      });
   }
   decoded.set(key, p);
   if (decoded.size > CACHE) decoded.delete(decoded.keys().next().value!);
@@ -86,6 +99,10 @@ self.onmessage = async (e: MessageEvent<TileRequest>) => {
     if (cancelled.delete(m.id)) return;
     const data = await load(m.src, m.z, m.x, m.y);
     if (cancelled.delete(m.id)) return;
+    if (data === undefined) {
+      postMessage({ type: 'tile', id: m.id, data: null, failed: true } satisfies TileReply);
+      return;
+    }
     // A copy goes to the page (its buffer moves with it); the cache keeps its own.
     const copy = data ? data.slice() : null;
     postMessage({ type: 'tile', id: m.id, data: copy } satisfies TileReply, copy ? [copy.buffer] : []);

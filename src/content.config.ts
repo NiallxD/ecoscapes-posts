@@ -45,7 +45,7 @@ const locations = defineCollection({
           /** The animal's picture, under public/ -- the hero of its page. */
           image: z.string().optional(),
         })
-        .default({ title: 'The Eagle', body: 'Observe the place around you from the perspective of the Eagle. Situate yourself in this incredible landscape.' }),
+        .default({ title: 'Eagle', body: 'Eagles see far more sharply than we do, and from high above they take in a whole valley at once. Look around you and find your place in this landscape.' }),
       /** Wide crop for the index card; falls back to the sphere itself. */
       card: z.string().optional(),
       caption: z.string(),
@@ -127,7 +127,7 @@ const locations = defineCollection({
           /** The animal's picture, under public/ -- the hero of its page. */
           image: z.string().optional(),
         })
-          .default({ title: 'The Raven', body: 'The Raven moves freely through time and space, and teaches through the stories it tells. Travel through forty years of change like the Raven, then become it: photograph this place and tell us its story.' }),
+          .default({ title: 'Raven', body: 'Ravens are among the cleverest birds. They remember places and faces for years, and notice when something has changed. Look back over forty years of change here, then add what you see today: photograph this place and tell us about it.' }),
         /** What the colours in the export mean. Drawn as a swatch and a label
          *  per entry, in a row under the video that wraps when it runs out of
          *  width. The export usually burns in its own legend at a size nobody

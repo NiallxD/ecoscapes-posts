@@ -34,6 +34,41 @@ export const MAX_CRITERIA = 8;
 /** A byte's value in the layer's own units. */
 export const valueOf = (layer: ValueLayer, byte: number) => layer.lo + ((byte - 1) / 254) * (layer.hi - layer.lo);
 
+/** A value near the given share of a layer's pixels, from its histogram:
+ *  where a new criterion's thresholds start, so the map shows a spread
+ *  rather than all-best or all-worst. The Sandbox starts a layer from here,
+ *  and the Cycle draws its maps from here, so the two start alike. */
+export function quantile(l: { lo: number; hi: number; hist: number[] }, q: number) {
+  const total = l.hist.reduce((a, b) => a + b, 0);
+  let run = 0;
+  for (let i = 0; i < l.hist.length; i++) {
+    run += l.hist[i];
+    if (run >= q * total) return l.lo + ((i + 0.5) / l.hist.length) * (l.hi - l.lo);
+  }
+  return l.hi;
+}
+
+/** Where a new layer's two thresholds start, as shares of its area, by
+ *  which way is better: from a quarter of the way up the spread to near its
+ *  top, so the ordinary scores poorly and only the stand-out places are
+ *  brightest. */
+export const START: Record<'better' | 'worse', [number, number]> = { better: [0.25, 0.95], worse: [0.05, 0.75] };
+
+/** A new criterion's two thresholds: from START by which way is better, or
+ *  from `q` (shares of the layer's area) when an example or a Cycle map asks
+ *  for somewhere else. A layer of classes steps to the nearest class. */
+export function startAt(
+  l: { lo: number; hi: number; hist: number[]; classes?: { value: number }[] },
+  up: boolean,
+  q?: [number, number],
+) {
+  const snap = (v: number) => (l.classes ? l.classes.reduce((a, c) => (Math.abs(c.value - v) < Math.abs(a.value - v) ? c : a)).value : v);
+  const [qa, qb] = q ?? START[up ? 'better' : 'worse'];
+  const a = snap(l.classes ? l.classes[0].value : quantile(l, qa));
+  const b = snap(l.classes ? l.classes.at(-1)!.value : quantile(l, qb));
+  return { bad: up ? a : b, good: up ? b : a };
+}
+
 /** A criterion's 0..1 score for a value in the layer's own units: 0 at `bad`,
  *  1 at `good`, straight between, clamped (RRN's fuzzy ramp). `good` below
  *  `bad` means lower is better. */

@@ -23,11 +23,13 @@ past) native resolution, so that's what's used -- deeper zooms would just be
 repeating pixels. Every tile fetched is cached on disk under --cache so
 reruns don't refetch.
 """
-import argparse, json, math, os, subprocess, sys, urllib.request, urllib.error
+import argparse, json, math, os, subprocess, sys, time, urllib.request, urllib.error
 import numpy as np
 from PIL import Image
 
 R = 6378137.0  # Web Mercator sphere radius
+# Tiles that could not be fetched after every retry (not tiles with no data).
+FAILED = []
 
 def deg2num(lat, lon, z):
     lat_rad = math.radians(lat)
@@ -55,6 +57,9 @@ def fetch_tile(url_tmpl, z, x, y, cache_dir, band_param=None):
     path = os.path.join(cache_dir, f"{z}_{x}_{y}.png")
     if os.path.exists(path) and os.path.getsize(path) > 0:
         return path
+    # Felt said before that there is nothing here: not asked again.
+    if os.path.exists(path + ".missing"):
+        return None
     url = url_tmpl.replace("{z}", str(z)).replace("{x}", str(x)).replace("{y}", str(y))
     url = url.split("{?")[0]
     qs = "resampling=nearest"
@@ -82,11 +87,14 @@ def fetch_tile(url_tmpl, z, x, y, cache_dir, band_param=None):
                 return None
             if attempt == 3:
                 print(f"  ! failed {url}: {e}", file=sys.stderr)
+                FAILED.append(url)
                 return None
         except Exception as e:
             if attempt == 3:
                 print(f"  ! failed {url}: {e}", file=sys.stderr)
+                FAILED.append(url)
                 return None
+        time.sleep(2 ** attempt)
     return None
 
 def decode(path, base, interval):
@@ -205,6 +213,13 @@ def main():
     with cf.ThreadPoolExecutor(max_workers=6) as ex:
         for tx, ty, p in ex.map(work, jobs):
             results[(tx, ty)] = p
+
+    # A tile that would not come is a hole, not no data -- and the output is
+    # kept and reused by the build scripts, so a hole written now would stay in
+    # every rebuild. Stopped instead; run again and the tiles already fetched
+    # come from the cache.
+    if FAILED:
+        sys.exit(f"{len(FAILED)} tile(s) could not be fetched; nothing written. Run again to retry them.")
 
     for (tx, ty), p in results.items():
         arr = decode(p, band["base"], band["interval"])

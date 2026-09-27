@@ -23,13 +23,13 @@ intro: >-
   The Sea-to-Sky, where you are on it, and what the land around you holds:
   every layer of the EcoScapes map portal, on one map.
 bear:
-  title: The Bear
+  title: Bear
   # The hero of this animal's page (portrait, under public/).
   image: /media/animals/bear.jpg
   body: >-
-    The Bear is on the ground, connected to the landscape. Explore like the
-    Bear: find where you are standing, and look at what the land around you
-    holds.
+    Bears know their ground up close. They cover long distances on foot and
+    read the land by smell as much as by sight. Find where you are standing,
+    and see what the land around you holds.
 # The portal's layers themselves come from map/content/ecoscapes-layers.json.
 # Anything here with a portal layer's id is laid over that layer: which ones
 # are on when the map opens, and the words for standing in one. Anything

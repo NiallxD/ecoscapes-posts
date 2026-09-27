@@ -376,6 +376,10 @@ const coords = `${Math.abs(data.lat).toFixed(2)}°${data.lat >= 0 ? 'N' : 'S'} $
     const chosen = (v: HTMLVideoElement) =>
       new Promise<string | null>((resolve) => {
         const sources = [...v.querySelectorAll('source')];
+        // Declared before settle can run: a clip whose metadata is already in
+        // settles at once, and reading the timer before this line would throw
+        // -- which lost the whole offline copy.
+        let timer = 0;
         const settle = () => {
           clearTimeout(timer);
           v.removeEventListener('loadedmetadata', settle);
@@ -385,7 +389,7 @@ const coords = `${Math.abs(data.lat).toFixed(2)}°${data.lat >= 0 ? 'N' : 'S'} $
         };
         if (v.readyState >= 1) return settle();
         v.addEventListener('loadedmetadata', settle);
-        const timer = setTimeout(settle, 20000);
+        timer = window.setTimeout(settle, 20000);
       });
 
     // After the panorama has its picture, and then only when the main thread

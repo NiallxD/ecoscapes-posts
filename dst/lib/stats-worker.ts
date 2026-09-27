@@ -62,6 +62,8 @@ const BINS = 20;
 const BLOCK = 16;
 const SPREAD = 4;
 const BEST = 5;
+/** How long (ms) before a count whose samples would not load is tried again. */
+const RETRY = 5000;
 const samples = new Map<string, Promise<Uint8Array>>();
 
 function load(src: string) {
@@ -137,7 +139,14 @@ async function run() {
       arrays = await Promise.all(req.layers.map((l) => load(l.src)));
     } catch {
       // A sample would not load. Not counted, but the loop carries on: a throw
-      // here would leave `busy` set and no count would ever run again.
+      // here would leave `busy` set and no count would ever run again. Tried
+      // again in a while, unless a newer request has come in meanwhile, so the
+      // numbers are not left dimmed as loading until something else changes.
+      setTimeout(() => {
+        if (latest[req.kind]) return;
+        latest[req.kind] = req;
+        if (!busy) run();
+      }, RETRY);
       continue;
     }
     // A newer request of this kind came in while loading: count that instead.

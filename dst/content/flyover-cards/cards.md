@@ -28,20 +28,20 @@ For example (without the four spaces in front of each line):
 
 The cards:
 
-## The Eagle
+## Eagle
 Image: eagle.webp
 Seconds: 10
 
-The Eagle soars high and surveys the landscape. Take a moment to observe the place around you from the perspective of the Eagle, and situate yourself in this incredible landscape.
+Eagles see far more sharply than we do, and from high above they take in a whole valley at once. Look around you and find your place in this landscape.
 
-## The Raven
+## Raven
 Image: raven.webp
 Seconds: 10
 
-In Indigenous lore the Raven is a time shifter, moving freely through time and space, and a trickster who teaches through the stories it tells. Travel through forty years of change like the Raven, then become it: photograph this place and tell us its story as you see it today.
+Ravens are among the cleverest birds. They remember places and faces for years, and notice when something has changed. Look back over forty years of change here, then add what you see today: photograph this place and tell us about it.
 
-## The Bear
+## Bear
 Image: bear.webp
 Seconds: 10
 
-The Bear is on the ground, connected to the landscape. Explore like the Bear: find where you are standing, and look at what the land around you holds.
+Bears know their ground up close. They cover long distances on foot and read the land by smell as much as by sight. Find where you are standing, and see what the land around you holds.

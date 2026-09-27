@@ -1,0 +1,39 @@
+{
+  "home": {
+    "eyebrow": "EcoScapes goals",
+    "title": "Connected landscapes for wildlife and people",
+    "lede": "More than 30% of the wildland habitat in the Átl'ḵa7tsem / Howe Sound UNESCO Biosphere Region has been degraded or lost. This page sets out what EcoScapes is doing about it, and how.",
+    "body": [
+      "Canada's 2030 Nature Strategy, its plan under the Kunming-Montreal Global Biodiversity Framework, sets out to halt the loss of nature by protecting, connecting and restoring it. EcoScapes turns ten of its targets into work on the ground here, under four goals.",
+      "They lead to one place: a connected network of protected areas, looked after together (<b>shared governance</b>). Mapping where wildlife moves (<b>connectivity conservation</b>), where habitat is healthiest or most in need (<b>biodiversity conservation</b>), and giving land managers the skills and tools to act on both (<b>capacity development</b>) all build toward it.",
+      "Each target has three tabs: <b>Focus</b>, what it sets out to do; <b>Achieve</b>, the maps, guides and agreements that carry it; and <b>Align</b>, how it lines up with Canada's targets and the global framework.",
+      "Scroll or use the arrow keys to go through it all in order, or pick a goal on the ring and a target from its list."
+    ],
+    "start": "Start with the first goal"
+  },
+  "draft": "to be checked",
+  "goals": [
+    { "id": "ES.1", "name": "Shared governance", "statement": "Establish well-connected networks of intact wildland habitat and protected areas through shared governance.", "colour": "#2a9d8f" },
+    { "id": "ES.2", "name": "Connectivity conservation", "statement": "Identify, maintain and restore ecological networks that enable wildlife movement and the flow of natural processes.", "note": "ES.2 restores the connections between core habitats, and ES.3 the core habitats themselves.", "footnote": "EcoScapes split Target 1 into three sub-targets: T.1 under ES.1 focuses on governance, T.1F under ES.2 on functional connectivity, and T.1S under ES.2 on structural connectivity.", "colour": "#7b61c9" },
+    { "id": "ES.3", "name": "Biodiversity conservation", "statement": "Increase ecosystem health and resilience within connected networks of core habitats.", "note": "ES.3 restores the core habitats, and ES.2 the connections between them.", "colour": "#5f8f26" },
+    { "id": "ES.4", "name": "Capacity development", "statement": "Empower local governments and First Nations to develop actionable conservation strategies.", "colour": "#cf8424" }
+  ],
+  "kmgbfGoals": {
+    "A": "Ecosystems and species: integrity, connectivity, resilience",
+    "B": "Nature’s contributions to people",
+    "C": "Fair sharing of benefits",
+    "D": "Means to deliver: capacity, finance, cooperation",
+    "X": "Cross-cutting: runs through all four goals"
+  },
+  "supplementaryColour": "#6b7a75",
+  "sdgs": [
+    { "n": 4, "name": "Quality Education", "colour": "#C5192D" },
+    { "n": 6, "name": "Clean Water & Sanitation", "colour": "#26BDE2" },
+    { "n": 11, "name": "Sustainable Cities & Communities", "colour": "#FD9D24" },
+    { "n": 13, "name": "Climate Action", "colour": "#3F7E44" },
+    { "n": 15, "name": "Life on Land", "colour": "#56C02B" },
+    { "n": 16, "name": "Peace, Justice & Strong Institutions", "colour": "#00689D" },
+    { "n": 17, "name": "Partnerships for the Goals", "colour": "#19486A" }
+  ],
+  "posterKey": ["#e7e8e7", "#dfda9f", "#c5ac47", "#cab4dc", "#caa99f", "#ac8644", "#8e63b4", "#915b80", "#783a2a"]
+}

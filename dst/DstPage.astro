@@ -4,6 +4,7 @@ import { getImage } from 'astro:assets';
 import type { ImageMetadata } from 'astro';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import Shell from '../shared/layouts/Shell.astro';
+import PhoneGate from '../shared/components/PhoneGate.astro';
 import { asset, tile } from '../shared/lib/paths';
 import layersData from './content/dst-layers.json';
 // The longer text behind each layer's (i), kept as Markdown for the team to
@@ -104,28 +105,15 @@ const config = {
   <!-- On a phone: not the tool, which needs the room, but a way to send
        yourself the link for later, and the map to look at now. iPads and
        computers never see this. -->
-  <section class="phone-gate" aria-labelledby="gate-title">
-    <img class="gate-logo" src={asset('/img/ecoscapes-logo-white.png')} alt="EcoScapes" width="800" height="184" />
-    <p class="eyebrow">Data Sandbox</p>
-    <h1 id="gate-title">This one needs a bigger screen</h1>
-    <p>The Data Sandbox is designed for a computer or a tablet. Send yourself the link and open it there, or take a look at our map explorer on your phone now.</p>
-    <a class="gate-btn gate-main" id="gate-mail" href="mailto:">Email me the link</a>
+  <PhoneGate name="Data Sandbox" text="The Data Sandbox is designed for a computer or a tablet. Send yourself the link and open it there, or take a look at our map explorer on your phone now.">
     <!-- A shared model (a link or a scanned code) can be seen here as a
          picture: the full map image, drawn on the phone when asked. -->
     <button class="gate-btn" id="gate-see" type="button" hidden>See this map on your phone</button>
     <p class="gate-busy" id="gate-busy" role="status" hidden>Drawing the map… this takes a few seconds.</p>
-    <a class="gate-btn" href={asset('/map/')}>Open the map</a>
-    <a class="gate-home" href={asset('/')}>All the posts</a>
-    <!-- The email's address filled in here, on its own: the page's main
-         script has the whole map library to load first, and the button must
-         work whether or not that ever runs. -->
     <script is:inline>
-      document.getElementById('gate-mail').href =
-        'mailto:?subject=' + encodeURIComponent('EcoScapes Data Sandbox') +
-        '&body=' + encodeURIComponent('Open the EcoScapes Data Sandbox on a computer or tablet:\n\n' + location.href + '\n');
       if (/^#[mz]=/.test(location.hash)) document.getElementById('gate-see').hidden = false;
     </script>
-  </section>
+  </PhoneGate>
   <!-- The picture, once drawn: the page itself pinches to zoom it. -->
   <section class="phone-view" id="phone-view" hidden>
     <div class="view-bar">
@@ -384,26 +372,12 @@ const config = {
   .dst-page { position: relative; height: 100dvh; overflow: hidden; }
   /* A phone, upright or on its side: a touch screen under 600px either way.
      The same test is in the script, which then stops before the map. */
-  .phone-gate { display: none; }
   @media (pointer: coarse) and (max-width: 599px), (pointer: coarse) and (max-height: 599px) {
     .dst-page { display: none; }
-    .phone-gate {
-      min-height: 100dvh;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      gap: 0.9rem;
-      max-width: 26rem;
-      margin: 0 auto;
-      padding: calc(var(--safe-t, 0px) + 2rem) 1.5rem 2rem;
-      background: var(--bg);
-    }
   }
   /* Drawing the picture: the map there to draw, but not seen. */
   :global(html.phone-render) .dst-page { display: block; position: fixed; inset: 0; opacity: 0; pointer-events: none; z-index: -1; }
-  :global(html.phone-viewing) .phone-gate { display: none; }
-  .gate-btn:disabled { opacity: 0.5; }
-  button.gate-btn { width: 100%; appearance: none; background: none; font: inherit; cursor: pointer; }
+  :global(html.phone-viewing .phone-gate) { display: none; }
   .gate-busy { font-size: 0.85rem; text-align: center; }
   .phone-view { padding: calc(var(--safe-t, 0px) + 0.8rem) 0.8rem 2rem; background: var(--bg); }
   .phone-view[hidden] { display: none; }
@@ -411,22 +385,6 @@ const config = {
   .view-bar .gate-btn { flex: 1; margin: 0; }
   .view-hint { margin: 0.7rem 0.2rem; font-size: 0.8rem; line-height: 1.45; color: var(--ink-dim); }
   #view-img { display: block; width: 100%; height: auto; border-radius: 6px; }
-  .gate-logo { width: 11rem; height: auto; margin-bottom: 1rem; }
-  .phone-gate .eyebrow { margin: 0; font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
-  .phone-gate h1 { margin: 0; font-size: 1.6rem; line-height: 1.2; }
-  .phone-gate p { margin: 0; line-height: 1.55; color: var(--ink-dim); }
-  .gate-btn {
-    display: block;
-    padding: 0.85rem 1rem;
-    border-radius: 12px;
-    border: 1px solid var(--line);
-    color: var(--ink);
-    text-align: center;
-    text-decoration: none;
-    font-weight: 600;
-  }
-  .gate-main { margin-top: 0.6rem; border-color: var(--accent); background: var(--accent); color: #0d1210; }
-  .gate-home { align-self: center; margin-top: 0.4rem; font-size: 0.85rem; color: var(--ink-dim); }
   .map { position: absolute; inset: 0; background: var(--bg); }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
@@ -1212,13 +1170,15 @@ const config = {
   import { cameraAt, flight, lookFrom, metreAt, type View } from './lib/flyover';
   import { FlightDebug } from './lib/flyover-debug';
   import { ScoreLayer, MAX_CRITERIA, scoreOf, criterionLut, type Criterion, type Op } from './lib/score-layer';
+  import { startAt } from './lib/model';
   import type { Grid, StatsRequest, StatsResponse, Tally } from './lib/stats-worker';
+  import { decodeSaved, encodeSaved, isKey, type Saved } from './lib/share';
+  import { PHONE } from '../shared/lib/phone';
 
   // A phone gets the screen above instead (.phone-gate), and nothing past
   // here runs.
   // Unless a shared model is to be drawn as a picture (showOnPhone, below):
   // then the rest runs behind the screen, the map unseen.
-  const PHONE = '(pointer: coarse) and (max-width: 599px), (pointer: coarse) and (max-height: 599px)';
   const onPhone = matchMedia(PHONE).matches;
   if (onPhone) {
     await new Promise<void>((go) => document.getElementById('gate-see')!.addEventListener('click', () => go(), { once: true }));
@@ -1291,34 +1251,24 @@ const config = {
   // palette validator on this basemap over all 36 pairs: normal vision ΔE
   // 15.8, protan/deutan 12.1. Low/low is dim on purpose: nothing of note.
   const PALETTE = ['#343c39', '#38618d', '#3584e8', '#8c593c', '#998d90', '#9dc1e5', '#e8722f', '#f8b787', '#fff8d6'];
-  const AXIS_COLOURS = [PALETTE[2], PALETTE[6]];
+  /** The key in use: the Sandbox's own, or one a link brought (a map from the
+   *  Cycle keeps the poster's colours) until an example replaces the model. */
+  let palette = PALETTE;
+  /** Each score's colour on its own: the top of its column or row. */
+  const axisColour = (a: number) => palette[a ? 6 : 2];
 
-  /** A value near the given share of a layer's pixels, from its histogram:
-   *  where a new criterion's thresholds start, so the map shows a spread
-   *  rather than all-best or all-worst. */
-  const quantile = (l: Layer, q: number) => {
-    const total = l.hist.reduce((a, b) => a + b, 0);
-    let run = 0;
-    for (let i = 0; i < l.hist.length; i++) {
-      run += l.hist[i];
-      if (run >= q * total) return l.lo + ((i + 0.5) / l.hist.length) * (l.hi - l.lo);
-    }
-    return l.hi;
-  };
   const snap = (l: Layer, v: number) =>
     l.classes ? l.classes.reduce((a, c) => (Math.abs(c.value - v) < Math.abs(a.value - v) ? c : a)).value : v;
   const fresh = (id: string, weight = 1, higher?: 'better' | 'worse', axis: 0 | 1 = 0, q?: [number, number]): Item => {
     const l = byId.get(id)!;
-    const up = (higher ?? l.higher) === 'better';
     // From a quarter of the way up the spread to near its top: the ordinary
     // scores poorly, and only the stand-out places are brightest. An example
-    // can start elsewhere (`q`, shares of the layer's area).
-    const [qa, qb] = q ?? (up ? [0.25, 0.95] : [0.05, 0.75]);
-    const a = snap(l, l.classes ? l.classes[0].value : quantile(l, qa));
-    const b = snap(l, l.classes ? l.classes.at(-1)!.value : quantile(l, qb));
+    // can start elsewhere (`q`, shares of the layer's area). The Cycle's maps
+    // start from the same place (startAt, model.ts).
+    const { bad, good } = startAt(l, (higher ?? l.higher) === 'better', q);
     // A categorical layer starts with every kind in the middle, to be scored.
     const scores = l.categorical ? Object.fromEntries(l.classes!.map((c) => [c.value, 0.5])) : undefined;
-    return { id, weight, bad: up ? a : b, good: up ? b : a, axis, scores };
+    return { id, weight, bad, good, axis, scores };
   };
 
   // Examples, to show what the tool is for. Plainly examples: nobody's
@@ -1531,7 +1481,7 @@ const config = {
   function push() {
     score.setModel(criteria(), op);
     const two = effectiveMode() === 'two';
-    score.setBivariate(two ? { breaks, palette: PALETTE, only } : null);
+    score.setBivariate(two ? { breaks, palette, only } : null);
     syncSteady();
     page.classList.toggle('bi-on', two);
     page.classList.toggle('soloing', soloing());
@@ -1752,7 +1702,7 @@ const config = {
       list.innerHTML = ([0, 1] as const)
         .map(
           (a) => `<div class="axis">
-            <div class="axis-head"><i style="background:${AXIS_COLOURS[a]}"></i>
+            <div class="axis-head"><i style="background:${axisColour(a)}"></i>
               <input class="axis-name" data-axis="${a}" value="${esc(axisNames[a])}" aria-label="Name of the ${a ? 'second' : 'first'} score" maxlength="24">
               <span class="axis-sub">${a ? 'up the key' : 'across the key'}</span></div>
             ${cards(a) || `<p class="empty">No layers in this score yet.</p>`}
@@ -1798,6 +1748,7 @@ const config = {
     mode = p.axes ? 'two' : 'one';
     axisNames = p.axes ? [...p.axes] : [...AXIS_NAMES];
     only = -1;
+    palette = PALETTE;
     solo = -1;
     preset = name;
     render();
@@ -2201,10 +2152,10 @@ const config = {
     document.getElementById('bi-y')!.innerHTML = `<i>${esc(axisNames[1])}</i> →`;
     document.getElementById('lg-bi-x')!.innerHTML = `→ Higher <i>${esc(axisNames[0])}</i>`;
     document.getElementById('lg-bi-y')!.innerHTML = `↑ Higher <i>${esc(axisNames[1])}</i>`;
-    document.getElementById('lg-bi-grid')!.innerHTML = [6, 7, 8, 3, 4, 5, 0, 1, 2].map((c) => `<i style="background:${PALETTE[c]}"></i>`).join('');
+    document.getElementById('lg-bi-grid')!.innerHTML = [6, 7, 8, 3, 4, 5, 0, 1, 2].map((c) => `<i style="background:${palette[c]}"></i>`).join('');
     // Top row first: high on the second axis.
     biGrid.innerHTML = [6, 7, 8, 3, 4, 5, 0, 1, 2]
-      .map((c) => `<button type="button" data-cell="${c}" style="background:${PALETTE[c]}" aria-pressed="${c === only}" aria-label="${esc(cellName(c))}"></button>`)
+      .map((c) => `<button type="button" data-cell="${c}" style="background:${palette[c]}" aria-pressed="${c === only}" aria-label="${esc(cellName(c))}"></button>`)
       .join('');
     biGrid.classList.toggle('isolating', only >= 0);
     const pc = (v: number) => Math.round(v * 100);
@@ -2249,7 +2200,7 @@ const config = {
     only = only === c ? -1 : c;
     for (const x of biGrid.querySelectorAll('button')) x.setAttribute('aria-pressed', String(Number(x.getAttribute('data-cell')) === only));
     biGrid.classList.toggle('isolating', only >= 0);
-    score.setBivariate({ breaks, palette: PALETTE, only });
+    score.setBivariate({ breaks, palette, only });
     showNumbers();
   });
   biGrid.addEventListener('pointerover', (e) => {
@@ -2272,7 +2223,7 @@ const config = {
     breaks[a][k] = v;
     input.value = String(Math.round(v * 100));
     input.previousElementSibling!.textContent = String(Math.round(v * 100));
-    score.setBivariate({ breaks, palette: PALETTE, only });
+    score.setBivariate({ breaks, palette, only });
     recount();
     saveHash();
   });
@@ -2440,22 +2391,6 @@ const config = {
   // two-score names and breaks, the cut-off -- lives in the address, so a
   // link reopens exactly what was on screen. Written as the model changes
   // (replacing, not adding to, the history), read once on opening.
-  type Saved = {
-    v: 1;
-    m: Mode;
-    o: Op;
-    a: [string, string];
-    b: [[number, number], [number, number]];
-    c: number;
-    i: [string, number, number, number, 0 | 1, Record<number, number>?][];
-    /** A drawn area, when there is one. */
-    d?: [number, number][];
-    /** How steady is showing. */
-    s?: 1;
-    /** A flyover's views: lng, lat, zoom, turn, tilt, ground height, and
-     *  the callout's title and text. */
-    f?: [number, number, number, number, number, number?, string?, string?][];
-  };
   const r4 = (v: number) => Number(v.toPrecision(4));
   let hashTimer = 0;
   const MAX_VIEWS = 30;
@@ -2465,13 +2400,6 @@ const config = {
   type FlyView = View & { title?: string; text?: string };
   let flyViews: FlyView[] = [];
   const hasCallout = (v: FlyView) => !!(v.title?.trim() || v.text?.trim());
-  // The model in the address, as JSON: deflated (#z=) where the browser can,
-  // which makes a link with a flyover about a third as long -- and its QR code
-  // coarser, so it prints sharper. Plain (#m=) otherwise, and still read.
-  const toB64 = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  const fromB64 = (b64: string) => Uint8Array.from(atob(b64.replace(/-/g, '+').replace(/_/g, '/')), (ch) => ch.charCodeAt(0));
-  const through = async (bytes: Uint8Array, stream: CompressionStream | DecompressionStream) =>
-    new Uint8Array(await new Response(new Blob([bytes as BlobPart]).stream().pipeThrough(stream)).arrayBuffer());
   let hashRun = 0;
   /** The address brought up to date a moment after the last change. */
   function saveHash() {
@@ -2515,48 +2443,68 @@ const config = {
             ),
           }
         : {}),
+      ...(palette !== PALETTE ? { p: palette } : {}),
     };
-    const json = new TextEncoder().encode(JSON.stringify(saved));
-    let hash = `m=${toB64(json)}`;
-    if (typeof CompressionStream !== 'undefined') {
-      try {
-        hash = `z=${toB64(await through(json, new CompressionStream('deflate-raw')))}`;
-      } catch {}
-    }
+    const hash = await encodeSaved(saved);
     // A newer save started while this one was deflating: that one wins.
     if (me !== hashRun) return;
     history.replaceState(null, '', `${location.pathname}${location.search}#${hash}`);
   }
   async function loadHash() {
-    const m = location.hash.match(/^#([mz])=([A-Za-z0-9_-]+)/);
-    if (!m) return false;
+    const saved = await decodeSaved(location.hash);
+    if (!saved) return false;
     try {
-      let bytes = fromB64(m[2]);
-      if (m[1] === 'z') bytes = await through(bytes, new DecompressionStream('deflate-raw'));
-      const saved = JSON.parse(new TextDecoder().decode(bytes)) as Saved;
-      if (saved.v !== 1) return false;
+      // A link is anyone's to write, so everything in it is checked for what
+      // it should be: a number is a finite number, in range. Anything else is
+      // dropped or put back to its default, rather than reaching the page.
+      const num = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+      const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
       items = saved.i
-        .filter(([id]) => byId.has(id))
+        .filter((it) => Array.isArray(it) && byId.has(it[0]) && num(it[1]) && num(it[2]) && num(it[3]))
         .slice(0, MAX_CRITERIA)
-        .map(([id, weight, bad, good, axis, scores]) => ({ id, weight, bad, good, axis, scores }));
+        .map(([id, weight, bad, good, axis, scores]) => {
+          const l = byId.get(id)!;
+          const cats =
+            scores && typeof scores === 'object'
+              ? Object.fromEntries(
+                  Object.entries(scores)
+                    .filter(([k, s]) => Number.isFinite(Number(k)) && num(s))
+                    .map(([k, s]) => [Number(k), clamp(s, 0, 1)]),
+                )
+              : undefined;
+          return {
+            id,
+            weight: clamp(weight, 0.1, 5),
+            bad: clamp(bad, l.lo, l.hi),
+            good: clamp(good, l.lo, l.hi),
+            axis: axis === 1 ? 1 : 0,
+            scores: l.categorical ? (cats ?? fresh(id).scores) : undefined,
+          };
+        });
       mode = saved.m === 'two' ? 'two' : 'one';
       op = (['mean', 'and', 'or'] as Op[]).includes(saved.o) ? saved.o : 'mean';
       axisNames = [String(saved.a?.[0] ?? AXIS_NAMES[0]).slice(0, 24), String(saved.a?.[1] ?? AXIS_NAMES[1]).slice(0, 24)];
-      if (Array.isArray(saved.b)) breaks = saved.b;
-      if (saved.c) cutIn.value = String(saved.c);
-      if (Array.isArray(saved.d) && saved.d.length >= 3) drawn = saved.d.slice(0, 200);
+      const pair = (p: unknown) => Array.isArray(p) && p.length === 2 && p.every(num) && p[0] >= 0 && p[0] <= p[1] && p[1] <= 1;
+      if (Array.isArray(saved.b) && saved.b.length === 2 && saved.b.every(pair)) breaks = saved.b;
+      if (num(saved.c)) cutIn.value = String(clamp(saved.c, 5, 95));
+      const point = (p: unknown) => Array.isArray(p) && p.length === 2 && p.every(num);
+      if (Array.isArray(saved.d) && saved.d.length >= 3 && saved.d.every(point)) drawn = saved.d.slice(0, 200);
       steadyIn.checked = saved.s === 1;
+      palette = isKey(saved.p) ? saved.p : PALETTE;
       if (Array.isArray(saved.f))
-        flyViews = saved.f.slice(0, MAX_VIEWS).map(([lng, lat, zoom, bearing, pitch, elevation, title, text]) => ({
-          lng,
-          lat,
-          zoom,
-          bearing,
-          pitch,
-          elevation: elevation ?? 0,
-          title: String(title ?? '').slice(0, TITLE_MAX),
-          text: String(text ?? '').slice(0, TEXT_MAX),
-        }));
+        flyViews = saved.f
+          .filter((v) => Array.isArray(v) && v.slice(0, 5).every(num))
+          .slice(0, MAX_VIEWS)
+          .map(([lng, lat, zoom, bearing, pitch, elevation, title, text]) => ({
+            lng,
+            lat,
+            zoom,
+            bearing,
+            pitch,
+            elevation: num(elevation) ? elevation : 0,
+            title: String(title ?? '').slice(0, TITLE_MAX),
+            text: String(text ?? '').slice(0, TEXT_MAX),
+          }));
       return items.length > 0;
     } catch {
       return false;
@@ -2943,7 +2891,7 @@ const config = {
     if (two) {
       const c = 20 * u, g = 3 * u, gx = kx - 3 * c - 2 * g;
       [6, 7, 8, 3, 4, 5, 0, 1, 2].forEach((cell, i) => {
-        ctx.fillStyle = PALETTE[cell];
+        ctx.fillStyle = palette[cell];
         ctx.fillRect(gx + (i % 3) * (c + g), y - 6 * u + Math.floor(i / 3) * (c + g), c, c);
       });
       font(11);
@@ -2996,7 +2944,7 @@ const config = {
       const wtW = wt ? ctx.measureText(wt).width + 10 * u : 0;
       let nx = cx;
       if (two) {
-        ctx.fillStyle = AXIS_COLOURS[c.axis ?? 0];
+        ctx.fillStyle = axisColour(c.axis ?? 0);
         ctx.beginPath();
         ctx.arc(cx + 4 * u, cy + 7 * u, 4 * u, 0, Math.PI * 2);
         ctx.fill();
@@ -3206,7 +3154,7 @@ const config = {
       head =
         total === null || second === null
           ? `<div class="why-total"><span>Both scores need data here.</span></div>`
-          : `<div class="why-total"><i class="why-sw" style="background:${PALETTE[band(second, breaks[1]) * 3 + band(total, breaks[0])]}"></i>` +
+          : `<div class="why-total"><i class="why-sw" style="background:${palette[band(second, breaks[1]) * 3 + band(total, breaks[0])]}"></i>` +
             `<span><b>${esc(cellName(band(second, breaks[1]) * 3 + band(total, breaks[0])))}</b><br>` +
             `${esc(axisNames[0])} ${Math.round(total * 100)} · ${esc(axisNames[1])} ${Math.round(second * 100)} · ${how}</span></div>`;
     } else {
@@ -3225,7 +3173,7 @@ const config = {
               ? `<span class="dim">no data</span>`
               : `${esc(fmt(l, value))}<span class="why-bar"><i style="width:${Math.round(sc! * 100)}%"></i></span>`;
           const wt = op === 'mean' ? ` <span class="dim">×${c.weight}</span>` : '';
-          const dot = two ? `<i class="why-dot" style="background:${AXIS_COLOURS[c.axis ?? 0]}"></i>` : '';
+          const dot = two ? `<i class="why-dot" style="background:${axisColour(c.axis ?? 0)}"></i>` : '';
           return `<tr><td>${dot}${esc(l.name)}${wt}</td><td>${right}</td></tr>`;
         })
         .join('')}</table>`;

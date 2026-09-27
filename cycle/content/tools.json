@@ -1,0 +1,44 @@
+{
+  "planning-guide": {
+    "name": "EC Planning Guide",
+    "title": "Guidance for Establishing Ecological Networks and Corridors in the Squamish Valley, British Columbia",
+    "by": "Miistakis Institute",
+    "text": "How to bring ecological connectivity into local plans, step by step.",
+    "href": "https://rockies.ca/files/reports/EC-PlanningGuide_v2p6_Sept2026.pdf",
+    "cover": "planning-guide.png"
+  },
+  "connected-landscapes-strategy": {
+    "name": "Connected Landscapes strategy",
+    "title": "Connected Landscapes for Wildlife and People. Part I: A Strategy for Ecosystem Resilience in the Sea-to-Sky Region of BC, Canada",
+    "by": "Multiple Authors · v1.0, April 2026",
+    "text": "The shared strategy for a connected network across the Sea-to-Sky.",
+    "cover": "connected-landscapes-strategy.webp"
+  },
+  "land-use-course": { "name": "Land-use policy course", "text": "A short course on writing the network into land-use policy." },
+  "partner-plans": { "name": "Partners' plans", "text": "Where the network is written into policy: the District of Squamish's ESA update, official community plans." },
+  "nation-land-use-plan": {
+    "name": "X̱ay Temíxw Land Use Plan",
+    "title": "X̱ay Temíxw Land Use Plan: for the forests and wilderness of the Squamish Nation Traditional Territory",
+    "by": "Squamish Nation",
+    "text": "The Nation's Sacred Land Use Plan (2001, updated 2023). EcoScapes is designed to complement the stewardship the Nation leads under it.",
+    "href": "https://www.squamish.net/wp-content/uploads/2023/11/Sacred-Land-Use-Plan-2023-Rebrand.pdf",
+    "cover": "xay-temixw-land-use-plan.webp"
+  },
+  "research-agreement": { "name": "Collaborative Research Agreement", "text": "With the Squamish Nation, signed in April 2024." },
+  "explore-map": { "name": "Explore map", "text": "Every layer, on the ground where you stand.", "href": "/map/" },
+  "data-sandbox": { "name": "Data Sandbox", "text": "Weigh the layers yourself and see where fits best.", "href": "/ecoscapes-dst/" },
+  "short-courses": { "name": "Short courses", "text": "Learn to use the maps and tools." },
+  "website": {
+    "name": "EcoScapes website",
+    "title": "EcoScapes: explore how our wild places are changing, and what we must do to protect them",
+    "by": "Nature Squamish",
+    "text": "What EcoScapes is, and why it matters.",
+    "href": "https://ecoscapes.naturesquamish.ca",
+    "cover": "ecoscapes-website.webp"
+  },
+  "open-science": { "name": "Open Science data", "text": "The layers themselves, for GIS staff and researchers." },
+  "posts": { "name": "EcoScapes Posts", "text": "Posts on the trail: the view, forty years of change, and your photos.", "href": "/" },
+  "terradapt": { "name": "40 years of change, on TerrAdapt", "text": "The satellite record of the land since 1985.", "href": "https://terradapt.org/" },
+  "inaturalist": { "name": "iNaturalist", "text": "Log what you see.", "href": "https://www.inaturalist.org/" },
+  "community-science": { "name": "Community Science course", "text": "Learn to add to the record." }
+}

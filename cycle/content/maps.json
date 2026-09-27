@@ -1,0 +1,70 @@
+{
+  "ecosystem-services": {
+    "title": "Ecosystem services",
+    "about": "What nature here provides for free, such as clean water, flood protection and carbon storage. The brighter the colour, the more a place provides.",
+    "source": "Ecosystem Services (Nature Squamish, 2026)",
+    "version": "September 2026",
+    "palette": "gold",
+    "ends": ["Provides less", "Provides most"],
+    "layers": [{"id": "ecosystem-services"}]
+  },
+  "connectivity-linkages": {
+    "title": "Connectivity linkages",
+    "about": "The easiest routes for wildlife to travel between areas of good habitat. The brighter the colour, the stronger the link.",
+    "source": "Connectivity Linkages (Nature Squamish, 2026)",
+    "version": "September 2026",
+    "palette": "glacier",
+    "ends": ["Weaker link", "Stronger link"],
+    "layers": [{"id": "connectivity-linkages"}]
+  },
+  "landscape-permeability": {
+    "title": "Landscape permeability",
+    "about": "How easily wildlife can move across the land. Roads, towns and clearings make it harder. The brighter the colour, the easier the going.",
+    "source": "Structural Connectivity (TerrAdapt, 2022)",
+    "version": "September 2026",
+    "palette": "forrest",
+    "ends": ["Harder to cross", "Easier to cross"],
+    "layers": [{"id": "habitat-permeability"}]
+  },
+  "refugia": {
+    "title": "Micro-refugia × Macro-refugia",
+    "about": "Places sheltered from the worst of a warming climate. Gold: small local shelters, like cool valleys and shaded slopes. Purple: sheltered across the wider region. Deep red: both.",
+    "source": "Climate Micro- and Macrorefugia (J. Stolar, 2026)",
+    "version": "September 2026",
+    "axes": ["Micro-refugia", "Macro-refugia"],
+    "layers": [
+      {"id": "climate-microrefugia", "axis": 0},
+      {"id": "climate-macrorefugia", "axis": 1}
+    ]
+  },
+  "human-footprint": {
+    "title": "Cumulative human impacts",
+    "about": "How strongly people have changed the land, from roads and towns to logging and mines, all added together. The brighter the colour, the heavier the footprint: where reconnecting the land matters most.",
+    "source": "Cumulative human impacts (TerrAdapt, 2022)",
+    "version": "September 2026",
+    "palette": "ember",
+    "ends": ["Lighter footprint", "Heavier footprint"],
+    "layers": [{"id": "cumulative-impacts", "higher": "better"}]
+  },
+  "sensitivity-buffer": {
+    "title": "Ecosystem sensitivity × Climate buffer",
+    "about": "When it's ready, this map will show sensitive places that will stay buffered as the climate changes: where restoration counts most.",
+    "source": "Ecosystem Sensitivity (Nature Squamish, 2026) · Climate Microrefugia (J. Stolar, 2026)",
+    "updating": true
+  },
+  "integrity-habitat": {
+    "title": "Ecosystem integrity × Critical habitat",
+    "about": "When it's ready, this map will show the intact places that also hold critical habitat: where protection counts most.",
+    "source": "Ecosystem Integrity (TerrAdapt, 2022) · SARA Critical Habitat (J. Stolar, 2026)",
+    "updating": true
+  },
+  "human-footprint-change": {
+    "title": "Change in human footprint",
+    "about": "Where the human footprint has grown over forty years. The brighter the colour, the more it has grown. The darkest ground has changed little, or recovered.",
+    "source": "Human footprint change (TerrAdapt)",
+    "version": "September 2026",
+    "palette": "ember",
+    "ends": ["Little change", "Grown most"],
+    "layers": [{"id": "human-footprint-change", "higher": "better", "bad": 0, "good": 20}]
+  }
+}

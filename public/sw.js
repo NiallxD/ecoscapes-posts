@@ -155,7 +155,13 @@ async function tile(request) {
   const cache = await caches.open(TILES);
   const range = request.headers.get('range');
   const key = range ? `${request.url.split('?')[0]}?range=${encodeURIComponent(range)}` : request;
-  const hit = await cache.match(key, MATCH);
+  // PMTiles checks every range against the file's ETag, and when one does not
+  // match -- the file was replaced on the tile host before this site's next
+  // deploy moved TILES_VERSION -- it asks again with cache 'reload'. That
+  // goes to the network and replaces what is kept, so a changed file heals
+  // itself rather than being served half old and half new.
+  const fresh = request.cache === 'reload' || request.cache === 'no-store';
+  const hit = fresh ? undefined : await cache.match(key, MATCH);
   // Kept as a 200 -- the Cache API refuses to store a 206 -- and handed back
   // as the 206 it was, headers and all, so PMTiles cannot tell the difference.
   if (hit) return new Response(hit.body, { status: range ? 206 : 200, headers: hit.headers });
@@ -255,13 +261,64 @@ async function addAllSettled(cacheName, urls) {
   if (failed) throw new Error(`${failed} of ${missing.length} assets could not be cached`);
 }
 
+/**
+ * Build files no kept page needs any more, let go.
+ *
+ * The build's files are named by their contents, so every deploy that
+ * changes the code adds new ones and the old stay behind. They cannot simply
+ * go with the build: a page kept from an older visit still asks for the
+ * files it was built with when it is opened offline. So what stays is what
+ * some kept page reaches -- its own HTML naming a file, and that file naming
+ * others (a script's chunks and workers) -- plus whatever the page just asked
+ * to keep. Run once a worker's life, and only once there are clearly more
+ * than one build's worth.
+ */
+const MAX_ASSETS = 80;
+let pruned = false;
+async function pruneAssets(keepNow) {
+  if (pruned) return;
+  pruned = true;
+  const cache = await caches.open(SHELL);
+  const keys = await cache.keys();
+  const name = (u) => new URL(u).pathname.split('/').pop();
+  const assets = new Map();
+  const pages = [];
+  for (const k of keys) {
+    if (isImmutable(new URL(k.url))) assets.set(name(k.url), k);
+    else pages.push(k);
+  }
+  if (assets.size <= MAX_ASSETS) return;
+  const keep = new Set(keepNow.map(name).filter((n) => assets.has(n)));
+  const todo = [...keep].map((n) => assets.get(n));
+  const scan = async (req) => {
+    const res = await cache.match(req, MATCH);
+    // Only text can name another file; a picture or a font cannot.
+    if (!res || !/html|javascript|css/.test(res.headers.get('content-type') || '')) return;
+    const text = await res.text();
+    for (const [n, k] of assets) {
+      if (keep.has(n) || !text.includes(n)) continue;
+      keep.add(n);
+      todo.push(k);
+    }
+  };
+  for (const p of pages) await scan(p);
+  while (todo.length) await scan(todo.pop());
+  await Promise.all([...assets].filter(([n]) => !keep.has(n)).map(([, k]) => cache.delete(k)));
+}
+
 self.addEventListener('message', (event) => {
   const data = event.data;
   if (!data) return;
 
   // The page telling us which of its own build assets it loaded.
   if (data.type === 'cache-page') {
-    event.waitUntil(addAllSettled(SHELL, data.assets || []).catch(() => {}));
+    const assets = data.assets || [];
+    event.waitUntil(
+      addAllSettled(SHELL, assets)
+        .catch(() => {})
+        .then(() => pruneAssets(assets))
+        .catch(() => {}),
+    );
     return;
   }
 

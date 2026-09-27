@@ -28,6 +28,7 @@ One folder for each part of the site, each with its own README:
 | `posts/` | The field post pages, `/p/<slug>/` |
 | `map/` | The EcoScapes map, `/map/` |
 | `dst/` | The Data Sandbox, `/ecoscapes-dst/` |
+| `cycle/` | EcoScapes Goals, `/ecoscapes/` (not linked yet) |
 | `shared/` | What more than one part uses |
 
 In each: `content/` is the words and settings to edit by hand, the `*Page.astro`

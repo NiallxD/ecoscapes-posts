@@ -1,0 +1,1534 @@
+---
+import { getEntry } from 'astro:content';
+import { getImage } from 'astro:assets';
+import type { ImageMetadata } from 'astro';
+import 'maplibre-gl/dist/maplibre-gl.css';
+import Shell from '../shared/layouts/Shell.astro';
+import PhoneGate from '../shared/components/PhoneGate.astro';
+import { asset, tile } from '../shared/lib/paths';
+import { readCycle } from './lib/content';
+
+/** What EcoScapes is doing, how, and how it connects to the bigger picture:
+ *  a wheel of the four EcoScapes goals (ES.1–ES.4), each with its targets,
+ *  and for each target what it is, the maps and tools that drive action on
+ *  it, and the ladder up through Canada 2030 to the global framework. Maps
+ *  are drawn live by the Data Sandbox's own scoring, so the two never
+ *  disagree. The words are all in cycle/content/, checked at build
+ *  (lib/content.ts). A computer or tablet only for now: a phone gets the
+ *  gate. Not linked from anywhere yet, and kept out of search engines. */
+const entry = await getEntry('ecoscapes', 'sea-to-sky');
+if (!entry) throw new Error('map/content/sea-to-sky.md is missing');
+const { data } = entry;
+const cycle = readCycle();
+
+// Documents' covers (content/docs/), each at the size it's shown and as a
+// small thumbnail for the How tab.
+const docImages = import.meta.glob<ImageMetadata>('./content/docs/*.{png,jpg,jpeg,webp}', { eager: true, import: 'default' });
+const covers: Record<string, { src: string; thumb: string }> = {};
+for (const [id, tool] of Object.entries(cycle.tools)) {
+  if (!tool.cover) continue;
+  const meta = docImages[`./content/docs/${tool.cover}`];
+  if (!meta) throw new Error(`cycle/content/tools.json: ${id}'s cover "${tool.cover}" isn't in cycle/content/docs/`);
+  covers[id] = {
+    src: (await getImage({ src: meta, width: Math.min(760, meta.width), format: 'webp', quality: 82 })).src,
+    thumb: (await getImage({ src: meta, width: 96, format: 'webp', quality: 80 })).src,
+  };
+}
+
+const config = {
+  bounds: data.bounds,
+  limit: data.limit,
+  basemap: tile(data.basemap),
+  terrain: tile('/tiles/terrain.pmtiles'),
+  glyphs: asset('/tiles/fonts/{fontstack}/{range}.pbf'),
+  sandbox: asset('/ecoscapes-dst/'),
+  explore: asset('/map/'),
+  covers,
+  ...cycle,
+};
+---
+<Shell title="EcoScapes Goals" description="What EcoScapes is doing toward 30×30, how, and how it fits the bigger picture: four goals, their targets, and the maps and tools behind each." noindex>
+  <PhoneGate name="Goals" text="The EcoScapes Goals page is designed for a computer or a tablet. Send yourself the link and open it there, or take a look at our map explorer on your phone now." />
+
+  <main class="cycle" id="cycle">
+    <div class="map" id="map" data-config={JSON.stringify(config)}></div>
+
+    <!-- Where there's no map to draw: how the work is carried instead, in
+         the middle of the map showing. -->
+    <div class="map-note" id="map-note" hidden></div>
+    <!-- Where the work is a document: the map darkened, and the documents
+         stacked over it, to open. -->
+    <div class="dim" id="dim"></div>
+    <div class="docs" id="docs" hidden>
+      <div class="stack" id="stack"></div>
+      <div class="doc-btns" id="doc-btns"></div>
+    </div>
+
+    <!-- The map's legend, top right, as on the Data Sandbox: what the map is,
+         its key and strength, and where to take it next. -->
+    <details class="legend" id="legend" open hidden>
+      <summary><h2>Legend</h2><svg class="sum-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg></summary>
+      <h3 class="lg-title" id="map-title"></h3>
+      <p class="lg-src" id="map-src"></p>
+      <div class="lg-key" id="key"></div>
+      <label class="lg-strength">Strength <input id="opacity" type="range" min="0.2" max="1" step="0.05" value="0.85" /></label>
+      <div class="lg-links" id="links"></div>
+    </details>
+
+    <!-- Down the right, as on the other maps. -->
+    <div class="map-side">
+      <!-- Flat, or the map laid over the ground's own shape, with the tilt
+           sliding out of the button while 3D is on. -->
+      <div class="tilt-wrap">
+        <label class="tilt" id="tilt" aria-hidden="true">
+          <span>Tilt</span>
+          <input type="range" min="0" max="80" step="1" value="60" tabindex="-1" aria-label="Tilt" />
+        </label>
+        <button class="step" id="three-d" type="button" aria-pressed="false" aria-label="3D view" title="3D view"><span class="step-text">3D</span></button>
+      </div>
+      <button class="step" id="recentre" type="button" aria-label="Back to Squamish" title="Back to Squamish">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M4 9V5a1 1 0 011-1h4M15 4h4a1 1 0 011 1v4M20 15v4a1 1 0 01-1 1h-4M9 20H5a1 1 0 01-1-1v-4" /><circle cx="12" cy="12" r="2.2" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- The disc, its ring of goals and the buttons on it (lib/wheel.ts). -->
+    <svg class="wheel" id="wheel" role="group" aria-label="The four EcoScapes goals and their targets"></svg>
+
+    <!-- Inside the disc: a goal and its targets, or one target and its tabs;
+         at the foot, all four goals and what supports them. -->
+    <div class="column" id="column">
+      <!-- Out of the words, which fade on every change: the logo stays, and
+           beside it the way to the rest of EcoScapes. -->
+      <div class="top" id="top">
+        <a class="logo-link" id="logo-link" href={asset('/ecoscapes/')} title="About this page"><img class="logo" src={asset('/img/ecoscapes-logo-white.png')} alt="EcoScapes goals: about this page" width="800" height="184" /></a>
+        <nav class="site-nav" aria-label="EcoScapes">
+          <a href="https://ecoscapes.naturesquamish.ca">EcoScapes</a>
+          <a href={asset('/map/')}>Explore</a>
+          <a href={asset('/ecoscapes-dst/')}>Sandbox</a>
+        </nav>
+      </div>
+      <div class="words" id="words">
+        <div class="eyebrow fit" id="eyebrow"></div>
+        <h1 class="fit" id="title"></h1>
+        <p class="lede fit" id="lede"></p>
+        <div class="card" id="card">
+          <div class="tabs fit" role="tablist" aria-label="About this target" id="tabs">
+            <button type="button" role="tab" id="tab-what" data-tab="what" aria-controls="panel" title="What this target is about">Focus</button>
+            <button type="button" role="tab" id="tab-how" data-tab="how" aria-controls="panel" title="The maps and tools that deliver it">Achieve</button>
+            <button type="button" role="tab" id="tab-bigger" data-tab="bigger" aria-controls="panel" title="How it lines up with Canada 2030 and the global framework">Align</button>
+          </div>
+          <div class="tabpane" id="panel" tabindex="0"></div>
+        </div>
+      </div>
+      <!-- The goals bar as a ring, for what supports every goal (lib/goal-ring.ts). -->
+      <svg class="goal-ring" id="goal-ring" aria-label="The four goals this supports"></svg>
+      <div class="foot fit">
+        <h2>EcoScapes goals</h2>
+        <div class="goal-nav" id="goal-nav">
+          {cycle.frameworks.goals.map((g, i) => <button type="button" data-goal={i} style={`--c:${g.colour}`} title={`${g.id}: ${g.name}`}><i></i>{g.id}</button>)}
+        </div>
+        <div class="extra" id="extra">
+          {cycle.targets.filter((t) => t.supplementary).map((t) => (
+            <button type="button" data-target={t.id}>{t.name}<span>All goals</span></button>
+          ))}
+          <button type="button" class="home" id="home" aria-label="About this page" title="About this page">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M4 11l8-6.5 8 6.5M6.5 9.5V19h11V9.5" /><path d="M10 19v-5h4v5" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </main>
+</Shell>
+
+<style>
+  /* Dressed as the Data Sandbox and the map are: their cards, their small
+     capital headings, their buttons, and the accent for what is chosen. */
+  .cycle {
+    position: relative; height: 100dvh;
+    /* Clipped, not only hidden: a chip or goal focused part-way off screen
+       would otherwise scroll the whole page aside to show it. */
+    overflow: clip;
+    /* The disc: the site's own dark at 95%, so the map only just shows
+       through. */
+    --disc: rgba(13, 18, 16, 0.95);
+    --card: rgba(13, 18, 16, 0.9);
+    --reach: 42vw;
+    --mid: 71vw;
+  }
+  /* A phone, upright or on its side: the gate instead. The same test is in
+     the script, which then stops before the map. */
+  @media (pointer: coarse) and (max-width: 599px), (pointer: coarse) and (max-height: 599px) {
+    .cycle { display: none; }
+  }
+  .map { position: absolute; inset: 0; background: var(--bg); }
+  .map :global(.maplibregl-ctrl-bottom-right) { right: calc(0.9rem - 10px); }
+
+  /* ---- The legend, top right --------------------------------------------- */
+  .legend {
+    position: absolute; z-index: 4; right: 0.9rem; top: calc(var(--safe-t) + 1rem); width: 19rem;
+    padding: 0.8rem 0.95rem 0.85rem; border-radius: 14px; border: 1px solid var(--line);
+    background: var(--card); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  }
+  .legend summary { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; list-style: none; cursor: pointer; }
+  .legend summary::-webkit-details-marker { display: none; }
+  .legend h2 { margin: 0; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-dim); }
+  .sum-chev { flex: none; width: 14px; height: 14px; color: var(--ink-dim); transition: transform 0.15s; }
+  .legend summary:hover h2, .legend summary:hover .sum-chev { color: var(--ink); }
+  .legend[open] .sum-chev { transform: rotate(180deg); }
+  .legend[open] summary { margin-bottom: 0.55rem; }
+  .legend summary:focus { outline: none; }
+  .legend summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+  .lg-title { margin: 0; font-size: 0.95rem; line-height: 1.3; }
+  .lg-src { margin: 0.15rem 0 0.7rem; font-size: 0.72rem; line-height: 1.4; color: var(--ink-dim); }
+  .lg-key :global(.ramp) { display: block; height: 10px; border-radius: 5px; }
+  .lg-key :global(.ends) { display: flex; justify-content: space-between; gap: 1rem; margin-top: 0.25rem; font-size: 0.7rem; color: var(--ink-dim); }
+  .lg-key :global(.bi) { display: flex; align-items: center; gap: 0.8rem; }
+  .lg-key :global(.grid) { display: grid; grid-template-columns: repeat(3, 1.6rem); grid-auto-rows: 1.1rem; gap: 2px; }
+  .lg-key :global(.grid i) { border-radius: 3px; }
+  .lg-key :global(.axes) { display: grid; gap: 0.3rem; font-size: 0.72rem; color: var(--ink-dim); }
+  .lg-key :global(.axes b) { font-weight: 600; color: var(--ink); }
+  .lg-strength { display: grid; gap: 0.3rem; margin-top: 0.8rem; font-size: 0.72rem; color: var(--ink-dim); }
+  .lg-strength input { width: 100%; margin: 0; accent-color: var(--accent); }
+  .lg-links { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; margin-top: 0.8rem; }
+  .lg-links:empty { display: none; }
+  .lg-links :global(a) {
+    padding: 0.5rem 0.6rem; border-radius: 10px; border: 1px solid var(--line); background: var(--bg-lift);
+    font-size: 0.78rem; line-height: 1.25; text-align: center; text-decoration: none;
+  }
+  .lg-links :global(a:hover) { border-color: var(--accent); color: var(--accent); }
+  .lg-links :global(a:focus) { outline: none; }
+  .lg-links :global(a:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* Where there's no map to draw, in the middle of the map showing. */
+  .map-note {
+    position: absolute; z-index: 1; top: 50%; left: var(--mid); transform: translate(-50%, -50%);
+    width: min(22rem, calc(100vw - var(--reach) - 4rem)); padding: 1rem 1.1rem; border-radius: 14px;
+    border: 1px solid var(--line); background: var(--card); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    font-size: 0.88rem; line-height: 1.5; color: var(--ink-dim); pointer-events: none;
+  }
+  .map-note :global(.nt-h) { display: block; margin-bottom: 0.3rem; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); }
+  .map-note :global(strong) { display: block; margin-bottom: 0.35rem; font-size: 1rem; color: var(--ink); }
+  .map-note :global(ul) { margin: 0.5rem 0 0; padding: 0; list-style: none; display: grid; gap: 0.25rem; }
+  .map-note :global(li) { display: flex; gap: 0.5rem; align-items: baseline; color: var(--ink); font-size: 0.85rem; }
+  .map-note :global(li::before) { content: ''; flex: none; width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid var(--accent); transform: translateY(-1px); }
+
+  /* Documents, stacked where the map would be: the one in front to open,
+     the ones behind to bring forward. */
+  .docs {
+    position: absolute; z-index: 1; gap: 1.1rem; top: 50%; left: var(--mid); transform: translate(-50%, -50%);
+    display: flex; flex-direction: column; align-items: center; gap: 1.4rem;
+  }
+  /* The map dimmed under the documents, so they're what you look at. */
+  .dim {
+    position: absolute; z-index: 1; inset: 0; background: rgba(5, 8, 7, 0.62);
+    opacity: 0; pointer-events: none; transition: opacity 0.35s;
+  }
+  .dim.on { opacity: 1; }
+  .stack {
+    --w: min(28rem, 33vw, calc((100dvh - 11rem) * 0.774));
+    position: relative; width: var(--w); aspect-ratio: 1 / 1.29;
+    /* Room for the ones behind, which sit up and to the right. */
+    margin: 1.6rem 3.4rem 0 0;
+  }
+  .stack :global(.doc) {
+    position: absolute; inset: 0; margin: 0; border-radius: 4px; overflow: hidden;
+    background: var(--bg-lift); box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.08);
+    transform-origin: 50% 100%;
+    transition: transform 0.55s cubic-bezier(0.2, 0.8, 0.2, 1), filter 0.55s;
+  }
+  .stack :global(.doc img) { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .stack :global(.doc a), .stack :global(.doc button) { display: block; width: 100%; height: 100%; padding: 0; border: 0; background: none; cursor: pointer; }
+  .stack :global(.doc.front) { box-shadow: 0 24px 50px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.12); }
+  .stack :global(.doc.front:hover) { box-shadow: 0 24px 50px rgba(0, 0, 0, 0.6), 0 0 0 2px var(--accent); }
+  .stack :global(.doc:not(.front):hover) { filter: brightness(0.85) !important; }
+  .stack :global(.doc a:focus), .stack :global(.doc button:focus) { outline: none; }
+  .stack :global(.doc a:focus-visible), .stack :global(.doc button:focus-visible) { outline: 3px solid var(--accent); outline-offset: -3px; }
+
+  /* Floating under the covers: the maps' buttons, on a dark glass. */
+  .doc-btns { display: flex; justify-content: center; gap: 0.5rem; }
+  .doc-btns :global(.open), .doc-btns :global(.next), .doc-btns :global(.soon) {
+    appearance: none; padding: 0.6rem 1rem; border-radius: 999px; font: inherit; font-size: 0.85rem; font-weight: 600;
+    text-decoration: none; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  }
+  .doc-btns :global(.open) { border: 1px solid var(--accent); background: rgba(13, 18, 16, 0.85); color: var(--accent); }
+  .doc-btns :global(.open:hover) { background: rgba(127, 209, 166, 0.16); }
+  .doc-btns :global(.next) { border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(13, 18, 16, 0.85); color: var(--ink); cursor: pointer; }
+  .doc-btns :global(.next:hover) { border-color: var(--accent); color: var(--accent); }
+  .doc-btns :global(.soon) { border: 1px dashed var(--line); background: rgba(13, 18, 16, 0.85); color: var(--ink-dim); font-weight: 400; }
+  .doc-btns :global(.open:focus), .doc-btns :global(.next:focus) { outline: none; }
+  .doc-btns :global(.open:focus-visible), .doc-btns :global(.next:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* Down the right, over the attribution. */
+  .map-side {
+    position: absolute; z-index: 4; right: 0.9rem; bottom: calc(1rem + 30px);
+    display: flex; flex-direction: column; gap: 0.6rem;
+  }
+
+  /* ---- The disc and its ring of goals ------------------------------------ */
+  .wheel { position: absolute; z-index: 2; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  /* The disc keeps its drags to itself: the map moves only where it shows. */
+  .wheel :global(.disc) { fill: var(--disc); pointer-events: auto; }
+  .wheel :global(.ring) { pointer-events: auto; cursor: grab; touch-action: none; }
+  .wheel :global(.ring:active) { cursor: grabbing; }
+  .wheel :global(.track) { fill: none; stroke: var(--line); stroke-dasharray: 2 7; }
+  /* Each goal in its own colour: dimmed beside the one you're on. */
+  .wheel :global(.seg) { cursor: pointer; outline: none; }
+  .wheel :global(.seg path) { opacity: 0.35; transition: opacity 0.2s; }
+  .wheel :global(.seg:hover path) { opacity: 0.6; }
+  .wheel :global(.arc.on .seg path) { opacity: 1; stroke: var(--ink); stroke-width: 1.5; }
+  .wheel :global(.seg:focus-visible path) { opacity: 1; stroke: var(--accent); stroke-width: 3; }
+  /* The goal's targets' icons on its arc: darker than it, like a watermark. */
+  .wheel :global(.seg-marks) { fill: #000; opacity: 0.04; pointer-events: none; transition: opacity 0.2s; }
+  .wheel :global(.seg:hover .seg-marks) { opacity: 0.06; }
+  .wheel :global(.arc.on .seg-marks) { opacity: 0.1; }
+  /* ES.4's orange is the lightest, so the same black shows more on it. */
+  .wheel :global(.seg[data-goal="3"] .seg-marks) { opacity: 0.025; }
+  .wheel :global(.seg[data-goal="3"]:hover .seg-marks) { opacity: 0.04; }
+  .wheel :global(.arc.on .seg[data-goal="3"] .seg-marks) { opacity: 0.06; }
+  /* 25px: LABEL_SIZE in lib/wheel.ts. */
+  .wheel :global(.seg-n) { fill: #fff; font-family: ui-rounded, 'SF Pro Rounded', 'Arial Rounded MT Bold', system-ui, sans-serif; font-size: 22px; font-weight: 700; letter-spacing: 0.08em; pointer-events: none; opacity: 0.7; }
+  .wheel :global(.arc.on .seg-n) { opacity: 1; }
+  .wheel :global(.chip) { cursor: pointer; outline: none; opacity: 0.35; transition: opacity 0.18s; }
+  .wheel :global(.arc.on .chip), .wheel :global(.chip:hover), .wheel :global(.chip:focus-visible) { opacity: 1; }
+  .wheel :global(.chip circle) { stroke: var(--bg); stroke-width: 3; }
+  .wheel :global(.chip.sel circle) { stroke: var(--ink); }
+  .wheel :global(.chip:focus-visible circle) { stroke: var(--accent); }
+  /* The ring round a target: Focus, Achieve, Align, lit as you go. */
+  .wheel :global(.prog-bg) { fill: none; stroke: var(--line); stroke-width: 2.5; stroke-linecap: round; }
+  /* Drawn round from its start as it fills; when several fill at once, each
+     after the one before (the delay is set in lib/wheel.ts). */
+  .wheel :global(.prog) {
+    fill: none; stroke: var(--gc, var(--accent)); stroke-width: 2.5; stroke-linecap: round;
+    stroke-dasharray: 1 1; stroke-dashoffset: 1; transition: stroke-dashoffset 0.2s ease-in;
+  }
+  .wheel :global(.prog.done) { stroke-dashoffset: 0; transition: stroke-dashoffset 0.4s linear; }
+  @media (prefers-reduced-motion: reduce) { .wheel :global(.prog), .wheel :global(.prog.done) { transition: none; } }
+  .wheel :global(.chip text) { font-size: 11px; font-weight: 700; pointer-events: none; }
+  /* Back and on: the maps' round buttons. */
+  .wheel :global(.nav) { pointer-events: auto; cursor: pointer; outline: none; }
+  .wheel :global(.nav-body) { fill: var(--bg-lift); stroke: rgba(255, 255, 255, 0.2); stroke-width: 1; transition: stroke 0.18s; }
+  .wheel :global(.nav:hover .nav-body) { stroke: var(--accent); }
+  .wheel :global(.nav:focus-visible .nav-body) { stroke: var(--accent); stroke-width: 2; }
+  .wheel :global(.nav-arrow) { fill: none; stroke: var(--ink); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .wheel :global(.nav:hover .nav-arrow) { stroke: var(--accent); }
+
+  /* ---- Inside the disc --------------------------------------------------- */
+  .column {
+    position: absolute; z-index: 3; left: 40px; top: 28px; bottom: 28px; width: 34vw;
+    display: flex; flex-direction: column; min-height: 0;
+  }
+  /* Faded out before new words go in, and back in after: by the script, a
+     frame at a time (swap). */
+  .words { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .top { flex: none; position: relative; }
+  .logo { display: block; width: 8.5rem; height: auto; }
+  .logo-link { display: inline-block; border-radius: 6px; cursor: pointer; }
+  .logo-link img { cursor: pointer; -webkit-user-drag: none; user-select: none; }
+  .logo-link:focus { outline: none; }
+  .logo-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+  /* Centred between the logo and the ring by the script (placeNav). */
+  .site-nav { position: absolute; top: 50%; left: 10rem; transform: translateY(-50%); display: flex; align-items: center; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.06em; }
+  .site-nav a { padding: 0.2rem 0.6rem; color: var(--ink-dim); text-decoration: none; white-space: nowrap; }
+  .site-nav a + a { border-left: 1px solid var(--line); }
+  .site-nav a:hover { color: var(--ink); }
+  .site-nav a:focus { outline: none; }
+  .site-nav a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+  .eyebrow { margin: 1rem 0 0; font-size: 0.66rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
+  .eyebrow :global(button) {
+    appearance: none; display: inline-flex; align-items: center; gap: 0.45em; padding: 0; border: 0; background: none;
+    color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer;
+  }
+  .eyebrow :global(button:hover) { color: var(--ink); }
+  .eyebrow :global(button:focus) { outline: none; }
+  .eyebrow :global(button:focus-visible) { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
+  .eyebrow :global(i) { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+  .column h1 { margin: 0.3rem 0 0.35rem; font-size: 1.55rem; line-height: 1.2; }
+  .lede { margin: 0 0 0.9rem; font-size: 0.88rem; line-height: 1.5; color: var(--ink-dim); }
+  /* The tab's words fit or are cut back: the text steps down in size first
+     (the script), and only a tab that still won't fit scrolls. */
+  .card { flex: 1; min-height: 0; overflow: hidden; padding-top: 0.8rem; }
+  .card.scrolls { overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+  /* The tabs: the Sandbox's control in parts, the chosen part lifted. */
+  .tabs {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; margin: 0 0 0.8rem; padding: 3px;
+    border-radius: 11px; border: 1px solid var(--line); background: rgba(0, 0, 0, 0.25);
+  }
+  .tabs button {
+    appearance: none; padding: 0.45rem 0.4rem; border: 0; border-radius: 8px; background: none; color: var(--ink-dim);
+    font-size: 0.82rem; cursor: pointer; white-space: nowrap;
+  }
+  .tabs button:hover { color: var(--ink); }
+  .tabs button[aria-selected='true'] { background: var(--bg-lift); color: var(--accent); box-shadow: 0 0 0 1px var(--line); }
+  .tabs button:focus { outline: none; }
+  .tabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .tabpane:focus { outline: none; }
+  /* Its size stepped down by the script when it would not otherwise fit. */
+  .tabpane { font-size: 16px; }
+  /* Headings as the Sandbox's blocks have them. */
+  .tabpane :global(h3) { margin: 0 0 0.6em; font-size: 0.68em; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-dim); }
+  .tabpane :global(p) { margin: 0.4em 0; font-size: 0.875em; line-height: 1.5; }
+  .tabpane :global(.small) { color: var(--ink-dim); font-size: 0.75em !important; }
+  .tabpane :global(.small b) { color: var(--ink); font-weight: 600; }
+  .tabpane :global(.footnote) { margin: 0.9em 0 0; color: var(--ink-dim); font-size: 0.75em; font-style: italic; line-height: 1.45; }
+  .tabpane :global(.note) { margin: 0 0 0.8em; padding-left: 0.7em; border-left: 3px solid var(--c); color: var(--ink-dim); font-size: 0.8em; }
+  .tabpane :global(.act) {
+    margin: 0.7em 0; padding: 0.55em 0.75em; border-radius: 10px; border: 1px solid var(--line);
+    border-left: 3px solid var(--c); background: var(--bg-lift); font-size: 0.875em;
+  }
+  .tabpane :global(.act b) { display: block; margin-bottom: 0.15em; color: var(--ink-dim); font-size: 0.78em; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; }
+  /* A link to another target, where two meet. */
+  .tabpane :global(.also) { margin: 0.5em 0 0; padding: 0; list-style: none; display: grid; gap: 0.3em; font-size: 0.75em; color: var(--ink-dim); }
+  .tabpane :global(.also button), .tabpane :global(.used button) {
+    appearance: none; padding: 0; border: 0; background: none; color: var(--ink); font: inherit; text-align: left;
+    text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; cursor: pointer;
+  }
+  .tabpane :global(.also button:hover), .tabpane :global(.used button:hover) { color: var(--accent); text-decoration-color: currentColor; }
+  .tabpane :global(.dot) { display: inline-block; width: 0.55em; height: 0.55em; margin: 0 0.35em 0.05em 0; border-radius: 50%; background: var(--c); }
+
+  /* A goal's targets: one button each, with what drives it. */
+  .tabpane :global(.tlist) { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.45em; }
+  .tabpane :global(.tlist button) {
+    appearance: none; width: 100%; display: grid; grid-template-columns: 2em 1fr; gap: 0.1em 0.7em; align-items: center;
+    padding: 0.55em 0.7em; border-radius: 10px; border: 1px solid var(--line); background: var(--bg-lift);
+    color: var(--ink); font: inherit; font-size: 0.875em; text-align: left; cursor: pointer;
+  }
+  .tabpane :global(.tlist button:hover) { border-color: var(--accent); }
+  .tabpane :global(.tlist button:focus) { outline: none; }
+  .tabpane :global(.tlist button:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .tabpane :global(.tlist .n) {
+    grid-row: span 2; display: grid; place-items: center; width: 2em; height: 2em; border-radius: 50%;
+    background: var(--c); color: var(--c-ink); font-size: 0.85em; font-weight: 700;
+  }
+  .tabpane :global(.tlist .nm) { font-weight: 600; line-height: 1.3; }
+  .tabpane :global(.tlist .by) { font-size: 0.82em; color: var(--ink-dim); line-height: 1.35; }
+
+  /* How: the maps (to choose between) and the tools. */
+  .tabpane :global(.acts) { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.45em; }
+  .tabpane :global(.acts > li) { padding: 0.55em 0.75em; border-radius: 10px; border: 1px solid var(--line); background: var(--bg-lift); font-size: 0.875em; }
+  .tabpane :global(.acts .kind) { display: block; font-size: 0.72em; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-dim); }
+  .tabpane :global(.acts .nm) { font-weight: 600; }
+  .tabpane :global(.acts p) { margin: 0.2em 0 0; font-size: 0.9em; color: var(--ink-dim); }
+  .tabpane :global(.acts a.nm) { text-decoration: none; }
+  .tabpane :global(.acts .has-cover) { display: grid; grid-template-columns: 2.6em 1fr; gap: 0 0.7em; }
+  .tabpane :global(.acts .thumb) { grid-row: span 3; width: 2.6em; aspect-ratio: 1 / 1.29; border-radius: 2px; object-fit: cover; box-shadow: 0 0 0 1px var(--line); }
+  .tabpane :global(.acts a.nm:hover) { color: var(--accent); }
+  .tabpane :global(.acts .map) { cursor: pointer; }
+  .tabpane :global(.acts .map:hover) { border-color: #3a4843; }
+  .tabpane :global(.acts .map.on) { border-color: var(--accent); }
+  .tabpane :global(.acts .map.on .kind) { color: var(--accent); }
+  .tabpane :global(.acts .map button) {
+    appearance: none; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
+  }
+  .tabpane :global(.acts .map button:focus) { outline: none; }
+  .tabpane :global(.acts .map button:focus-visible) { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
+  .tabpane :global(.tag) {
+    display: inline-block; margin-left: 0.4em; padding: 0.05em 0.45em; border-radius: 6px; border: 1px solid rgba(240, 198, 116, 0.45);
+    color: #f0c674; font-size: 0.72em; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; vertical-align: 0.1em;
+  }
+  .tabpane :global(.used) { display: block; margin-top: 0.3em; font-size: 0.8em; color: var(--ink-dim); }
+
+  /* Align: rings, read from the middle out. */
+  .tabpane :global(.bp-h) { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.8em; margin: 0 0 0.3em; }
+  .tabpane :global(.bp-h h3) { margin: 0; }
+  .tabpane :global(.draft) {
+    padding: 0.15em 0.55em; border-radius: 6px; border: 1px solid rgba(240, 198, 116, 0.45);
+    color: #f0c674; font-size: 0.62em; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; white-space: nowrap;
+  }
+  /* Half-rings, a note for each under them (the same order, the same
+     colours); a note and its arc light up together. */
+  .tabpane :global(.levels) { display: block; width: min(100%, 13em); height: auto; margin: 0.2em auto 0.7em; overflow: visible; }
+  .tabpane :global(.lv-band) {
+    fill: none; stroke: var(--lc); stroke-opacity: 0.55; transition: stroke-opacity 0.2s;
+    stroke-dasharray: 1; stroke-dashoffset: 1; animation: arc-in 0.6s cubic-bezier(0.3, 0.7, 0.2, 1) forwards; animation-delay: calc(0.12s + var(--k) * 0.12s);
+  }
+  .tabpane :global(.lv.on .lv-band) { stroke-opacity: 0.95; }
+  .tabpane :global(.lv-name) { fill: var(--ink); font-size: 10.5px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; pointer-events: none; opacity: 0; animation: fade-in 0.3s ease-out forwards; animation-delay: calc(0.45s + var(--k) * 0.12s); }
+  .tabpane :global(.lv-core) { fill: var(--bg-lift); stroke: var(--line); transition: stroke 0.2s; }
+  .tabpane :global(.lv.on .lv-core) { stroke: var(--ink); }
+  .tabpane :global(.lv-core-t) { fill: var(--ink); font-size: 12px; font-weight: 600; }
+  .tabpane :global(.lv-base) { stroke: var(--line); stroke-width: 1; }
+  .tabpane :global(.lv-notes) { display: grid; gap: 0.6em; opacity: 0; animation: fade-in 0.4s ease-out 0.55s forwards; }
+  .tabpane :global(.lv-note) { padding-left: 0.7em; border-left: 2px solid color-mix(in srgb, var(--lc) 55%, transparent); font-size: 0.8em; line-height: 1.4; transition: border-color 0.2s; }
+  .tabpane :global(.lv-note.on) { border-left-color: var(--lc); }
+  .tabpane :global(.lv-note p) { margin: 0 !important; font-size: 1em !important; }
+  .tabpane :global(.lv-h) { display: flex; align-items: center; gap: 0.45em; color: var(--lc) !important; font-size: 0.78em !important; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; }
+  .tabpane :global(.lv-h i) { display: none; }
+  .tabpane :global(.lv-main) { color: var(--ink-dim); margin-top: 0.1em !important; }
+  .tabpane :global(.lv-main b) { color: var(--ink); font-weight: 600; }
+  .tabpane :global(.lv-main .half) { color: var(--ink-dim); }
+  .tabpane :global(.lv-small) { margin-top: 0.1em !important; color: var(--ink); font-size: 0.88em !important; }
+  .tabpane :global(.lv-small .k) { color: var(--ink-dim); }
+  .tabpane :global(.lv-note.on .lv-main) { color: var(--ink); }
+  .tabpane :global(.sdg-sq) {
+    display: inline-grid; place-items: center; min-width: 1.45em; height: 1.45em; margin-right: 0.2em; border-radius: 3px;
+    background: var(--s); color: var(--s-ink); font-size: 0.85em; font-weight: 700; vertical-align: 0.05em;
+  }
+  @keyframes arc-in { to { stroke-dashoffset: 0; } }
+  @keyframes fade-in { to { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) {
+    .tabpane :global(.lv-band), .tabpane :global(.lv-name), .tabpane :global(.lv-notes) { animation: none; opacity: 1; stroke-dashoffset: 0; }
+  }
+  .tabpane :global(.none) { font-style: italic; opacity: 0.8; }
+  .tabpane :global(.sdg-in) { white-space: nowrap; }
+  /* In the ladder's narrow Goal column, a long SDG name wraps. */
+  .tabpane :global(.cell .sdg-in) { display: inline; white-space: normal; }
+  .tabpane :global(.sdg-in b) {
+    display: inline-grid; place-items: center; min-width: 1.35em; height: 1.35em; margin-right: 0.25em; border-radius: 3px;
+    background: var(--s); color: var(--s-ink); font-size: 0.9em;
+  }
+
+  /* ---- The goals as a ring (lib/goal-ring.ts) ----------------------------- */
+  .goal-ring { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; z-index: 1; }
+  .goal-ring :global(.gr-arc) { pointer-events: auto; cursor: pointer; outline: none; stroke-width: 5; stroke-linejoin: round; transition: filter 0.18s; }
+  .foot.as-ring h2 { visibility: hidden; }
+  .goal-ring :global(.gr-arc:hover) { filter: brightness(1.2); }
+  .goal-ring :global(.gr-arc:focus-visible) { stroke: var(--accent); stroke-width: 2; }
+  .goal-ring :global(.gr-label) { fill: var(--ink); font-size: 12px; font-weight: 600; pointer-events: none; }
+  .goal-ring :global(.gr-spoke) { stroke: var(--line); stroke-width: 1.5; stroke-dasharray: 2 4; }
+  .goal-ring :global(.gr-title) { fill: var(--ink); font-size: 14px; font-weight: 600; }
+  .goal-ring :global(.gr-sub) { fill: var(--ink-dim); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; }
+  .goal-ring :global(.gr-through) { fill: var(--ink-dim); font-size: 11.5px; }
+
+  /* ---- The foot: the four goals, and what supports them all -------------- */
+  .foot { flex: none; margin-top: 0.8rem; padding-top: 0.8rem; }
+  .foot h2 { margin: 0 0 0.5rem; color: var(--ink-dim); font-size: 0.68rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; }
+  .goal-nav {
+    display: grid; grid-template-columns: repeat(4, 1fr); padding: 3px;
+    border-radius: 11px; border: 1px solid var(--line); background: rgba(0, 0, 0, 0.25);
+  }
+  .goal-nav button {
+    appearance: none; display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+    padding: 0.4rem 0.3rem; border: 0; border-radius: 8px; background: none; color: var(--ink-dim);
+    font-size: 0.8rem; font-weight: 600; cursor: pointer;
+  }
+  .goal-nav i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+  .goal-nav button:hover { color: var(--ink); }
+  .goal-nav button[aria-pressed='true'] { background: var(--bg-lift); color: var(--ink); box-shadow: 0 0 0 1px var(--line); }
+  .goal-nav button:focus, .extra button:focus { outline: none; }
+  .goal-nav button:focus-visible, .extra button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .extra { margin-top: 0.5rem; display: flex; gap: 0.5rem; }
+  .extra button {
+    appearance: none; flex: 1; min-width: 0; display: flex; align-items: baseline; justify-content: space-between; gap: 0.6rem;
+    padding: 0.45rem 0.75rem; white-space: nowrap; border-radius: 10px; border: 1px dashed var(--line); background: none;
+    color: var(--ink); font-size: 0.82rem; font-weight: 600; text-align: left; cursor: pointer;
+  }
+  .extra button span { flex: none; color: var(--ink-dim); font-size: 0.66rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; }
+  .extra button:hover { border-color: var(--accent); }
+  .extra button[aria-pressed='true'] { border-style: solid; border-color: var(--accent); color: var(--accent); }
+  /* Home: back to the page's opening words. */
+  .extra .home { flex: none; align-items: center; justify-content: center; padding: 0 0.6rem; color: var(--ink-dim); }
+  .extra .home:hover { color: var(--ink); }
+  .extra .home svg { width: 18px; height: 18px; }
+  .tabpane :global(.home-body p) { margin: 0 0 0.7em; }
+  .tabpane :global(.home-body b) { color: var(--ink); }
+  .tabpane :global(.start) {
+    appearance: none; display: inline-flex; align-items: center; gap: 0.5em; margin-top: 0.3em; padding: 0.5em 0.9em;
+    border-radius: 10px; border: 1px solid var(--line); background: var(--bg-lift); color: var(--ink); font: inherit; font-weight: 600; cursor: pointer;
+  }
+  .tabpane :global(.start i) { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+  .tabpane :global(.start:hover) { border-color: var(--accent); }
+  .tabpane :global(.start:focus) { outline: none; }
+  .tabpane :global(.start:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (max-height: 800px) {
+    .logo { width: 7rem; }
+    .eyebrow { margin-top: 0.6rem; letter-spacing: 0.08em; }
+    .column h1 { font-size: 1.3rem; }
+    .lede { margin-bottom: 0.6rem; font-size: 0.82rem; }
+    .card { padding-top: 0.6rem; }
+    .tabs { margin-bottom: 0.5rem; }
+    .tabs button { padding: 0.35rem 0.4rem; }
+    .foot { margin-top: 0.5rem; padding-top: 0.5rem; }
+    .foot h2 { display: none; }
+    .tabpane :global(.levels) { width: min(100%, 12.5em); margin-bottom: 0.4em; }
+    .tabpane :global(.lv-notes) { gap: 0.4em; }
+  }
+</style>
+
+<script>
+  import * as maplibregl from 'maplibre-gl';
+  import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
+  import { Protocol } from 'pmtiles';
+  import { studyStyle } from '../shared/lib/study-style';
+  import { addRelief, addSky, tilting } from '../shared/lib/terrain';
+  import { PHONE } from '../shared/lib/phone';
+  import { ScoreLayer } from '../dst/lib/score-layer';
+  import { paletteById, rgb } from '../dst/lib/palettes';
+  import { encodeSaved } from '../dst/lib/share';
+  import { Wheel, type WheelGoal } from './lib/wheel';
+  import { TABS, goalOf, readPlace, stepBy, writePlace, type Place, type Tab } from './lib/path';
+  import { modelFor, type MapLayer } from './lib/recipe';
+  import { GoalRing, type RingPlace } from './lib/goal-ring';
+  import type { Frameworks, MapDef, Target, Tool } from './lib/content';
+
+  type LngLat = [number, number];
+  type Config = {
+    bounds: [LngLat, LngLat];
+    limit: [LngLat, LngLat];
+    basemap: string;
+    terrain: string;
+    glyphs: string;
+    sandbox: string;
+    explore: string;
+    frameworks: Frameworks;
+    targets: Target[];
+    maps: Record<string, MapDef>;
+    tools: Record<string, Tool>;
+    covers: Record<string, { src: string; thumb: string }>;
+    mapLayers: MapLayer[];
+    icons: Record<string, string>;
+  };
+
+  // A phone gets the gate instead, and nothing past here runs.
+  if (!matchMedia(PHONE).matches) start();
+
+  function start() {
+    const mapEl = document.getElementById('map')!;
+    const cfg: Config = JSON.parse(mapEl.dataset.config!);
+    const page = document.getElementById('cycle')!;
+    const column = document.getElementById('column')!;
+    const words = document.getElementById('words')!;
+    const card = document.getElementById('card')!;
+    const panel = document.getElementById('panel')!;
+    const tablist = document.getElementById('tabs')!;
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)');
+    const abs = (p: string) => (/^https?:/.test(p) ? p : location.origin + p);
+    const esc = (s: string) =>
+      s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+
+    const goalsList = cfg.frameworks.goals;
+    const goalIds = goalsList.map((g) => g.id);
+    const byId = new Map(cfg.targets.map((t) => [t.id, t]));
+    const sdgs = new Map(cfg.frameworks.sdgs.map((s) => [s.n, s]));
+    const layers = new Map(cfg.mapLayers.map((l) => [l.id, l]));
+    const plan = goalIds.map((g) => cfg.targets.filter((t) => t.goal === g).map((t) => t.id));
+    const extras = cfg.targets.filter((t) => t.supplementary).map((t) => t.id);
+    const goalOfTarget = (t: Target) => (t.goal ? goalsList[goalIds.indexOf(t.goal)] : null);
+    const colourOf = (t: Target) => goalOfTarget(t)?.colour ?? cfg.frameworks.supplementaryColour;
+    /** White or near-black on a colour, whichever reads better. */
+    const inkOn = (hex: string) => {
+      const lin = (i: number) => {
+        const c = parseInt(hex.slice(i, i + 2), 16) / 255;
+        return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+      };
+      const L = 0.2126 * lin(1) + 0.7152 * lin(3) + 0.0722 * lin(5);
+      return 1.05 / (L + 0.05) >= (L + 0.05) / 0.05 ? '#ffffff' : '#0d1210';
+    };
+    /** The Canada 2030 target numbers a target works toward: "14, 21 & 22"
+     *  is three. */
+    const numsOf = (t: Target) => t.levels.national.target?.match(/\d+/g) ?? [];
+    /** "Target 3", or "Targets 14, 21 & 22". */
+    const targetWord = (n: string) => (/[,&]/.test(n) ? `Targets ${n}` : `Target ${n}`);
+    /** A target's circle: its Canada target's number, or its own label. */
+    const chipOf = (t: Target) => t.chip ?? numsOf(t)[0] ?? '•';
+    const mapsOf = (t: Target) => t.actions.flatMap((a) => ('map' in a ? [a.map] : []));
+    const toolsOf = (t: Target) => t.actions.flatMap((a) => ('tool' in a ? [a.tool] : []));
+
+    // ---- Where you are -------------------------------------------------------
+    let place: Place = readPlace(plan, goalIds, extras, location.search);
+    /** The ring chosen on the Align tab. */
+    type Level = 'regional' | 'national' | 'global';
+    let level: Level = 'regional';
+    /** Drawn again only to change the ring chosen: no growing in again. */
+    let still = false;
+
+    const wheelGoals: WheelGoal[] = goalsList.map((g, i) => ({
+      code: g.id,
+      name: g.name,
+      colour: g.colour,
+      ink: inkOn(g.colour),
+      targets: plan[i].map((id) => {
+        const t = byId.get(id)!;
+        return { id, chip: chipOf(t), name: t.name, ink: inkOn(g.colour), icon: t.icon && cfg.icons[t.icon] };
+      }),
+    }));
+    const wheel = new Wheel(document.getElementById('wheel') as unknown as SVGSVGElement, wheelGoals, {
+      goal: (i) => go({ ...place, goal: i, target: null, map: null }),
+      target: (id) => pick(id),
+      move: (dir) => go(stepBy(plan, place, dir)),
+      scroll: (e) => onScroll(e, true),
+    });
+    /** A target, from anywhere: its own goal, the tab kept. */
+    function pick(id: string) {
+      const g = goalOf(plan, id);
+      go({ ...place, goal: g >= 0 ? g : place.goal, target: id, map: null });
+    }
+
+    /** Anywhere but home, unless `home` says so: a move made from home
+     *  (spreading it) leaves it. */
+    function go(next: Place, home = false) {
+      next = { ...next, home };
+      const moved = next.goal !== place.goal || next.target !== place.target || home !== !!place.home;
+      const retab = !moved && next.tab !== place.tab;
+      place = next;
+      wheel.show(place.goal, place.target && goalOf(plan, place.target) >= 0 ? place.target : null, TABS.indexOf(place.tab) + 1);
+      history.replaceState(null, '', writePlace(place, goalIds));
+      showMap();
+      // A new goal or target fades the words out and in; a new tab, only the
+      // tab's own content; a new map, nothing.
+      if (reduce.matches || !(moved || retab)) {
+        if (!swapping) fill();
+        return;
+      }
+      if (retab) markTabs();
+      swap(moved ? words : panel);
+    }
+
+    // Out, then the new words, then in: never two sets at once. The fade is
+    // done here, a frame at a time, not as a CSS transition: Safari runs a
+    // transition on its own and can start it late while the page is busy,
+    // so the words were swapped while the old ones still showed and the two
+    // faded across each other. Set here, the opacity on screen is the one
+    // set, and the words change only after a frame has been drawn with none
+    // showing. A move made while a swap is under way joins it: the swap
+    // shows wherever you've got to by then.
+    const SWAP_OUT = 150, SWAP_IN = 190;
+    let swapping = false;
+    const fading = new Set<HTMLElement>();
+    const frame = () => new Promise<number>((r) => requestAnimationFrame(r));
+    async function fadeEls(to: number, ms: number) {
+      const els = [...fading];
+      const from = els.map((e) => Number(e.style.opacity || 1));
+      const t0 = await frame();
+      for (;;) {
+        const now = await frame();
+        const x = Math.min(1, (now - t0) / ms);
+        const k = x * (2 - x);
+        els.forEach((e, i) => (e.style.opacity = String(from[i] + (to - from[i]) * k)));
+        if (x >= 1) break;
+      }
+      // One more frame, so the last opacity has been drawn before going on.
+      await frame();
+    }
+    async function swap(el: HTMLElement) {
+      fading.add(el);
+      if (swapping) return;
+      swapping = true;
+      await fadeEls(0, SWAP_OUT);
+      fill();
+      // Laid out and drawn at nothing before it comes up.
+      await frame();
+      await fadeEls(1, SWAP_IN);
+      for (const f of fading) f.style.opacity = '';
+      fading.clear();
+      swapping = false;
+    }
+
+    // ---- The words -----------------------------------------------------------
+    const tabs = [...tablist.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
+    const inline = (n: number) => {
+      const s = sdgs.get(n)!;
+      return `<span class="sdg-in" style="--s:${s.colour};--s-ink:${inkOn(s.colour)}"><b>${n}</b>${esc(s.name)}</span>`;
+    };
+    const goalDot = (t: Target) => `<i class="dot" style="--c:${colourOf(t)}"></i>`;
+    /** One line naming what drives action on a target. */
+    const drives = (t: Target) =>
+      t.actions.map((a) => ('map' in a ? cfg.maps[a.map].title : cfg.tools[a.tool].name)).join(' · ');
+
+    /** The chosen tab lit: straight away on a click, not when the words
+     *  under it change, or the old one stays lit through the fade. */
+    function markTabs() {
+      for (const b of tabs) {
+        const on = b.dataset.tab === place.tab;
+        b.setAttribute('aria-selected', String(on));
+        b.tabIndex = on ? 0 : -1;
+      }
+    }
+
+    // ---- The goals as a ring ----------------------------------------------------
+    // 40 years of change supports every goal: on its What tab the goals bar at
+    // the foot bends into a ring in the space under the words, and back into
+    // the bar on its other tabs (which fill that space) or anywhere else.
+    const ring = new GoalRing(
+      document.getElementById('goal-ring') as unknown as SVGSVGElement,
+      document.getElementById('goal-nav')!,
+      goalsList.map((g) => ({ code: g.id, name: g.name, colour: g.colour })),
+      (i) => go({ ...place, goal: i, target: null, map: null }),
+      reduce,
+    );
+    /** Where the ring fits: between the words' end and the foot, as wide as
+     *  the disc allows there. Null where there isn't room for it. */
+    function ringPlace(): RingPlace | null {
+      const col = column.getBoundingClientRect();
+      const last = panel.lastElementChild?.getBoundingClientRect();
+      const foot = column.querySelector('.foot')!.getBoundingClientRect();
+      const top = (last?.bottom ?? card.getBoundingClientRect().top) + 28;
+      const bottom = foot.top - 10;
+      // Room for the labels over it and two lines of words under it.
+      const r = Math.min(104, (bottom - top - 22 - 64) / 2);
+      if (r < 46) return null;
+      const cy = top + 22 + r;
+      const right = Math.min(col.right, wheel.edgeAt(cy));
+      const half = (right - col.left) / 2;
+      const rr = Math.min(r, half - 40);
+      if (rr < 46) return null;
+      return { cx: half, cy: cy - col.top - (r - rr), r: rr };
+    }
+    /** Two lines, as even as the names allow. */
+    const twoLines = (names: string[]) => {
+      let best = [names.join(' · ')];
+      for (let k = 1; k < names.length; k++) {
+        const a = names.slice(0, k).join(' · '), b = names.slice(k).join(' · ');
+        if (Math.max(a.length, b.length) < Math.max(...best.map((x) => x.length))) best = [a, b];
+      }
+      return best;
+    };
+    function updateRing() {
+      const t = place.target ? byId.get(place.target)! : null;
+      const p = t?.supplementary && place.tab === 'what' ? ringPlace() : null;
+      if (!t || !p) return ring.hide();
+      const names = t.actions.map((a) => ('map' in a ? cfg.maps[a.map].title : cfg.tools[a.tool].name.replace(/^.*, on /, '')));
+      ring.show(p, t.name, ['Through: ' + twoLines(names)[0], ...twoLines(names).slice(1)]);
+    }
+
+    function fill() {
+      const t = place.target ? byId.get(place.target)! : null;
+      const g = goalsList[place.goal];
+      const eyebrow = document.getElementById('eyebrow')!;
+      const title = document.getElementById('title')!;
+      const lede = document.getElementById('lede')!;
+      document.querySelectorAll<HTMLButtonElement>('#goal-nav button').forEach((b) =>
+        b.setAttribute('aria-pressed', String(!t?.supplementary && Number(b.dataset.goal) === place.goal)),
+      );
+      document.querySelectorAll<HTMLButtonElement>('#extra button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.target === place.target)));
+      document.getElementById('home')!.setAttribute('aria-pressed', String(!!place.home));
+
+      if (place.home) {
+        // Before the path: what the page is and how to get round it.
+        const h = cfg.frameworks.home, first = goalsList[0];
+        document.querySelectorAll<HTMLButtonElement>('#goal-nav button').forEach((b) => b.setAttribute('aria-pressed', 'false'));
+        eyebrow.textContent = h.eyebrow;
+        title.textContent = h.title;
+        lede.textContent = h.lede;
+        tablist.hidden = true;
+        panel.removeAttribute('role');
+        panel.removeAttribute('aria-labelledby');
+        panel.style.setProperty('--c', first.colour);
+        panel.innerHTML = `
+          <div class="home-body">${h.body.map((p) => `<p>${p}</p>`).join('')}</div>
+          <button type="button" class="start" data-start style="--c:${first.colour}"><i></i>${esc(h.start)}: ${esc(first.id)} ${esc(first.name)} →</button>`;
+        fit();
+        catchScrolls(panel.children);
+        updateRing();
+        return;
+      }
+
+      if (!t) {
+        // The goal itself: what it sets out to do, and its targets.
+        eyebrow.innerHTML = `EcoScapes goal ${g.id}`;
+        title.textContent = g.name;
+        lede.textContent = g.statement;
+        tablist.hidden = true;
+        panel.removeAttribute('role');
+        panel.removeAttribute('aria-labelledby');
+        panel.style.setProperty('--c', g.colour);
+        panel.innerHTML = `
+          ${g.note ? `<p class="note">${esc(g.note)}</p>` : ''}
+          <h3>Targets addressed</h3>
+          <p class="small">Canada's 2030 Nature Strategy (and the Kunming-Montreal Global Biodiversity Framework)</p>
+          <ul class="tlist">${plan[place.goal]
+            .map((id) => {
+              const x = byId.get(id)!;
+              return `<li><button type="button" data-target="${id}" style="--c:${g.colour};--c-ink:${inkOn(g.colour)}">
+                <span class="n">${esc(chipOf(x))}</span><span class="nm">${esc(x.name)}</span><span class="by">${esc(drives(x))}</span></button></li>`;
+            })
+            .join('')}</ul>
+          ${g.footnote ? `<p class="footnote">*${esc(g.footnote)}</p>` : ''}`;
+        fit();
+        catchScrolls(panel.children);
+        updateRing();
+        return;
+      }
+
+      // Over the name: its goal, and the number it goes by -- Canada's
+      // target, Canada's interpretation of the KMGBF one of the same number.
+      // Under it, what it is in a line.
+      const own = goalOfTarget(t);
+      const na = t.levels.national.target;
+      const numbers = na ? ` · Canada 2030 ${targetWord(na)}${t.half ? ` · ${esc(t.half)}` : ''} · KMGBF` : '';
+      eyebrow.innerHTML = own
+        ? `<button type="button" id="to-goal" style="--c:${own.colour}" title="${own.id}: ${esc(own.name)}. All its targets"><i></i>${own.id}</button>${numbers}`
+        : `Supporting every goal${numbers}`;
+      title.textContent = t.name;
+      lede.textContent = t.short;
+      tablist.hidden = false;
+      markTabs();
+      panel.setAttribute('role', 'tabpanel');
+      panel.setAttribute('aria-labelledby', `tab-${place.tab}`);
+      panel.style.setProperty('--c', colourOf(t));
+
+      if (place.tab === 'what') {
+        // Where this target meets another, under another goal: the same
+        // Canada target worked on twice.
+        const mine = numsOf(t);
+        const also = cfg.targets.filter((x) => x.id !== t.id && !x.supplementary && numsOf(x).some((n) => mine.includes(n)));
+        panel.innerHTML = `
+          <h3>What is the focus of this target?</h3>
+          ${t.levels.national.target ? `<p>${esc(t.text)}</p>` : ''}
+          <div class="act"><b>What it drives</b>${esc(t.act)}</div>
+          <p class="small"><b>Who acts:</b> ${esc(t.who)}</p>
+          ${
+            also.length
+              ? `<ul class="also">${mine
+                  .map((n) => {
+                    // Everyone working toward this Canada target, under
+                    // whichever goal: EcoScapes split Target 1 in three.
+                    const with_ = also.filter((x) => numsOf(x).includes(n));
+                    if (!with_.length) return '';
+                    return `<li>Also toward Canada Target ${n}: ${with_
+                      .map((x) => `${goalDot(x)}<button type="button" data-target="${x.id}">${esc(x.name)}</button> (${esc(x.goal ?? '')})`)
+                      .join(' · ')}</li>`;
+                  })
+                  .join('')}</ul>`
+              : ''
+          }`;
+      } else if (place.tab === 'how') {
+        const drawn = currentMap();
+        const items = t.actions.map((a) => {
+          if ('map' in a) {
+            const m = cfg.maps[a.map];
+            const others = cfg.targets.filter((x) => x.id !== t.id && mapsOf(x).includes(a.map));
+            return `<li class="map${a.map === drawn ? ' on' : ''}" data-map="${a.map}">
+              <button type="button" aria-pressed="${a.map === drawn}"><span class="kind">Map${a.map === drawn ? ' · on the map' : ''}</span>
+              <span class="nm">${esc(m.title)}</span>${m.updating ? '<span class="tag">Being updated</span>' : ''}</button>
+              ${a.map === drawn ? `<p>${esc(m.about)}</p>` : ''}
+              ${others.length ? `<span class="used">Also used for ${others.map((x) => `${goalDot(x)}<button type="button" data-target="${x.id}">${esc(x.name)}</button>`).join(', ')}</span>` : ''}
+            </li>`;
+          }
+          const tool = cfg.tools[a.tool];
+          const name = tool.href
+            ? `<a class="nm" href="${esc(tool.href)}" target="_blank" rel="noopener">${esc(tool.name)} ↗</a>`
+            : `<span class="nm">${esc(tool.name)}</span>`;
+          const cover = cfg.covers[a.tool];
+          return cover
+            ? `<li class="has-cover"><img class="thumb" src="${cover.thumb}" alt="" /><span class="kind">${tool.by ? esc(tool.by) : 'Document'}</span>${name}<p>${esc(tool.text)}</p></li>`
+            : `<li><span class="kind">${tool.by ? esc(tool.by) : 'Tool'}</span>${name}<p>${esc(tool.text)}</p></li>`;
+        });
+        panel.innerHTML = `<h3>How is it being achieved?</h3><ul class="acts">${items.join('')}</ul>`;
+      } else {
+        const L = t.levels, gl = L.global, na = L.national;
+        const own = goalOfTarget(t);
+        const kg = (goal: string) => (goal === 'X' ? 'Goals A–D' : `Goal ${goal}`);
+        // The bigger picture as half-rings, from the middle out: what drives
+        // action at the core, then the regional, national and global levels,
+        // each an arc round the last. Under them a note for each, in the same
+        // order, in its ring's colour.
+        const drives = t.actions.map((a) => ('map' in a ? cfg.maps[a.map].title : cfg.tools[a.tool].name));
+        const RINGS: { id: Level; colour: string; name: string }[] = [
+          { id: 'regional', colour: colourOf(t), name: 'Regional' },
+          { id: 'national', colour: '#d8a78f', name: 'National' },
+          { id: 'global', colour: '#8fb8d8', name: 'Global' },
+        ];
+        const C = 150, BANDS: [number, number][] = [[50, 86], [86, 117], [117, 148]];
+        /** A note: its heading, its target, then a labelled line per fact. */
+        const note = (id: string, colour: string, head: string, main: string, facts: [string, string][]) =>
+          `<div class="lv-note" data-level="${id}" style="--lc:${colour}"><p class="lv-h"><i></i>${head}</p><p class="lv-main">${main}</p>` +
+          facts.map(([k, v]) => `<p class="lv-small"><span class="k">${k}:</span> ${v}</p>`).join('') +
+          `</div>`;
+        const goalFact = (who: string, g: string) =>
+          `<span title="${esc(cfg.frameworks.kmgbfGoals[g] ?? '')}">${g === 'X' ? 'A–D (runs through all four)' : g}</span>`;
+        const headlineFact = gl.indicator ? `<span title="${esc(gl.indicator)}">${esc(gl.indicator.split(' ')[0])}</span>` : '';
+        /** An SDG as its numbered square, the name on hover. */
+        const sdgSq = (n: number) => {
+          const x = sdgs.get(n)!;
+          return `<b class="sdg-sq" style="--s:${x.colour};--s-ink:${inkOn(x.colour)}" title="SDG ${n}: ${esc(x.name)}">${n}</b>`;
+        };
+        const target = (who: string, n: string | null, text: string) => (n ? `<b>${who} ${targetWord(n)}</b> ${esc(text)}` : esc(text));
+        panel.innerHTML = `
+          <div class="bp-h"><h3>How does this target align with global frameworks?</h3>${cfg.frameworks.draft ? `<span class="draft">Draft · ${esc(cfg.frameworks.draft)}</span>` : ''}</div>
+          <div class="bp">
+            <svg class="levels" viewBox="0 0 300 158" aria-hidden="true">
+              ${RINGS.map((x, k) => {
+                const [r0, r1] = BANDS[k], rm = (r0 + r1) / 2, rt = rm - 4;
+                return `<g class="lv" data-level="${x.id}" style="--lc:${x.colour};--k:${k}">
+                  <path class="lv-band" d="M${C - rm} ${C}A${rm} ${rm} 0 0 1 ${C + rm} ${C}" stroke-width="${r1 - r0 - 3}" pathLength="1" />
+                  <path id="lv-path-${k}" d="M${C - rt} ${C}A${rt} ${rt} 0 0 1 ${C + rt} ${C}" fill="none" />
+                  <text class="lv-name"><textPath href="#lv-path-${k}" startOffset="50%" text-anchor="middle">${x.name}</textPath></text>
+                </g>`;
+              }).join('')}
+              <g class="lv lv-core-g" data-level="core" style="--k:0">
+                <path class="lv-core" d="M${C - 46} ${C}A46 46 0 0 1 ${C + 46} ${C}Z" />
+                <text class="lv-core-t" x="${C}" y="${C - 14}" text-anchor="middle">${drives.length === 1 ? 'the map' : `${drives.length} ways`}</text>
+              </g>
+              <line class="lv-base" x1="0" y1="${C + 0.5}" x2="300" y2="${C + 0.5}" />
+            </svg>
+            <div class="lv-notes">
+              ${note('core', 'var(--ink-dim)', 'In the middle', drives.map(esc).join(' · '), [])}
+              ${note(
+                'regional',
+                colourOf(t),
+                `Regional · ${own ? own.id : 'all goals'}`,
+                `<b>${esc(t.name)}</b>${t.half ? ` <span class="half">(${esc(t.half)})</span>` : ''}`,
+                [['ES Indicator', esc(L.regional.indicator)]],
+              )}
+              ${note(
+                'national',
+                '#d8a78f',
+                'National · Canada 2030',
+                target('Canada', na.target, na.text),
+                // Both short: one line.
+                [['Canada Goal', `${goalFact('Canada', na.goal)}${gl.indicator ? ' · <span class="k">Headline indicator:</span> same as KMGBF' : ''}`]],
+              )}
+              ${note(
+                'global',
+                '#8fb8d8',
+                'Global · UN and KMGBF',
+                target('KMGBF', gl.target, gl.text),
+                [
+                  ['KMGBF Goal', goalFact('KMGBF', gl.goal)],
+                  ...(gl.indicator ? ([['Headline indicator', headlineFact]] as [string, string][]) : []),
+                  ['SDG', gl.sdg.map(sdgSq).join(' · ')],
+                ],
+              )}
+            </div>
+          </div>`;
+      }
+      fit();
+      catchScrolls([...panel.children, ...document.getElementById('eyebrow')!.children]);
+      updateRing();
+    }
+
+    // Tabs: a click, or the arrow keys along them as a tablist has.
+    tablist.addEventListener('click', (e) => {
+      const b = (e.target as Element).closest<HTMLButtonElement>('[role="tab"]');
+      if (b) go({ ...place, tab: b.dataset.tab as Tab });
+    });
+    tablist.addEventListener('keydown', (e) => {
+      // From the tab with the focus: the selected one, unless clicked away.
+      const i = Math.max(0, tabs.indexOf(document.activeElement as HTMLButtonElement));
+      const j = e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowLeft' ? i - 1 : e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : -2;
+      if (j === -2) return;
+      e.preventDefault();
+      const b = tabs[(j + tabs.length) % tabs.length];
+      go({ ...place, tab: b.dataset.tab as Tab });
+      b.focus();
+    });
+    // Align: a note and its ring light up together.
+    const lightLevel = (id: string | null) =>
+      panel.querySelectorAll<Element>('.lv, .lv-note').forEach((e) => e.classList.toggle('on', (e as HTMLElement).dataset.level === id));
+    panel.addEventListener('pointerover', (e) => {
+      const hit = (e.target as Element).closest<HTMLElement>('.lv, .lv-note');
+      lightLevel(hit?.dataset.level ?? null);
+    });
+    panel.addEventListener('pointerleave', () => lightLevel(null));
+
+    // In the panel: a target (from the list, or where two meet), or a map.
+    panel.addEventListener('click', (e) => {
+      const el = e.target as Element;
+      if (el.closest('[data-start]')) return go({ goal: 0, target: null, tab: 'what', map: null });
+      const tb = el.closest<HTMLButtonElement>('button[data-target]');
+      if (tb) return pick(tb.dataset.target!);
+      const m = el.closest<HTMLElement>('[data-map]');
+      if (m && el.closest('button')) go({ ...place, map: m.dataset.map! });
+    });
+    document.getElementById('eyebrow')!.addEventListener('click', (e) => {
+      if ((e.target as Element).closest('#to-goal')) go({ ...place, target: null, map: null });
+    });
+    document.getElementById('home')!.addEventListener('click', () => go({ goal: 0, target: null, tab: 'what', map: null }, true));
+    // The logo too: a link to the bare address, followed here without a
+    // reload (a new tab or window still opens it).
+    document.getElementById('logo-link')!.addEventListener('click', (e) => {
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+      e.preventDefault();
+      go({ goal: 0, target: null, tab: 'what', map: null }, true);
+    });
+    document.getElementById('goal-nav')!.addEventListener('click', (e) => {
+      const b = (e.target as Element).closest<HTMLButtonElement>('[data-goal]');
+      if (b) go({ ...place, goal: Number(b.dataset.goal), target: null, map: null });
+    });
+    // 40 years of change opens and closes like a toggle: a second click goes
+    // back to wherever you were before it (or the goal, if the page opened
+    // on it).
+    let before: Place | null = null;
+    document.getElementById('extra')!.addEventListener('click', (e) => {
+      const b = (e.target as Element).closest<HTMLButtonElement>('[data-target]');
+      if (!b) return;
+      if (place.target === b.dataset.target) {
+        const back = before ?? { ...place, target: null, tab: 'what' as Tab, map: null };
+        before = null;
+        return go(back, !!back.home);
+      }
+      if (!byId.get(place.target ?? '')?.supplementary) before = { ...place };
+      // Opened on its What tab, where the goals turn into a ring.
+      go({ ...place, target: b.dataset.target!, tab: 'what', map: null });
+    });
+    // A scroll over the disc (the words, the ring, the space between) walks
+    // the path too, one step a flick. A trackpad goes on sending scrolls after
+    // the fingers stop (the glide, a second or more), so after a step the rest
+    // of that flick is ignored: until it has been quiet for a moment, or a new
+    // flick starts. The glide only slows, so a scroll that speeds up again,
+    // and stays up, once the glide has well slowed is fingers on the pad: a
+    // new flick. Stays up, as a lone scroll can jump. Over the map, a scroll is the map's; in
+    // a tab long enough to scroll, it scrolls until its end.
+    let scrollAcc = 0, scrollBusyTill = 0, stepAt = 0, lastAt = 0, peak = 0;
+    let speeds: number[] = [];
+    const mean = (a: number[]) => a.reduce((x, y) => x + y, 0) / a.length;
+    const handled = new WeakSet<Event>();
+    /** One scroll: `ours` when it's known to be over the disc (from the
+     *  words' own listeners, below), else checked here. */
+    function onScroll(e: WheelEvent, ours = false) {
+      if (handled.has(e)) return;
+      const t = e.target as Element;
+      if (!ours) {
+        if (!t.closest('#column, #wheel')) return;
+        if (!t.closest('.disc, .ring, #column')) return;
+      }
+      handled.add(e);
+      const dy = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+      if (card.classList.contains('scrolls') && card.contains(t)) {
+        const atEnd = dy > 0 ? card.scrollTop + card.clientHeight >= card.scrollHeight - 1 : card.scrollTop <= 0;
+        if (!atEnd) return;
+      }
+      e.preventDefault();
+      // When the scroll happened, not when it's handled: after a step the
+      // page is busy a moment, and the rest of the flick arrives late.
+      const now = e.timeStamp;
+      // Speed per millisecond, not per scroll: one scroll can carry several
+      // frames' worth when the page was busy, but it covers their time too.
+      const speed = Math.abs(dy) / Math.min(50, Math.max(8, now - lastAt));
+      lastAt = now;
+      if (now < scrollBusyTill) {
+        peak = Math.max(peak, speed);
+        speeds.push(speed);
+        if (speeds.length > 9) speeds.shift();
+        // The last three against the six before them.
+        const recent = mean(speeds.slice(-3)), before = speeds.length === 9 ? mean(speeds.slice(0, 6)) : Infinity;
+        const again = now - stepAt > 300 && before < peak * 0.6 && recent > before * 1.8 + 0.25 && Math.min(...speeds.slice(-3)) > before;
+        if (!again) {
+          // Still the same flick: wait for it to go quiet, never less.
+          scrollBusyTill = Math.max(scrollBusyTill, now + 160);
+          return;
+        }
+        scrollAcc = 0;
+      }
+      scrollAcc += dy;
+      if (Math.abs(scrollAcc) < 40) return;
+      go(stepBy(plan, place, scrollAcc > 0 ? 1 : -1));
+      scrollAcc = 0;
+      scrollBusyTill = now + 600;
+      stepAt = now;
+      peak = speed;
+      speeds = [];
+    }
+    page.addEventListener('wheel', (e) => onScroll(e), { passive: false });
+    /** A step swaps the words, and the ones under the pointer go. Browsers
+     *  go on sending scrolls to the element last under the pointer until the
+     *  mouse moves -- now out of the page, so the page never hears them and
+     *  the scroll seems dead. Each block of words (and each arc of the ring)
+     *  gets a listener of its own, which still hears them once it has gone. */
+    const catchScrolls = (els: Iterable<Element>) => {
+      for (const el of els) el.addEventListener('wheel', (e) => onScroll(e as WheelEvent, true), { passive: false });
+    };
+
+    // ↑ ↓ and ← → walk the path, back and on, anywhere but in a control
+    // that takes the arrows itself: a slider, the tabs, the map.
+    const STEP: Record<string, 1 | -1> = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 };
+    addEventListener('keydown', (e) => {
+      const dir = STEP[e.key];
+      if (!dir || e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target as Element;
+      if (t.closest('input, [role="tablist"], #map')) return;
+      e.preventDefault();
+      go(stepBy(plan, place, dir));
+    });
+
+    // ---- The column's shape ----------------------------------------------------
+    /** Each block as wide as the disc allows where it sits on screen: full
+     *  width across the middle, narrower towards the top and bottom. Measured
+     *  in one pass and set in another, so the page lays out once; run twice,
+     *  as a narrower block may be taller. */
+    function fitOnce() {
+      const blocks = [...column.querySelectorAll<HTMLElement>('.fit'), ...panel.querySelectorAll<HTMLElement>(':scope > *')];
+      const box = card.getBoundingClientRect();
+      const cy = innerHeight / 2;
+      const widths = blocks.map((b) => {
+        const r = b.getBoundingClientRect();
+        let y0 = r.top, y1 = r.bottom;
+        // Cut off at the card's foot: only as wide as that edge allows.
+        if (card.contains(b)) (y0 = Math.min(Math.max(y0, box.top), box.bottom)), (y1 = Math.min(Math.max(y1, box.top), box.bottom));
+        const y = Math.abs(y0 - cy) > Math.abs(y1 - cy) ? y0 : y1;
+        return Math.max(180, wheel.edgeAt(y) - r.left);
+      });
+      blocks.forEach((b, i) => (b.style.maxWidth = `${Math.round(widths[i])}px`));
+    }
+    /** Whether the panel's last block ends inside the card. */
+    const fits = () => {
+      const last = panel.lastElementChild?.getBoundingClientRect();
+      return !last || last.bottom <= card.getBoundingClientRect().bottom;
+    };
+    /** The column shaped to the curve, and a panel that still runs past the
+     *  card's foot set a step smaller, down to about 12px text; one that
+     *  still won't fit scrolls, as a last resort. */
+    function fit() {
+      let k = 1;
+      card.classList.remove('scrolls');
+      card.scrollTop = 0;
+      panel.style.fontSize = '';
+      fitOnce();
+      fitOnce();
+      while (!fits() && k > 0.86) {
+        k -= 0.035;
+        panel.style.fontSize = `${16 * k}px`;
+        fitOnce();
+        fitOnce();
+      }
+      card.classList.toggle('scrolls', !fits());
+    }
+    function layout() {
+      wheel.build();
+      column.style.width = `${Math.round(Math.max(280, Math.min(640, wheel.edgeAt(innerHeight / 2) - 40)))}px`;
+      page.style.setProperty('--reach', `${wheel.reach}px`);
+      page.style.setProperty('--mid', `${(wheel.reach + innerWidth) / 2}px`);
+      fit();
+      placeNav();
+    }
+    /** The links beside the logo, centred in the gap between it and the
+     *  targets' circles on the track at their height. */
+    function placeNav() {
+      const top = document.getElementById('top')!;
+      const nav = top.querySelector<HTMLElement>('.site-nav')!;
+      const logo = top.querySelector('.logo')!.getBoundingClientRect();
+      const box = top.getBoundingClientRect();
+      const n = nav.getBoundingClientRect();
+      const mid = (logo.right + wheel.trackAt(n.top + n.height / 2)) / 2;
+      nav.style.left = `${Math.round(Math.max(logo.right + 12, mid - n.width / 2) - box.left)}px`;
+    }
+    document.fonts?.ready.then(placeNav);
+    // Scrolled, as a last resort on a short screen: the blocks keep to the
+    // curve where they now sit.
+    let scrollFrame = 0;
+    card.addEventListener(
+      'scroll',
+      () => {
+        cancelAnimationFrame(scrollFrame);
+        scrollFrame = requestAnimationFrame(fitOnce);
+      },
+      { passive: true },
+    );
+    let resizing = 0;
+    addEventListener('resize', () => {
+      clearTimeout(resizing);
+      resizing = window.setTimeout(() => {
+        layout();
+        const p = ring.shown ? ringPlace() : null;
+        if (p) ring.place(p);
+        wheel.show(place.goal, place.target && goalOf(plan, place.target) >= 0 ? place.target : null, TABS.indexOf(place.tab) + 1);
+      }, 80);
+    });
+
+    // ---- The map ---------------------------------------------------------------
+    maplibregl.setWorkerUrl(workerUrl);
+    maplibregl.addProtocol('pmtiles', new Protocol().tile);
+    const [[w, s], [e, n]] = cfg.limit;
+    const ROOM: [LngLat, LngLat] = [[w - (e - w), s - (n - s)], [e + (e - w), n + (n - s)]];
+    // Where the maps open: Squamish in the middle of the part of the map
+    // right of the ring, with Howe Sound below it and the Squamish valley
+    // above.
+    const SQUAMISH: [LngLat, LngLat] = [[-123.72, 49.35], [-122.59, 50.05]];
+    const framing = () => ({ top: 30, bottom: 30, left: wheel.reach + 30, right: 30 });
+    layout();
+    const map = new maplibregl.Map({
+      container: mapEl,
+      bounds: SQUAMISH,
+      maxBounds: ROOM,
+      fitBoundsOptions: { padding: framing() },
+      maxZoom: 15,
+      attributionControl: false,
+      dragRotate: false,
+      style: studyStyle({ basemap: abs(cfg.basemap), glyphs: abs(cfg.glyphs), limit: cfg.limit }),
+    });
+    map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: 'TerrAdapt-Cascadia, Nature Squamish' }), 'bottom-right');
+    map.once('load', () => mapEl.querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show'));
+    const score = new ScoreLayer('score');
+    map.on('load', () => {
+      addRelief(map, abs(cfg.terrain));
+      addSky(map);
+      // Over the land, under the roads and the towns.
+      const firstRoad = map.getStyle().layers.find((l) => l.id.startsWith('roads_tunnels'))?.id;
+      try {
+        map.addLayer(score, firstRoad);
+      } catch {
+        showNote('<strong>This needs a newer browser</strong>The maps are drawn with WebGL 2.');
+      }
+    });
+    tilting(map, abs(cfg.terrain), document.getElementById('three-d')!, document.getElementById('tilt')!);
+    document.getElementById('recentre')!.addEventListener('click', () =>
+      map.fitBounds(SQUAMISH, { padding: framing(), pitch: map.getPitch(), bearing: 0, duration: reduce.matches ? 0 : 900 }),
+    );
+    const opacityIn = document.getElementById('opacity') as HTMLInputElement;
+    opacityIn.addEventListener('input', () => {
+      fadeRun++;
+      shown = Number(opacityIn.value);
+      score.setOpacity(shown);
+    });
+
+    // ---- Fading from one map to the next ----------------------------------------
+    // One layer draws the map, so the change is a fade through the ground:
+    // the old map out, the new model in its place, and the new map up once
+    // its tiles in view are loaded -- never a half-drawn map fading in.
+    /** How strongly the map is drawn right now. */
+    let shown = Number(opacityIn.value);
+    let fadeRun = 0;
+    const OUT = 220, IN = 380, WAIT = 2500;
+    function fadeOpacity(to: number, ms: number, run: number, done?: () => void) {
+      // Nothing to fade (already there, or no time to do it in): straight
+      // there. A zero-length fade would divide by nothing, and a frame's time
+      // can come before t0, which left the fade -- and the new map waiting on
+      // it -- never finishing.
+      if (ms <= 0 || Math.abs(to - shown) < 0.005) {
+        shown = to;
+        score.setOpacity(shown);
+        done?.();
+        return;
+      }
+      const from = shown, t0 = performance.now();
+      const frame = (now: number) => {
+        if (run !== fadeRun) return;
+        const x = Math.max(0, Math.min(1, (now - t0) / ms));
+        shown = from + (to - from) * x * (2 - x);
+        score.setOpacity(shown);
+        if (x < 1) requestAnimationFrame(frame);
+        else done?.();
+      };
+      requestAnimationFrame(frame);
+    }
+    /** Up once nothing in view is still to come, or after WAIT regardless. */
+    function whenLoaded(run: number, go: () => void) {
+      const t0 = performance.now();
+      let frames = 0;
+      const check = () => {
+        if (run !== fadeRun) return;
+        // A frame or two first, for the layer to see what the new model wants.
+        if (++frames > 2 && (score.pending === 0 || performance.now() - t0 > WAIT)) return go();
+        map.triggerRepaint();
+        requestAnimationFrame(check);
+      };
+      requestAnimationFrame(check);
+    }
+    /** The map changed to whatever `apply` sets up, faded; `on` says whether
+     *  there is a map to fade up afterwards. */
+    function fadeTo(apply: () => void, on: boolean) {
+      const run = ++fadeRun;
+      if (reduce.matches || !map.loaded()) {
+        apply();
+        shown = on ? Number(opacityIn.value) : 0;
+        score.setOpacity(shown);
+        return;
+      }
+      fadeOpacity(0, shown > 0.01 ? OUT : 0, run, () => {
+        apply();
+        if (on) whenLoaded(run, () => fadeOpacity(Number(opacityIn.value), IN, run));
+      });
+    }
+
+    const legend = document.getElementById('legend')!;
+    const mapTitle = document.getElementById('map-title')!;
+    const mapSrc = document.getElementById('map-src')!;
+    const note = document.getElementById('map-note')!;
+    const key = document.getElementById('key')!;
+    const links = document.getElementById('links')!;
+    function showNote(html: string | null) {
+      note.hidden = !html;
+      note.innerHTML = html ?? '';
+      if (html !== null) hideDocs();
+    }
+
+    // ---- Documents, stacked ------------------------------------------------------
+    const docsEl = document.getElementById('docs')!;
+    const stackEl = document.getElementById('stack')!;
+    /** The documents in the stack, front first. */
+    let stack: string[] = [];
+    const btnsEl = document.getElementById('doc-btns')!;
+    /** A document to read, or a site to visit. */
+    const isPdf = (href: string) => /\.pdf($|[?#])/i.test(href);
+    const SHUFFLE = 650;
+    const dimEl = document.getElementById('dim')!;
+    function hideDocs() {
+      docsEl.hidden = true;
+      dimEl.classList.remove('on');
+      stack = [];
+    }
+    /** Where each card sits: the front one square on, each behind it up,
+     *  to the right, turned a little and darker. */
+    const spot = (i: number) => `translate(${i * 16}%, ${-i * 7}%) rotate(${i * 5}deg) scale(${1 - i * 0.05})`;
+    function placeCards() {
+      stackEl.querySelectorAll<HTMLElement>('.doc').forEach((card) => {
+        const i = stack.indexOf(card.dataset.doc!);
+        card.style.transform = spot(i);
+        card.style.zIndex = String(stack.length - i);
+        card.style.filter = `brightness(${1 - i * 0.3})`;
+        card.classList.toggle('front', i === 0);
+        const tool = cfg.tools[card.dataset.doc!];
+        // The front one opens the document, where it's online; one behind
+        // comes forward.
+        const img = `<img src="${cfg.covers[card.dataset.doc!].src}" alt="" />`;
+        card.innerHTML =
+          i === 0
+            ? tool.href
+              ? `<a href="${esc(tool.href)}" target="_blank" rel="noopener" aria-label="Open ${esc(tool.title ?? tool.name)}${isPdf(tool.href) ? ' (PDF)' : ''}" title="${esc(tool.name)}: ${isPdf(tool.href) ? 'open the PDF' : 'visit the website'}">${img}</a>`
+              : `<div role="img" aria-label="${esc(tool.title ?? tool.name)}, not online yet" title="${esc(tool.name)}: not online yet">${img}</div>`
+            : `<button type="button" aria-label="Bring ${esc(tool.name)} to the front" title="${esc(tool.name)}: bring forward"><img src="${cfg.covers[card.dataset.doc!].src}" alt="" /></button>`;
+      });
+      drawButtons();
+    }
+    /** Under the stack, floating: open the one in front, and bring the
+     *  next one round. */
+    function drawButtons() {
+      const tool = cfg.tools[stack[0]];
+      btnsEl.innerHTML =
+        (tool.href
+          ? `<a class="open" href="${esc(tool.href)}" target="_blank" rel="noopener">${isPdf(tool.href) ? 'Read the PDF' : 'Visit the website'} ↗</a>`
+          : '<span class="soon">Not online yet</span>') +
+        (stack.length > 1 ? `<button type="button" class="next" id="doc-next">Next document (${stack.length})</button>` : '');
+    }
+    btnsEl.addEventListener('click', (e) => {
+      if ((e.target as Element).closest('#doc-next') && stack.length > 1) {
+        bringForward(stack[1]);
+        document.getElementById('doc-next')?.focus();
+      }
+    });
+    /** The documents shown, `docs[0]` in front. The same documents already
+     *  showing are shuffled rather than drawn again. */
+    function showDocs(docs: string[]) {
+      docsEl.hidden = false;
+      dimEl.classList.add('on');
+      const same = stack.length === docs.length && docs.every((d) => stack.includes(d));
+      if (same) return bringForward(docs[0]);
+      stack = docs;
+      stackEl.innerHTML = docs.map((d) => `<figure class="doc" data-doc="${d}"></figure>`).join('');
+      catchScrolls(stackEl.children);
+      placeCards();
+    }
+    /** One card to the front: it lifts out to the left, over the rest, and
+     *  settles on top as the others move back a place. */
+    function bringForward(id: string) {
+      const from = stack.indexOf(id);
+      if (from <= 0) return placeCards();
+      stack = [id, ...stack.filter((d) => d !== id)];
+      const card = stackEl.querySelector<HTMLElement>(`.doc[data-doc="${id}"]`)!;
+      if (reduce.matches || !card.animate) return placeCards();
+      card.style.transition = 'none';
+      const lift = card.animate(
+        [
+          { transform: spot(from), filter: `brightness(${1 - from * 0.3})` },
+          { transform: 'translate(-58%, -6%) rotate(-8deg) scale(1.02)', filter: 'brightness(1)', offset: 0.45 },
+          { transform: spot(0), filter: 'brightness(1)' },
+        ],
+        { duration: SHUFFLE, easing: 'cubic-bezier(0.3, 0.7, 0.2, 1)' },
+      );
+      // Over the others once it is clear of them.
+      setTimeout(() => (card.style.zIndex = String(stack.length + 1)), SHUFFLE * 0.4);
+      placeCards();
+      card.style.transform = spot(0);
+      // Still behind them as it starts to lift.
+      card.style.zIndex = String(stack.length - from);
+      lift.onfinish = () => {
+        card.style.transition = '';
+        card.style.zIndex = String(stack.length);
+      };
+    }
+    stackEl.addEventListener('click', (e) => {
+      const b = (e.target as Element).closest('button');
+      const card = b?.closest<HTMLElement>('.doc');
+      if (card) bringForward(card.dataset.doc!);
+    });
+    /** The map to draw for where you are: the one chosen, or a target's first
+     *  that can be drawn; for a goal, the first drawable map among its
+     *  targets. Null where the work is carried by people and tools. */
+    function currentMap(): string | null {
+      const drawable = (id: string) => !cfg.maps[id].updating;
+      if (place.target) {
+        const ids = mapsOf(byId.get(place.target)!);
+        if (place.map && ids.includes(place.map)) return place.map;
+        return ids.find(drawable) ?? ids[0] ?? null;
+      }
+      return plan[place.goal].flatMap((id) => mapsOf(byId.get(id)!)).find(drawable) ?? null;
+    }
+    let linkRun = 0;
+    /** What the map shows now, so a new tab on the same map doesn't fade it. */
+    let drawnFor = '';
+    function showMap() {
+      if (place.home) {
+        // Home: the landscape on its own.
+        if (drawnFor === 'home') return;
+        drawnFor = 'home';
+        ++linkRun;
+        links.innerHTML = '';
+        fadeTo(() => score.setModel([], 'mean'), false);
+        legend.hidden = true;
+        showNote(null);
+        hideDocs();
+        return;
+      }
+      const id = currentMap();
+      const t = place.target ? byId.get(place.target)! : null;
+      const g = goalsList[place.goal];
+      const key_ = id ?? `note:${place.target ?? g.id}`;
+      if (key_ === drawnFor) return;
+      drawnFor = key_;
+      const me = ++linkRun;
+      links.innerHTML = '';
+      const m = id ? cfg.maps[id] : null;
+      if (!m || m.updating) {
+        fadeTo(() => score.setModel([], 'mean'), false);
+        legend.hidden = true;
+        if (m) return showNote(`<span class="nt-h">Map being updated</span><strong>${esc(m.title)}</strong>${esc(m.about)}`);
+        // No map, and nothing missing: the work is carried by people and
+        // tools. Where some are documents, the documents, stacked, with this
+        // target's own in front; otherwise a list of what carries it.
+        const tools = [...new Set((t ? [t] : plan[place.goal].map((x) => byId.get(x)!)).flatMap(toolsOf))];
+        const around = t?.goal ? plan[place.goal].map((x) => byId.get(x)!) : t ? [t] : plan[place.goal].map((x) => byId.get(x)!);
+        const docs = [...new Set([...tools, ...around.flatMap(toolsOf)])].filter((x) => cfg.covers[x]);
+        if (docs.length) {
+          showNote(null);
+          return showDocs(docs);
+        }
+        return showNote(
+          `<span class="nt-h">People and tools</span><strong>${esc(t ? t.name : `${g.id} · ${g.name}`)}</strong>` +
+            `${t ? 'Carried by' : 'This goal works through'}:<ul>${tools.map((x) => `<li>${esc(cfg.tools[x].name)}</li>`).join('')}</ul>`,
+        );
+      }
+      showNote(null);
+      hideDocs();
+      legend.hidden = false;
+      const model = modelFor(m, layers, cfg.frameworks.posterKey);
+      const stops = model.bivariate ? null : paletteById(m.palette ?? null).stops;
+      fadeTo(() => {
+        score.setModel(model.criteria, 'mean');
+        score.setBivariate(model.bivariate);
+        if (stops) score.setPalette(stops);
+      }, true);
+      mapTitle.textContent = m.title;
+      mapSrc.textContent = [m.source, `Data Sandbox model${m.version ? `, ${m.version}` : ''}`].filter(Boolean).join(' · ');
+      if (model.bivariate) {
+        const k = cfg.frameworks.posterKey;
+        let cells = '';
+        for (let row = 2; row >= 0; row--) for (let col = 0; col < 3; col++) cells += `<i style="background:${k[row * 3 + col]}"></i>`;
+        key.innerHTML = `<div class="bi"><div class="grid" aria-hidden="true">${cells}</div><div class="axes"><span>Up: <b>${esc(m.axes![1])}</b></span><span>Across: <b>${esc(m.axes![0])}</b></span></div></div>`;
+      } else {
+        key.innerHTML = `<div class="ramp" style="background:linear-gradient(90deg, ${stops!.map(rgb).join(', ')})"></div><div class="ends"><span>${esc(m.ends![0])}</span><span>${esc(m.ends![1])}</span></div>`;
+      }
+      // The same model, opened in the Sandbox. The link is made as the model
+      // is deflated: a moment, and a newer map wins.
+      encodeSaved(model.saved).then((hash) => {
+        if (me !== linkRun) return;
+        links.innerHTML =
+          `<a href="${esc(cfg.sandbox)}#${hash}" target="_blank" rel="noopener">Test it in the Sandbox</a>` +
+          `<a href="${esc(cfg.explore)}" target="_blank" rel="noopener">See it on the ground</a>`;
+      });
+    }
+
+    // Nothing here scrolls but the card, when it must. A browser still
+    // scrolls a page to show something focused off its edge (a chip at the
+    // top of the ring); put it back.
+    for (const box of [page, document.documentElement, document.body])
+      box.addEventListener('scroll', () => (box.scrollTop || box.scrollLeft ? box.scrollTo(0, 0) : null), { passive: true });
+    addEventListener('scroll', () => (scrollX || scrollY) && scrollTo(0, 0), { passive: true });
+
+    // Straight onto the place the address asked for: home, unless it says.
+    go(place, !!place.home);
+  }
+</script>

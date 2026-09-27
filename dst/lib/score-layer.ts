@@ -39,6 +39,8 @@ const MAXZ = 12;
 const INFLIGHT = 24;
 /** Textures kept (64 KB each on the GPU); the least recently drawn go first. */
 const KEEP = 700;
+/** How long (ms) a tile whose fetch failed is left before it is asked for again. */
+const RETRY = 4000;
 
 /** Units across a tile in MapLibre's tile space, and the points across one
  *  of its terrain tiles (Terrain.meshSize). */
@@ -251,6 +253,9 @@ export class ScoreLayer implements CustomLayerInterface {
   /** Requests in flight, by key, with the id the worker knows them by. */
   private inflight = new Map<string, number>();
   private queue: Want[] = [];
+  /** Tiles whose fetch failed, and when: left a few seconds before trying
+   *  again, rather than asked for on every frame while there is no signal. */
+  private failed = new Map<string, number>();
   private nextId = 1;
   private byId = new Map<number, { key: string; resolve?: (b: number) => void }>();
   private frame = 0;
@@ -336,6 +341,14 @@ export class ScoreLayer implements CustomLayerInterface {
       return;
     }
     this.inflight.delete(r.key);
+    if (m.failed) {
+      // Not drawn as empty: asked for again once the pause is up.
+      this.failed.set(r.key, performance.now());
+      this.pump();
+      // A still map draws nothing new of its own accord, so it is nudged to.
+      setTimeout(() => this.map?.triggerRepaint(), RETRY + 50);
+      return;
+    }
     if (!this.gl) return;
     const t0 = performance.now();
     this.textures.set(r.key, { tex: m.data ? this.upload(m.data) : this.empty, used: this.frame });
@@ -386,7 +399,9 @@ export class ScoreLayer implements CustomLayerInterface {
         this.byId.delete(id);
       }
     if (drop.length) this.post({ type: 'cancel', ids: drop });
-    this.queue = list.filter((q) => !this.textures.has(q.key) && !this.inflight.has(q.key));
+    const now = performance.now();
+    for (const [key, at] of this.failed) if (now - at > RETRY) this.failed.delete(key);
+    this.queue = list.filter((q) => !this.textures.has(q.key) && !this.inflight.has(q.key) && !this.failed.has(q.key));
     this.pump();
   }
 

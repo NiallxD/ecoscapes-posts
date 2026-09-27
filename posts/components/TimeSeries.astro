@@ -1254,6 +1254,9 @@ const under = video ? video.base ?? video.poster : undefined;
       page.addEventListener('key:close', () => {
         userPaused = false;
         if (heldForKey && inView) v.play().catch(() => {});
+        // Opened over the hold at the end, which then gave way to it: the
+        // playthrough is over, so on to the next, as the slider does.
+        else if (v.ended && inView && !ending && !tuning) advance();
         heldForKey = false;
       });
 
