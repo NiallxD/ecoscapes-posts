@@ -137,6 +137,9 @@ const config = {
           <p class="eyebrow">Data Sandbox · demo</p>
           <h1 id="panel-title">What matters here?</h1>
         </div>
+        <button class="fold" id="find-btn" type="button" aria-expanded="false" aria-controls="find" aria-label="Search layers" title="Search layers">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4.5 4.5" /></svg>
+        </button>
         <button class="fold" id="share" type="button" aria-label="Copy a link to this sandbox" title="Copy a link to this sandbox">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1" /><path d="M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1" /></svg>
         </button>
@@ -144,6 +147,12 @@ const config = {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
         </button>
       </header>
+      <!-- Search for a layer by name and add it straight to the list: the
+           quick way past the add-a-layer menu's long list. -->
+      <div class="find" id="find" hidden>
+        <input id="find-input" type="search" placeholder="Search layers to add" aria-label="Search layers to add" autocomplete="off" />
+        <div class="find-results" id="find-results"></div>
+      </div>
       <div class="panel-body" id="panel-body">
         <p class="lede">Choose the layers which you are interested in analysing. Configure how much you value each layers contribution to the analysis. The map lights up in response to your configuration. Click any location on the map to read how each layer contributes.</p>
 
@@ -475,7 +484,47 @@ const config = {
   .panel-head { display: flex; align-items: flex-start; gap: 0.8rem; padding: 1rem 1.1rem 0.6rem; }
   .panel-head > div { flex: 1; min-width: 0; }
   .panel-logo { display: block; width: 8.5rem; height: auto; margin: 0.1rem 0 0.7rem; }
+  #find-btn { margin-right: -0.4rem; }
+  #find-btn[aria-expanded='true'] { border-color: var(--accent); color: var(--accent); }
+  /* A .fold, for the look, but not the fold's flip when closed. */
+  #find-btn svg { transform: none; }
   #share { margin-right: -0.4rem; }
+  /* The layer search, under the heading. */
+  .find { padding: 0 1.1rem 0.7rem; }
+  .find[hidden] { display: none; }
+  .find input {
+    display: block;
+    width: 100%;
+    padding: 0.55rem 0.9rem;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--bg-lift);
+    color: var(--ink);
+    font: inherit;
+    font-size: 0.88rem;
+  }
+  .find input::placeholder { color: var(--ink-dim); }
+  .find input:focus { outline: none; border-color: var(--accent); }
+  .find-results { margin-top: 0.4rem; max-height: 16rem; overflow-y: auto; }
+  .find-results:empty { display: none; }
+  .find-results :global(.find-row) { display: flex; align-items: center; gap: 0.5rem; padding: 0.45rem 0.3rem; border-top: 1px solid var(--line); }
+  .find-results :global(.find-row:first-child) { border-top: 0; }
+  .find-results :global(.find-row > span) { flex: 1; min-width: 0; font-size: 0.86rem; }
+  .find-results :global(small) { display: block; font-size: 0.72rem; color: var(--ink-dim); }
+  .find-results :global(mark) { background: none; color: var(--accent); }
+  .find-results :global(button) {
+    flex: none;
+    padding: 0.25rem 0.65rem;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: none;
+    color: var(--ink);
+    font: inherit;
+    font-size: 0.76rem;
+    cursor: pointer;
+  }
+  .find-results :global(button:hover), .find-results :global(.find-row.sel button:first-of-type) { border-color: var(--accent); color: var(--accent); }
+  .find-results :global(.find-note) { margin: 0.3rem 0.3rem 0; font-size: 0.78rem; color: var(--ink-dim); }
   .eyebrow { margin: 0; font-size: 0.66rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
   h1 { font-size: 1.2rem; line-height: 1.2; margin: 0.25rem 0 0; }
   .fold {
@@ -2518,6 +2567,116 @@ const config = {
     } catch {
       say('Copy the address bar to share this sandbox.');
     }
+  });
+
+  // ---- Searching for a layer ---------------------------------------------------
+  // The magnifier beside the link button opens a search box; picking a result
+  // adds that layer to the list, as the add-a-layer menu does. It searches a
+  // layer's name first, then its classes and description -- not the group
+  // it sits under, which would bring in the whole group -- and forgives a
+  // slip of the finger in a name ("grizly").
+  const findBtn = document.getElementById('find-btn')!;
+  const find = document.getElementById('find')!;
+  const findInput = document.getElementById('find-input') as HTMLInputElement;
+  const findResults = document.getElementById('find-results')!;
+  const words = (s: string) =>
+    s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  const oneOff = (a: string, b: string) => {
+    if (Math.abs(a.length - b.length) > 1) return false;
+    let i = 0, j = 0, slips = 0;
+    while (i < a.length && j < b.length) {
+      if (a[i] === b[j]) { i++; j++; continue; }
+      if (++slips > 1) return false;
+      if (a.length > b.length) i++;
+      else if (b.length > a.length) j++;
+      else { i++; j++; }
+    }
+    return slips + (a.length - i) + (b.length - j) <= 1;
+  };
+  const findIndex = config.layers.map((l) => ({
+    l,
+    name: words(l.name),
+    rest: words([l.about, ...(l.classes ?? []).map((c) => c.label)].join(' ')),
+  }));
+  let findHits: Layer[] = [];
+  let findSel = 0;
+  function findScore(e: (typeof findIndex)[number], qs: string[]) {
+    let total = 0;
+    for (const q of qs) {
+      const inName = e.name.some((w) => w === q) ? 10 : e.name.some((w) => w.startsWith(q)) ? 9 : q.length >= 3 && e.name.some((w) => w.includes(q)) ? 7
+        : q.length >= 5 && e.name.some((w) => oneOff(q, w) || oneOff(q, w.slice(0, q.length))) ? 5 : 0;
+      const inRest = e.rest.some((w) => w.startsWith(q)) ? 3 : q.length >= 3 && e.rest.some((w) => w.includes(q)) ? 2 : 0;
+      const best = Math.max(inName, inRest);
+      if (!best) return 0;
+      total += best;
+    }
+    return total;
+  }
+  function renderFind() {
+    const qs = words(findInput.value);
+    if (!qs.length) { findHits = []; findResults.innerHTML = ''; return; }
+    findHits = findIndex
+      .map((e) => ({ l: e.l, s: findScore(e, qs) }))
+      .filter((h) => h.s > 0)
+      .sort((a, b) => b.s - a.s || a.l.name.localeCompare(b.l.name))
+      .slice(0, 8)
+      .map((h) => h.l);
+    findSel = Math.min(findSel, Math.max(0, findHits.length - 1));
+    const used = new Set(items.map((i) => i.id));
+    const full = items.length >= MAX_CRITERIA;
+    const mark = (name: string) => {
+      let html = esc(name);
+      for (const q of qs) html = html.replace(new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'ig'), '<mark>$1</mark>');
+      return html;
+    };
+    const buttons = (l: Layer) =>
+      used.has(l.id)
+        ? `<small>In the list</small>`
+        : mode === 'two'
+          ? ([0, 1] as const).map((a) => `<button type="button" data-add="${esc(l.id)}" data-axis="${a}"${full ? ' disabled' : ''}>+ ${esc(axisNames[a])}</button>`).join('')
+          : `<button type="button" data-add="${esc(l.id)}" data-axis="0"${full ? ' disabled' : ''}>Add</button>`;
+    findResults.innerHTML = findHits.length
+      ? findHits.map((l, i) => `<div class="find-row${i === findSel ? ' sel' : ''}"><span>${mark(l.name)}<small>${esc(l.group)}</small></span>${buttons(l)}</div>`).join('') +
+        (full ? `<p class="find-note">Up to ${MAX_CRITERIA} layers at once: take one out to add another.</p>` : '')
+      : `<p class="find-note">No layers match.</p>`;
+  }
+  function addFound(id: string, axis: 0 | 1) {
+    if (items.length >= MAX_CRITERIA || items.some((i) => i.id === id)) return;
+    items.push(fresh(id, 1, undefined, axis));
+    preset = null;
+    render();
+    push();
+    // The list is what changed: open the panel to it if it was folded.
+    if (panelBody.hidden) fold.click();
+    say(`Added ${config.layers.find((l) => l.id === id)?.name ?? 'the layer'}.`);
+    renderFind();
+    // Back to typing, for the next one.
+    findInput.focus();
+  }
+  const showFind = (open: boolean) => {
+    find.hidden = !open;
+    findBtn.setAttribute('aria-expanded', String(open));
+    if (open) findInput.focus();
+  };
+  findBtn.addEventListener('click', () => showFind(find.hidden));
+  findInput.addEventListener('input', () => { findSel = 0; renderFind(); });
+  findInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      if (findInput.value) { findInput.value = ''; renderFind(); } else showFind(false);
+    } else if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && findHits.length) {
+      e.preventDefault();
+      findSel = (findSel + (e.key === 'ArrowDown' ? 1 : findHits.length - 1)) % findHits.length;
+      renderFind();
+    } else if (e.key === 'Enter' && findHits[findSel]) {
+      e.preventDefault();
+      addFound(findHits[findSel].id, 0);
+    }
+  });
+  findResults.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-add]');
+    if (b) addFound(b.dataset.add!, Number(b.dataset.axis) as 0 | 1);
   });
 
   // ---- Taking it away ---------------------------------------------------------
