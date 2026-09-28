@@ -2312,10 +2312,7 @@ const config = {
   // else is drawn over the layer.
   //
   // The tag names what is under you in the layers that are on, top of the
-  // stack first ("Grizzly bear: High"). With none on, it falls back to the
-  // layers that have words of their own for it (`here` in sea-to-sky.md):
-  // the habitat core or the corridor you are in.
-  const hereLayers = config.layers.filter((l) => l.here);
+  // stack first ("Grizzly bear: High"); with none on, there is no tag.
   /** How many of the layers that are on the tag names at most. */
   const HERE_MOST = 2;
   const shortName = (l: Layer) => config.network.names[l.id] ?? l.name;
@@ -2429,12 +2426,6 @@ const config = {
           if (c) now.push({ layer: l, value: c.label, colour: c.colour });
         });
         now = now.slice(0, HERE_MOST);
-      } else {
-        const reads = await Promise.all(hereLayers.map((l) => pixel(l, at).catch(() => undefined)));
-        now = hereLayers
-          .filter((l, i) => (reads[i] === undefined ? inLayers.some((h) => h.layer === l) : reads[i] !== null))
-          .reverse()
-          .map((l) => ({ layer: l, colour: swatch(l) }));
       }
     }
     if (ask !== asked) return;
