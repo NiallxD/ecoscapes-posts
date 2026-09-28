@@ -373,11 +373,14 @@ const config = {
           <span class="way-label" aria-hidden="true">Save</span>
         </button>
       </div>
-      <a class="step way" id="home" href={asset('/')} aria-label="All the posts">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5L12 4l8 6.5V19a1 1 0 01-1 1h-4.5v-5.5h-5V20H5a1 1 0 01-1-1z" /></svg>
-        <span class="way-label" aria-hidden="true">Home</span>
-      </a>
-      <!-- A phone's, in Home's place: folds the column away but for the
+      <!-- Every map off, back to the base map alone: the network, the web and
+           Through time put away too, but not the landing. On a phone, above the
+           chevron. -->
+      <button class="step way" id="clear-btn" type="button" aria-label="Clear the maps" title="Clear all maps, back to the base map">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4l8 4-8 4-8-4z" /><path d="M4 12.5l3 1.5M20 12.5l-3 1.5" /><path d="M15.5 16.5l4 4M19.5 16.5l-4 4" /></svg>
+        <span class="way-label" aria-hidden="true">Clear</span>
+      </button>
+      <!-- A phone's, under Clear: folds the column away but for the
            search, and back. -->
       <button class="step side-fold" id="side-fold" type="button" aria-expanded="true" aria-controls="map-side" aria-label="Hide the controls" title="Hide the controls">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9.5l6 6 6-6" /></svg>
@@ -1753,7 +1756,6 @@ const config = {
   .side-fold svg { transition: transform 0.25s ease; }
   .side-fold[aria-expanded='false'] svg { transform: rotate(180deg); }
   @media (max-width: 47.99rem), (max-height: 30rem) {
-    #home { display: none; }
     .side-fold { display: grid; }
     /* Folded: the search and the chevron only. */
     .map-side.folded > :not(.ways, .side-fold), .map-side.folded .ways > :not(#search-btn) { display: none; }
@@ -2499,7 +2501,6 @@ const config = {
   import { explore } from './lib/explore';
   import { web } from './lib/web';
   import { TOWNS, LANDMARKS } from '../shared/lib/towns';
-  import { confirmLeave } from '../shared/lib/leave';
   import { headingOf as compassHeading, requestCompass, hasCompassApi, needsTap, ORIENTATION_EVENTS } from '../shared/lib/compass';
 
   type Layer = {
@@ -4628,7 +4629,7 @@ const config = {
     }).join('');
     timeView.innerHTML =
       `<div class="tv-head"><p class="eyebrow">Through time</p><h2>Watch the landscape change, year by year</h2>` +
-      `<p>Satellites have looked down on this ground every year since the 1980s, and these maps are built on what they saw. Pick one to watch it change.</p>` +
+      `<p>Satellites have been watching planet Earth since the 1980s, and these maps are built on what they saw. Pick one to watch the landscapes change over the past 40 years.</p>` +
       `<button class="net-start-close tv-close" type="button" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg></button></div>` +
       `<svg class="tv-sky" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMax meet" role="group" aria-label="Maps through time">` +
       `<defs><radialGradient id="tv-air" cx="${CX}" cy="${CY}" r="${R + 30}" gradientUnits="userSpaceOnUse">` +
@@ -4856,8 +4857,21 @@ const config = {
     );
   });
 
-  // Home loses where you were on the map: asked first.
-  confirmLeave(document.querySelector<HTMLAnchorElement>('#home'));
+  // Clear: every map off and whatever is open over the map put away -- the
+  // network, the web, Through time -- leaving the base map. Not the landing.
+  document.getElementById('clear-btn')!.addEventListener('click', () => {
+    if (wmOn) wmToggle(false, true);
+    // Nothing from before the network to come back.
+    netSaved = [];
+    if (net.active()) net.off();
+    if (lensBtn.getAttribute('aria-pressed') === 'true') lensBtn.click();
+    years.close();
+    closeWeb();
+    closeTime(false);
+    search.close();
+    if (!sheet.hidden) closeSheet();
+    for (const l of config.layers) if (state.get(l.id)!.on) setLayer(l.id, false);
+  });
   // ---- Pins ----------------------------------------------------------------
   const pin = (label: string, kind: 'post' | 'callout') => {
     const b = document.createElement('button');
