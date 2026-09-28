@@ -9,6 +9,8 @@ dashboard's own map tiles.
   map/tools/fetch-terradapt-series.py --layer human_footprint --theme human_footprint \
       --start 1985-07-01T00:00:00 --end 2022-07-01T00:00:00
 
+For every layer the portal links to at once, overnight: map/tools/overnight-series.py.
+
 The dashboard's API (api-hsbr.staging.dashboard.terradapt.org, no login) hands
 out one Earth Engine tile URL per year for a layer. Those tiles are coloured
 JPEGs, not values, so each pixel is matched back to the nearest legend colour.
@@ -21,7 +23,8 @@ JPEGs, not values, so each pixel is matched back to the nearest legend colour.
 - A colour ramp ("gradient", human footprint): the ramp's stops, evenly spaced
   from the first label's value to the last's and blended between, as Earth
   Engine draws them; each pixel written as the value its colour sits at,
-  rounded. Values have to fall within 1-255.
+  rounded. A range outside 1-255 is stretched over 1-255 (range.json's
+  `stored_as`).
 
 JPEG blurs colour at class edges, so a thin edge pixel can land on the wrong
 class, and a ramp's values carry a unit or two of noise; each year prints the
@@ -76,6 +79,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--layer", default="landcover_class")
     ap.add_argument("--theme", default="landcover")
+    ap.add_argument("--scope", default="monitor", help="monitor, or project for the climate projections")
+    ap.add_argument("--api", default=API, help="another dashboard's select_layer, e.g. cascadia's")
     ap.add_argument("--start", default="1984-07-01T00:00:00")
     ap.add_argument("--end", default="2024-07-01T00:00:00")
     ap.add_argument("--years", nargs="*", type=int, help="only these years (default all)")
@@ -86,11 +91,18 @@ def main():
     ap.add_argument("--workers", type=int, default=12)
     a = ap.parse_args()
 
-    q = f"layer={a.layer}&view=status&theme={a.theme}&scope=monitor&visualisation=pixel&start={a.start}&end={a.end}"
-    layer = json.loads(get(f"{API}?{q}"))["layer"]
+    q = f"layer={a.layer}&view=status&theme={a.theme}&scope={a.scope}&visualisation=pixel&start={a.start}&end={a.end}"
+    layer = json.loads(get(f"{a.api}?{q}"))["layer"]
     legend = layer["legend"]
     steps = legend["steps"]
-    stops = np.array([[int(s["color"][i:i + 2], 16) for i in (1, 3, 5)] for s in steps], dtype=np.float64)
+
+    def hex_rgb(c):
+        # "#ffc" shorthand -> "#ffffcc"
+        if len(c) == 4:
+            c = "#" + "".join(ch * 2 for ch in c[1:])
+        return [int(c[i:i + 2], 16) for i in (1, 3, 5)]
+
+    stops = np.array([hex_rgb(s["color"]) for s in steps], dtype=np.float64)
     out = a.out or os.path.join(a.cache, a.layer)
     os.makedirs(out, exist_ok=True)
     # What each value is drawn as (`targets`), and the value it stands for.
@@ -100,15 +112,20 @@ def main():
             json.dump([{"value": i + 1, "label": s["label"].strip(), "color": s["color"]} for i, s in enumerate(steps)], f, indent=2)
     elif legend.get("type") == "gradient":
         lo, hi = float(steps[0]["label"]), float(steps[-1]["label"])
-        if lo < 1 or hi > 255:
-            sys.exit(f"{a.layer}: values {lo}-{hi} don't fit 1-255")
+        # A range that won't fit a byte as it is (0.44-0.85, 66.7-2770) is
+        # stretched over 1-255 instead; range.json says how to read it back.
+        scaled = lo < 1 or hi > 255
+        vlo, vhi = (1, 255) if scaled else (lo, hi)
         t = np.linspace(0, len(stops) - 1, 100 * (len(stops) - 1) + 1)
         i = np.minimum(t.astype(int), len(stops) - 2)
         f_ = (t - i)[:, None]
         targets = stops[i] * (1 - f_) + stops[i + 1] * f_
-        values = np.rint(lo + (hi - lo) * t / (len(stops) - 1)).astype(int)
+        values = np.rint(vlo + (vhi - vlo) * t / (len(stops) - 1)).astype(int)
+        rng = {"min": lo, "max": hi, "units": legend.get("units"), "stops": [s["color"] for s in steps]}
+        if scaled:
+            rng["stored_as"] = [1, 255]
         with open(os.path.join(out, "range.json"), "w") as f:
-            json.dump({"min": lo, "max": hi, "units": legend.get("units"), "stops": [s["color"] for s in steps]}, f, indent=2)
+            json.dump(rng, f, indent=2)
     else:
         sys.exit(f"{a.layer}: legend is {legend.get('type')!r}, neither blocks nor a gradient")
 
@@ -135,16 +152,17 @@ def main():
     pal = [0, 0, 0] * 256
     for v, rgb in zip(values, targets):
         pal[3 * v:3 * v + 3] = [int(c) for c in rgb]
-    for t in layer["tiles"]:
+    for k, t in enumerate(layer["tiles"], 1):
+        of = f"{k}/{len(layer['tiles'])}"
         year = int(t["date"][:4])
         if a.years and year not in a.years:
             continue
         tif = os.path.join(out, f"{a.layer}_{year}.tif")
         if os.path.exists(tif):
-            print(year, "done already")
+            print(of, year, "done already", flush=True)
             continue
         url = t["url"].replace("%7B", "{").replace("%7D", "}")
-        tdir = os.path.join(a.cache, "tiles", a.layer, str(year), str(a.zoom))
+        tdir = os.path.join(a.cache, "tiles", os.path.basename(out), str(year), str(a.zoom))
 
         def fetch(xy):
             x, y = xy
@@ -152,9 +170,10 @@ def main():
             if not os.path.exists(p):
                 data = get(url.format(z=a.zoom, x=x, y=y))
                 os.makedirs(tdir, exist_ok=True)
-                with open(p + ".part", "wb") as f:
+                part = f"{p}.{os.getpid()}.part"
+                with open(part, "wb") as f:
                     f.write(data)
-                os.replace(p + ".part", p)
+                os.replace(part, p)
             return xy, p
 
         mosaic = np.zeros((len(ys) * 256, len(xs) * 256, 3), dtype=np.uint8)
@@ -192,7 +211,7 @@ def main():
             ex, sy = e * math.pi * R / 180, R * math.asinh(math.tan(math.radians(s_)))
             subprocess.run(["gdal_translate", "-q", "-projwin", str(wx), str(ny), str(ex), str(sy),
                             "-co", "COMPRESS=DEFLATE", "-co", "TILED=YES", full, tif], check=True)
-        print(year, f"{far / max(filled, 1):.1%} doubtful", tif, flush=True)
+        print(of, year, f"{far / max(filled, 1):.1%} doubtful", tif, flush=True)
 
 
 if __name__ == "__main__":

@@ -101,6 +101,8 @@ const config = {
   declination: data.declination,
   basemap: tile(data.basemap),
   terrain: tile('/tiles/terrain.pmtiles'),
+  // The Earth at night, for Through time (map/tools/night-globe.py).
+  globe: asset('/img/night-globe.webp'),
   glyphs: asset('/tiles/fonts/{fontstack}/{range}.pbf'),
   layers,
   themes,
@@ -119,7 +121,7 @@ const config = {
   },
 };
 ---
-<Shell title="EcoScapes map" description={data.intro}>
+<Shell title="EcoScapes map" description={data.intro} gate>
   <main class="map-page">
     <div class="map" id="map" data-config={JSON.stringify(config)}></div>
 
@@ -167,13 +169,53 @@ const config = {
     <!-- The lens's list of groups: outside it, so it is over your dot too. -->
     <div class="lens-groups" id="lens-groups" role="group" aria-label="Lens layers" hidden></div>
 
+    <!-- Two maps on: the lower one (the focus) on its own in a second map,
+         cut to the filter's circle or to the left of the swipe's line. -->
+    <div class="cmp" id="cmp" hidden>
+      <div class="cmp-map"></div>
+      <div class="cmp-circle" aria-hidden="true">
+        <span class="cmp-circle-tag"></span>
+        <button class="cmp-size" type="button" tabindex="-1" aria-label="Filter size"></button>
+        <!-- Three or more on: a dial down the left third of the rim, a notch
+             for each map after home and a node to turn between them. -->
+        <span class="cmp-dial">
+          <svg class="cmp-dial-track" viewBox="-1 -1 2 2"><path d="M-0.5 -0.866 A1 1 0 0 0 -0.5 0.866" /></svg>
+          <span class="cmp-dial-ticks"></span>
+          <button class="cmp-dial-node" type="button" tabindex="-1" aria-label="Turn to the next map">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12a7 7 0 1 1-2.05-4.95" /><path d="M17.5 3.5v4h-4" /></svg>
+          </button>
+        </span>
+      </div>
+      <!-- The swipe's line: straight, or bent through points of the
+           visitor's own. -->
+      <svg class="cmp-swipe" aria-hidden="true"><path class="cmp-path" /><path class="cmp-hit" /><g class="cmp-nodes"></g><circle class="cmp-hub" r="11" /></svg>
+      <!-- Three or more on, the swipe's slices: a name in each. -->
+      <div class="cmp-slices" aria-hidden="true"></div>
+      <button class="cmp-knob" type="button" tabindex="-1" aria-label="Move the line">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7l-5 5 5 5M15 7l5 5-5 5" /></svg>
+      </button>
+      <span class="cmp-tag cmp-tag-l"></span>
+      <span class="cmp-tag cmp-tag-r"></span>
+    </div>
+
     <!-- The network: a few maps to start from, then a circle round the one
          in focus holding what is linked to it (network.ts). -->
     <div class="net" id="net" hidden></div>
 
     <!-- Opening fresh, with nothing on: the map dimmed under one question,
          a search, and the two other ways in (explore.ts). -->
+    <!-- The dimming under the landing's search and the web: one layer for
+         both, so going from one to the other only deepens or lightens it. -->
+    <div class="land-dim" id="land-dim" aria-hidden="true"></div>
     <div class="explore" id="explore" hidden></div>
+
+    <!-- The web over the map: every map round a circle, the one picked on
+         the map under it; put away, small in the top corner. -->
+    <div class="webmap" id="webmap" hidden></div>
+
+    <!-- Through time, from the landing: a slice of the globe along the foot,
+         and over it a satellite for each map that has its years. -->
+    <div class="time-view" id="time-view" hidden></div>
 
     <!-- The web of every map, on its own over the dimmed map (web.ts). -->
     <div class="web-view" id="web-view" hidden></div>
@@ -212,6 +254,26 @@ const config = {
       </button>
     </div>
 
+    <!-- Two maps on at once: three ways to set the one on top against the
+         one under it. -->
+    <div class="cmp-bar" id="cmp-bar" role="group" aria-label="Compare the two maps" hidden>
+      <p class="cmp-names"></p>
+      <div class="cmp-row">
+        <div class="cmp-modes">
+          <button type="button" data-mode="filter" aria-pressed="false">Filter</button>
+          <button type="button" data-mode="swipe" aria-pressed="false">Swipe</button>
+          <button type="button" data-mode="opacity" aria-pressed="true">Opacity</button>
+        </div>
+        <input class="cmp-opacity" type="range" min="0" max="1" step="0.05" aria-label="How clear the map on top is" />
+        <button class="cmp-bend" type="button" aria-pressed="false" aria-label="Bend the line" title="Bend the line: points to drag it by" hidden>
+          <svg class="cmp-bend-go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20c3-6 5-3 8-8s5-4 8-8" /><circle cx="4" cy="20" r="1.8" fill="currentColor" /><circle cx="12" cy="12" r="2.2" fill="currentColor" /><circle cx="20" cy="4" r="1.8" fill="currentColor" /></svg>
+          <!-- Bent: back to straight, with a reset arrow to say so. -->
+          <svg class="cmp-bend-reset" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3" /><path d="M4.5 3.5v3.7h3.7" /></svg>
+        </button>
+        <span class="cmp-hint" hidden></span>
+      </div>
+    </div>
+
     <!-- The page's controls, in a column in the far corner as on the story
          pages. -->
     <div class="map-side">
@@ -222,22 +284,39 @@ const config = {
           <path d="M12 21s6.5-5.2 6.5-10.5a6.5 6.5 0 10-13 0C5.5 15.8 12 21 12 21z" /><path d="M12 7.5v6M9 10.5h6" />
         </svg>
       </button>
+      <!-- The ways into the maps, as on the landing: search, the network,
+           through time, the web. One is opened out with its name (search, to
+           begin with); pointed at, another takes its place. -->
+      <div class="ways" id="ways">
       <!-- The search: "What do you want to explore?" over the dimmed map
            (explore.ts), as the map opens fresh. -->
-      <button class="step search-btn" id="search-btn" type="button" aria-label="Search the maps">
+      <button class="step way wide" id="search-btn" type="button" aria-label="Search the maps">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4.5 4.5" /></svg>
-        <span aria-hidden="true">Search</span>
+        <span class="way-label" aria-hidden="true">Search</span>
       </button>
       <!-- Flat, or tilted over the ground's own shape. The tilt slides out of
            the button while 3D is on: a mouse's way to it (a right-drag also
            tilts). Not on a touch screen, where two fingers do it. -->
-      <button class="step" id="net-btn" type="button" aria-pressed="false" aria-label="Network" title="Network: the maps linked to one map">
+      <button class="step way" id="net-btn" type="button" aria-pressed="false" aria-label="Network" title="Network: the maps linked to one map">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
           <circle cx="12" cy="12" r="3" /><circle cx="12" cy="3.8" r="2" /><circle cx="19.1" cy="16.1" r="2" /><circle cx="4.9" cy="16.1" r="2" />
           <path d="M12 9V5.8M14.6 13.5l2.8 1.6M9.4 13.5l-2.8 1.6" />
         </svg>
+        <span class="way-label" aria-hidden="true">Network</span>
       </button>
-      <button class="step" id="lens-btn" type="button" aria-pressed="false" aria-label="Lens" title="Lens: look through the map to another layer">
+      <button class="step way" id="time-btn" type="button" aria-label="Through time" title="Through time: maps year by year">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13.5" r="7.5" /><path d="M12 13.5V9.5M10 2.5h4M12 2.5v3.5M18.2 6.8l1.3-1.3" /></svg>
+        <span class="way-label" aria-hidden="true">Through time</span>
+      </button>
+      <button class="step way" id="web-btn" type="button" aria-pressed="false" aria-label="Web" title="Web: every map and how they connect">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="8.5" /><path d="M12 3.5C11 9 7 13 4.6 16.3M19.4 16.3C16 14 10 13 4.6 16.3M12 3.5c1 5.5 4.5 9.5 7.4 12.8M3.6 11c5 .5 11.5.5 16.8 0" stroke-width="1.1" /></svg>
+        <span class="way-label" aria-hidden="true">Web</span>
+      </button>
+      </div>
+      <!-- The lens that turned through every layer: put by for now (lens.ts
+           is still wired, just not offered). Its circle lives on as the
+           compare bar's filter. -->
+      <button class="step" id="lens-btn" hidden type="button" aria-pressed="false" aria-label="Lens" title="Lens: look through the map to another layer">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
           <circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="5" stroke-dasharray="2 2.2" />
         </svg>
@@ -247,11 +326,19 @@ const config = {
           <span>Tilt</span>
           <input type="range" min="0" max="80" step="1" value="60" tabindex="-1" aria-label="Tilt" />
         </label>
-        <button class="step" id="three-d" type="button" aria-pressed="false" aria-label="3D view" title="3D view"><span class="step-text">3D</span></button>
+        <button class="step way" id="three-d" type="button" aria-pressed="false" aria-label="3D view" title="3D view"><span class="step-text">3D</span><span class="way-label" aria-hidden="true">3D view</span></button>
       </div>
+      <!-- The inspector: on, a tap on the map drops a pin (and the next moves
+           it), and the tag over your dot reads what is at the pin instead. -->
+      <button class="step way" id="inspect-btn" type="button" aria-pressed="false" aria-label="Inspect: tap the map to see what is there" title="Inspect: tap the map to drop a pin and see what is there">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 21s6-5.1 6-10.2a6 6 0 10-12 0C6 15.9 12 21 12 21z" /><path d="M12 8v5.5M9.25 10.75h5.5" />
+        </svg>
+        <span class="way-label" aria-hidden="true">Inspect</span>
+      </button>
       <!-- Where you are, in three: off, following you, following you with the
            compass. Each tap steps on; after a drag it takes hold again first. -->
-      <button class="step" id="locate" type="button" aria-label="Follow me" data-mode="off">
+      <button class="step way" id="locate" type="button" aria-label="Follow me" data-mode="off">
         <svg class="loc-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
           <circle cx="12" cy="12" r="4" /><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3" />
         </svg>
@@ -261,9 +348,11 @@ const config = {
         <svg class="loc-compass" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true">
           <path d="M12 3l5.5 16L12 15.5 6.5 19z" fill="currentColor" />
         </svg>
+        <span class="way-label" aria-hidden="true">Locate</span>
       </button>
-      <a class="step" id="home" href={asset('/')} aria-label="All the posts">
+      <a class="step way" id="home" href={asset('/')} aria-label="All the posts">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5L12 4l8 6.5V19a1 1 0 01-1 1h-4.5v-5.5h-5V20H5a1 1 0 01-1-1z" /></svg>
+        <span class="way-label" aria-hidden="true">Home</span>
       </a>
     </div>
 
@@ -475,19 +564,63 @@ const config = {
     justify-content: center;
     align-content: start;
     padding: calc(var(--safe-t) + min(24dvh, 12rem)) 1rem 1rem;
-    background: rgba(8, 12, 10, 0.66);
     animation: ex-in 0.35s ease-out;
+  }
+  /* The one dim under both the search and the web (see #land-dim's wiring):
+     changing between them it eases from one depth to the other rather than
+     each fading its own out and in, which flashed the map up in between. */
+  .land-dim {
+    position: absolute;
+    inset: 0;
+    z-index: 7;
+    pointer-events: none;
+    background: rgba(8, 12, 10, 0);
+    transition: background-color 0.3s ease;
+  }
+  /* Out of Through time into its map: as slow as the view's own fade. */
+  .land-dim.fading { transition-duration: 0.7s; }
+  .land-dim[data-level='search'] { background: rgba(8, 12, 10, 0.84); }
+  /* The web's names are small: the map under it darker still, and blurred,
+     so its detail doesn't show through them. */
+  .land-dim[data-level='web'] {
+    background: rgba(8, 12, 10, 0.9);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
   }
   .explore.leaving { opacity: 0; transition: opacity 0.22s ease; }
   @keyframes ex-in { from { opacity: 0; } }
   .explore :global(.ex-card) { width: 100%; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.1rem; }
+  /* Centred: the turning first word's slot is always as wide as the widest
+     (see .ex-ask), so the line is one width whatever the word, and "do you
+     want to explore?" stays put. */
   .explore :global(#ex-title) {
-    font-size: clamp(1.6rem, 5vw, 2.4rem);
+    font-size: clamp(1.8rem, 5.6vw, 2.8rem);
     font-weight: 600;
     letter-spacing: -0.02em;
     text-align: center;
-    text-wrap: balance;
   }
+  /* The question's first word, turning (explore.ts): a window as wide as
+     the widest word (laid in unseen) and a line high, the word against its
+     right side, faded at its top and bottom edges. A change rolls down, a
+     letter at a time from the first: the old out of the bottom, the new in
+     from the top, each letter a beat after the last. The whole question is
+     read once, from the hidden copy. */
+  .explore :global(.ex-ask) { position: relative; display: inline-grid; }
+  .explore :global(.ex-size) { grid-area: 1 / 1; visibility: hidden; }
+  .explore :global(.ex-reel) {
+    position: absolute;
+    inset: -0.12em 0;
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(transparent, #000 18%, #000 82%, transparent);
+    mask-image: linear-gradient(transparent, #000 18%, #000 82%, transparent);
+  }
+  .explore :global(.ex-word) { position: absolute; top: 0; right: 0; bottom: 0; display: flex; align-items: center; white-space: nowrap; }
+  .explore :global(.ex-word > span) { display: inline-block; }
+  .explore :global(.ex-word.in > span) { animation: ex-roll-in 0.5s cubic-bezier(0.34, 1.3, 0.5, 1) both; animation-delay: calc(var(--i) * 45ms); }
+  .explore :global(.ex-word.out > span) { animation: ex-roll-out 0.34s ease-in both; animation-delay: calc(var(--i) * 45ms); }
+  @keyframes ex-roll-in { from { transform: translateY(-120%); } }
+  @keyframes ex-roll-out { to { transform: translateY(120%); } }
+  .explore :global(.ex-sr) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .explore :global(.ex-row) { display: flex; align-items: center; gap: 0.6rem; --ease: 0.38s cubic-bezier(0.4, 0, 0.2, 1); --round: 56px; }
   /* Every item starts from the circle's width and only the room it takes
      beyond that changes -- so, between one state and the next, nothing is
@@ -537,13 +670,15 @@ const config = {
     overflow: hidden;
     text-overflow: ellipsis;
     pointer-events: none;
-    opacity: 0;
   }
-  .explore :global(.ex-hint.in) { animation: ex-hint 2.8s ease-in-out both; }
+  /* "Try" stays; the thing to try, in its quotes, fades in and out, on the
+     question's beat (3.4s, explore.ts ASK_TURN): only the question moves. */
+  .explore :global(.ex-try) { display: inline-block; opacity: 0; }
+  .explore :global(.ex-try.in) { animation: ex-hint 3.4s ease-in-out both; }
   @keyframes ex-hint {
-    0% { opacity: 0; transform: translateY(calc(-50% + 6px)); }
-    12%, 85% { opacity: 1; transform: translateY(-50%); }
-    100% { opacity: 0; transform: translateY(calc(-50% - 6px)); }
+    0% { opacity: 0; }
+    12%, 88% { opacity: 1; }
+    100% { opacity: 0; }
   }
   .explore :global(.ex-mode) {
     flex: 0 0 var(--round);
@@ -574,17 +709,76 @@ const config = {
   .explore :global(.ex-row[data-wide] .ex-box) { flex-grow: 0; border-color: rgba(255, 255, 255, 0.22); }
   .explore :global(.ex-row[data-wide] .ex-box > :not(svg)) { opacity: 0; }
   .explore :global(.ex-row[data-wide='network'] [data-mode='network']),
+  .explore :global(.ex-row[data-wide='time'] [data-mode='time']),
   .explore :global(.ex-row[data-wide='web'] [data-mode='web']) { flex-grow: 1; gap: 0.7rem; border-color: var(--accent); color: var(--accent); }
   .explore :global(.ex-row[data-wide='network'] [data-mode='network'] .ex-label),
+  .explore :global(.ex-row[data-wide='time'] [data-mode='time'] .ex-label),
   .explore :global(.ex-row[data-wide='web'] [data-mode='web'] .ex-label) { max-width: 20rem; opacity: 1; transition-delay: 0s, 0.12s; }
   .explore :global(.ex-card:has(.ex-row[data-wide]) .ex-results) { visibility: hidden; }
   /* A mode's card under the row (the network's start card): full width of
      the row, the question and the row not moving for it; the landing scrolls
      if it is taller than the screen. */
   .explore { overflow-y: auto; }
+  /* Under the search: keep adding, what is on so far, and Go. */
+  /* Tucked under the bar (the card's rows are 1.1rem apart), in line with
+     what is typed after the glass. */
+  .explore :global(.ex-sub) { margin: -0.7rem 0 0; padding-left: 3rem; font-size: 0.86rem; color: var(--ink-dim); }
+  .explore.has-panel :global(.ex-sub), .explore.has-panel :global(.ex-roster) { display: none; }
+  /* Only with the search itself open: not while the row is opened out on
+     the network or the web. */
+  .explore :global(.ex-card:has(.ex-row[data-wide]) .ex-sub) { display: none; }
+  .explore :global(.ex-roster) { display: flex; align-items: flex-start; gap: 0.6rem; margin-top: -0.4rem; }
+  .explore :global(.ex-roster[hidden]) { display: none; }
+  .explore :global(.ex-chips) { flex: 1; display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0; padding: 0; list-style: none; min-width: 0; }
+  .explore :global(.ex-chip) {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    max-width: 100%;
+    padding: 0.28rem 0.3rem 0.28rem 0.65rem;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: rgba(13, 18, 16, 0.9);
+    font-size: 0.8rem;
+  }
+  .explore :global(.ex-chip i) { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .explore :global(.ex-chip span) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .explore :global(.ex-chip button) {
+    appearance: none;
+    flex: none;
+    width: 22px;
+    height: 22px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: none;
+    color: var(--ink-dim);
+    cursor: pointer;
+  }
+  .explore :global(.ex-chip button:hover) { color: var(--ink); background: rgba(255, 255, 255, 0.08); }
+  .explore :global(.ex-chip svg) { width: 13px; height: 13px; }
+  .explore :global(.ex-go) {
+    appearance: none;
+    flex: none;
+    padding: 0.5rem 1.3rem;
+    border: 0;
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--bg);
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .explore :global(.ex-results li.is-on) { opacity: 0.6; cursor: default; }
+  /* A place: a pin where a map has its colour dot. */
+  .explore :global(.ex-results li.ex-place svg) { width: 16px; height: 16px; flex: none; color: var(--accent); }
   .explore :global(.ex-panel .net-start) { width: 100%; max-height: none; background: rgba(13, 18, 16, 0.94); }
-  /* The web on its own: the map dimmed, the card in the middle, the circle
-     as big as the screen allows. */
+  /* The web on its own: the map dimmed, and the web floated over it with no
+     card round it -- its words above it, the circle as big as the screen
+     allows. */
   .web-view {
     position: absolute;
     inset: 0;
@@ -593,10 +787,23 @@ const config = {
     place-items: center;
     padding: calc(var(--safe-t) + 1rem) 1rem 1rem;
     overflow-y: auto;
-    background: rgba(8, 12, 10, 0.66);
     animation: ex-in 0.3s ease-out;
   }
-  .web-view :global(.web-card) { width: min(52rem, 100%); max-height: none; background: rgba(13, 18, 16, 0.94); }
+  .web-view :global(.web-card) {
+    width: min(52rem, 100%);
+    max-height: none;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    justify-items: center;
+    text-align: center;
+    text-shadow: 0 1px 8px rgba(0, 0, 0, 0.7);
+  }
+  .web-view :global(.web-card > p), .web-view :global(.web-card > h2) { max-width: 36rem; padding-right: 0; }
+  .web-view :global(.web-card .web) { justify-self: stretch; }
   .web-view :global(.web svg) { width: min(100%, calc(100dvh - 12rem)); margin: 0 auto; }
 
   /* The web: every map round a circle, lines between the linked. */
@@ -604,9 +811,25 @@ const config = {
   :global(.web-line) { fill: none; stroke: rgba(255, 255, 255, 0.13); stroke-width: 0.7; transition: stroke-opacity 0.18s, opacity 0.18s; }
   :global(.web-arc) { fill: none; stroke-width: 2.2; stroke-linecap: round; opacity: 0.8; }
   :global(.web-node) { cursor: pointer; outline: none; }
-  :global(.web-node text) { font-size: 9px; fill: var(--ink-dim); transition: fill 0.18s, opacity 0.18s; }
+  :global(.web-node text) {
+    font-size: 9px;
+    fill: var(--ink-dim);
+    /* A thin dark halo, so a name reads over lines and map alike. */
+    stroke: rgba(8, 12, 10, 0.55);
+    stroke-width: 1.5px;
+    stroke-linejoin: round;
+    paint-order: stroke;
+    transition: fill 0.18s, opacity 0.18s;
+  }
   :global(.web-node circle) { transition: r 0.18s, opacity 0.18s; }
-  :global(.web-mid) { font-size: 11px; fill: var(--ink-dim); letter-spacing: 0.08em; text-transform: uppercase; }
+  /* Each map's slice: clear until pointed at, a tint of its colour then. */
+  :global(.web-hit) { fill-opacity: 0; transition: fill-opacity 0.18s; }
+  :global(.web-node.on .web-hit) { fill-opacity: 0.14; }
+  :global(.web-node.picked .web-hit) { fill-opacity: 0.22; }
+  :global(.web-mid) { pointer-events: none; }
+  :global(.web-mid rect) { fill: rgba(13, 18, 16, 0.82); stroke-width: 1; stroke-opacity: 0.7; }
+  :global(.web-mid-name) { font-size: 13px; font-weight: 600; fill: var(--ink); }
+  :global(.web-mid-count) { font-size: 8px; fill: var(--ink-dim); letter-spacing: 0.08em; text-transform: uppercase; }
   /* One lit: its lines in its colour, the maps they reach named bright, the
      rest faded back. */
   :global(.web svg.lit .web-line) { opacity: 0.25; }
@@ -614,6 +837,21 @@ const config = {
   :global(.web svg.lit .web-node) { opacity: 0.35; }
   :global(.web svg.lit .web-node.on), :global(.web svg.lit .web-node.near) { opacity: 1; }
   :global(.web-node.on text) { fill: var(--ink); font-weight: 700; }
+  /* The pair on the map now (from the network): their line bright gold --
+     no third's colour, and not the accent, which is near Life's green -- in
+     front, glowing, whatever else is pointed at; the laid-over map's name
+     gold too. Over the colour the pointed-at map's lines are given inline. */
+  :global(.web) { --web-cur: #ffc933; }
+  :global(.web-line.cur) {
+    stroke: var(--web-cur) !important;
+    stroke-width: 3;
+    opacity: 1 !important;
+    filter: drop-shadow(0 0 3px rgba(255, 201, 51, 0.95)) drop-shadow(0 0 10px rgba(255, 180, 20, 0.75));
+    animation: web-glow 2.4s ease-in-out infinite alternate;
+  }
+  @keyframes web-glow { from { stroke-opacity: 0.75; } to { stroke-opacity: 1; } }
+  :global(.web svg.lit .web-node.cur), :global(.web-node.cur) { opacity: 1; }
+  :global(.web .web-node.cur text) { fill: var(--web-cur); font-weight: 700; }
   :global(.web-node.near text) { fill: var(--ink); }
   :global(.web-node.on circle) { r: 5.5; }
   :global(.web-node:focus-visible text) { fill: var(--accent); }
@@ -651,10 +889,493 @@ const config = {
     .explore :global(.ex-input), .explore :global(.ex-hint) { font-size: 1rem; }
   }
 
+  /* The lens that turned through every layer, put by for now. */
+  #lens-btn { display: none; }
+
+  /* ---- Compare ------------------------------------------------------------
+     Two maps on: the focus (under) and the connection (on top). The focus
+     alone in a second map, cut to the filter's circle or left of the swipe's
+     line; the bar along the foot picks which, or the top one's opacity. */
+  .cmp { position: absolute; inset: 0; z-index: 2; pointer-events: none; --x: 50%; --y: 50%; --r: 150px; }
+  .cmp[hidden] { display: none; }
+  /* The second map, and with three or more on and the swipe out, one more
+     for each slice past the first (made by the script, hence global). */
+  .cmp :global(.cmp-map) { position: absolute; inset: 0; }
+  .cmp :global(.cmp-map[hidden]) { display: none; }
+  .cmp[data-mode='filter'] :global(.cmp-map) { clip-path: circle(var(--r) at var(--x) var(--y)); }
+  .cmp-circle, .cmp-tag { display: none; }
+  .cmp-circle {
+    position: absolute;
+    left: calc(var(--x) - var(--r));
+    top: calc(var(--y) - var(--r));
+    width: calc(2 * var(--r));
+    height: calc(2 * var(--r));
+    border-radius: 50%;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85), 0 4px 18px rgba(0, 0, 0, 0.45);
+    pointer-events: auto;
+    touch-action: none;
+    cursor: grab;
+  }
+  .cmp-circle.dragging { cursor: grabbing; }
+  .cmp[data-mode='filter'] .cmp-circle { display: block; }
+  /* Three or more on: the rim turns to the next map, marked by a dashed band
+     that goes round with it. */
+  .cmp-multi .cmp-circle::after {
+    content: '';
+    position: absolute;
+    inset: -7px;
+    border-radius: 50%;
+    border: 3px dashed rgba(255, 255, 255, 0.55);
+    transform: rotate(var(--rot, 0deg));
+    pointer-events: none;
+  }
+  /* The dial: a track down the left third of the rim, a notch a map, and the
+     node, placed at an angle by --c and --s (its cosine and sine). */
+  .cmp-dial { display: none; position: absolute; inset: 0; pointer-events: none; }
+  .cmp-multi[data-mode='filter'] .cmp-dial { display: block; }
+  .cmp-dial-track { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .cmp-dial-track path { fill: none; stroke: rgba(255, 255, 255, 0.35); stroke-width: 6px; vector-effect: non-scaling-stroke; stroke-linecap: round; }
+  .cmp-dial :global(.cmp-tick), .cmp-dial-node {
+    position: absolute;
+    left: calc(50% + var(--r) * var(--c));
+    top: calc(50% + var(--r) * var(--s));
+    transform: translate(-50%, -50%);
+    pointer-events: auto;
+  }
+  .cmp-dial :global(.cmp-tick) {
+    width: 12px;
+    height: 12px;
+    padding: 0;
+    border-radius: 50%;
+    border: 2px solid rgba(13, 18, 16, 0.9);
+    background: rgba(255, 255, 255, 0.75);
+    cursor: pointer;
+  }
+  .cmp-dial :global(.cmp-tick.on) { background: var(--accent); }
+  .cmp-dial-node {
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.95);
+    background: var(--bg);
+    color: var(--ink);
+    touch-action: none;
+    cursor: grab;
+    transition: left 0.18s ease-out, top 0.18s ease-out;
+  }
+  .cmp-dial-node.dragging { cursor: grabbing; transition: none; }
+  .cmp-dial-node svg { width: 14px; height: 14px; }
+  .cmp-circle.turn, .cmp-circle.turning {
+    cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 24 24' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cg stroke='%23000' stroke-width='4.5' opacity='.55'%3E%3Cpath d='M19 12a7 7 0 1 1-2.05-4.95'/%3E%3Cpath d='M17.5 3.5v4h-4'/%3E%3C/g%3E%3Cg stroke='%23fff' stroke-width='2'%3E%3Cpath d='M19 12a7 7 0 1 1-2.05-4.95'/%3E%3Cpath d='M17.5 3.5v4h-4'/%3E%3C/g%3E%3C/svg%3E") 14 14, alias;
+  }
+  /* The map in the circle, named on a solid chip over the rim (and over the
+     dashed band, which would otherwise cross it). */
+  .cmp-circle-tag {
+    position: absolute;
+    z-index: 2;
+    left: 50%;
+    bottom: -0.9rem;
+    transform: translateX(-50%);
+    max-width: 16rem;
+    padding: 0.3rem 0.75rem;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: #0d1210;
+    color: var(--ink);
+    font-size: 0.74rem;
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .cmp-size {
+    position: absolute;
+    /* On the rim, down and to the right. */
+    left: calc(50% + 0.7071 * var(--r) - 11px);
+    top: calc(50% + 0.7071 * var(--r) - 11px);
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.9);
+    background: var(--bg);
+    cursor: nwse-resize;
+    touch-action: none;
+  }
+  /* The swipe's line, drawn over the whole map: a wide clear stroke over it
+     takes the pointer. Its outer thirds turn it (the cursor says so), its
+     middle and the knob move it; bent, a tap on it adds a point. */
+  .cmp-swipe { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+  .cmp-path { fill: none; stroke: rgba(255, 255, 255, 0.92); stroke-width: 2; stroke-linejoin: round; filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.6)); }
+  .cmp-hit { fill: none; stroke: transparent; stroke-width: 28; stroke-linejoin: round; pointer-events: stroke; touch-action: none; cursor: grab; }
+  .cmp-hit.turn {
+    cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 24 24' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cg stroke='%23000' stroke-width='4.5' opacity='.55'%3E%3Cpath d='M19 12a7 7 0 1 1-2.05-4.95'/%3E%3Cpath d='M17.5 3.5v4h-4'/%3E%3C/g%3E%3Cg stroke='%23fff' stroke-width='2'%3E%3Cpath d='M19 12a7 7 0 1 1-2.05-4.95'/%3E%3Cpath d='M17.5 3.5v4h-4'/%3E%3C/g%3E%3C/svg%3E") 14 14, alias;
+  }
+  .cmp-bent .cmp-hit { cursor: copy; }
+  .cmp-nodes :global(circle) { fill: var(--bg); stroke: rgba(255, 255, 255, 0.95); stroke-width: 2; pointer-events: all; touch-action: none; cursor: move; }
+  .cmp-nodes :global(circle:hover) { fill: var(--accent); }
+  .cmp-knob {
+    position: absolute;
+    left: var(--kx);
+    top: var(--ky);
+    transform: translate(-50%, -50%);
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.9);
+    background: rgba(13, 18, 16, 0.9);
+    color: var(--ink);
+    pointer-events: auto;
+    touch-action: none;
+    cursor: grab;
+  }
+  /* The arrows across the line, whichever way it has been turned. */
+  .cmp-knob svg { width: 18px; height: 18px; transform: rotate(var(--ka)); }
+  .cmp-swipe, .cmp-knob { display: none; }
+  .cmp[data-mode='swipe'] .cmp-swipe, .cmp[data-mode='swipe'] .cmp-tag { display: block; }
+  .cmp[data-mode='swipe'] .cmp-knob { display: grid; }
+  .cmp.cmp-bent .cmp-knob { display: none; }
+  /* Three or more on, the swipe is a pizza: spokes from a hub, dragged. */
+  .cmp-hub { display: none; fill: var(--bg); stroke: rgba(255, 255, 255, 0.95); stroke-width: 2.5; pointer-events: all; touch-action: none; cursor: move; }
+  .cmp-hub:hover { fill: var(--accent); }
+  .cmp-multi[data-mode='swipe'] .cmp-hub { display: block; }
+  .cmp-multi[data-mode='swipe'] .cmp-knob, .cmp-multi[data-mode='swipe'] .cmp-tag, .cmp-multi .cmp-hit { display: none; }
+  .cmp-slices { display: none; }
+  .cmp-multi[data-mode='swipe'] .cmp-slices { display: block; }
+  .cmp-slices :global(span) {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    max-width: 11rem;
+    padding: 0.25rem 0.65rem;
+    border-radius: 999px;
+    background: rgba(13, 18, 16, 0.9);
+    font-size: 0.72rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .cmp-slices :global(i) { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 0.35rem; }
+  /* Each map's name on its own side of the line, along the top where the
+     line crosses it (placed by swPlace); beside the knob when it doesn't. */
+  .cmp-tag {
+    position: absolute;
+    top: calc(var(--safe-t) + 0.9rem);
+    left: 0;
+    max-width: 14rem;
+    padding: 0.25rem 0.65rem;
+    border-radius: 999px;
+    background: rgba(13, 18, 16, 0.9);
+    font-size: 0.72rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .cmp-bar {
+    position: absolute;
+    -webkit-user-select: none;
+    user-select: none;
+    z-index: 4;
+    left: 50%;
+    bottom: calc(1rem + var(--foot));
+    transform: translateX(-50%);
+    width: min(26rem, calc(100% - 2 * (0.9rem + 46px + 0.6rem)));
+    display: grid;
+    gap: 0.4rem;
+    padding: 0.5rem 0.6rem 0.55rem;
+    border-radius: 16px;
+    border: 1px solid var(--line);
+    background: rgba(13, 18, 16, 0.9);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+  .cmp-bar[hidden] { display: none; }
+  /* Over the years bar, when a layer is going through time too. */
+  .ts-bar:not([hidden]) ~ .cmp-bar { bottom: calc(1rem + var(--foot) + 4.4rem); }
+  .cmp-names { display: flex; align-items: center; gap: 0.4rem; margin: 0; font-size: 0.74rem; color: var(--ink-dim); min-width: 0; }
+  .cmp-names :global(i) { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .cmp-names :global(span:not(.cmp-and)) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+  .cmp-names :global(.cmp-and) { flex: none; }
+  .cmp-row { display: flex; align-items: center; gap: 0.6rem; }
+  .cmp-modes { display: flex; flex: none; border: 1px solid var(--line); border-radius: 999px; padding: 2px; }
+  .cmp-modes button {
+    appearance: none;
+    border: 0;
+    border-radius: 999px;
+    background: none;
+    color: var(--ink-dim);
+    font: inherit;
+    font-size: 0.78rem;
+    padding: 0.35rem 0.75rem;
+    cursor: pointer;
+  }
+  .cmp-modes button:hover { color: var(--ink); }
+  .cmp-modes button[aria-pressed='true'] { background: var(--accent); color: var(--bg); font-weight: 600; }
+  .cmp-opacity { flex: 1; min-width: 0; margin: 0; accent-color: var(--accent); }
+  .cmp-opacity[hidden] { display: none; }
+  .cmp-bend {
+    appearance: none;
+    flex: none;
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+    background: none;
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .cmp-bend svg { width: 18px; height: 18px; }
+  .cmp-bend[aria-pressed='true'] .cmp-bend-go, .cmp-bend[aria-pressed='false'] .cmp-bend-reset { display: none; }
+  .cmp-bend:hover { border-color: var(--ink-dim); }
+  .cmp-bend[aria-pressed='true'] { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+  .cmp-bend[hidden], .cmp-hint[hidden] { display: none; }
+  .cmp-hint { flex: 1; min-width: 0; font-size: 0.72rem; line-height: 1.3; color: var(--ink-dim); }
+  /* A phone: the legend has the foot, so the bar sits over it. */
+  @media (max-width: 47.99rem) {
+    .cmp-bar { bottom: calc(1rem + var(--foot) + 3.6rem); width: calc(100% - 1.5rem); }
+  }
+
+  /* ---- The web over the map ------------------------------------------------
+     The web's circle in the top right, as the network's: the map picked on
+     it showing under it, and put away -- by a hand on the map, or its own
+     button -- shrunk into the corner, where resting on it or a tap opens it. */
+  .webmap { position: absolute; inset: 0; z-index: 3; pointer-events: none; display: grid; place-items: center; -webkit-user-select: none; user-select: none; }
+  @media (min-width: 48rem) {
+    /* Clear of the control column down the right. */
+    .webmap { place-items: start end; padding: calc(var(--safe-t) + 40px) calc(0.9rem + 46px + 0.8rem) 0 0; }
+  }
+  .wm-on .nearby { display: none; }
+  #web-btn[aria-pressed='true'] { color: var(--accent); border-color: var(--accent); }
+  .webmap :global(.wm-ring) {
+    --d: min(38rem, calc(100vw - 1.25rem), calc(100dvh - var(--safe-t) - 9rem));
+    /* The disc's offsets are from here (wmCorner). */
+    position: relative;
+    display: grid;
+    justify-items: center;
+    gap: 0.6rem;
+    animation: net-in 0.22s ease-out;
+  }
+  .webmap :global(.wm-disc) {
+    position: relative;
+    width: var(--d);
+    height: var(--d);
+    pointer-events: auto;
+    transform-origin: 100% 0;
+    transition: transform 0.65s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .webmap :global(.wm-face) { position: absolute; inset: 0; border-radius: 50%; background: rgba(13, 18, 16, 0.9); box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45); }
+  .webmap :global(.wm-disc .web) { position: absolute; inset: 2.5%; }
+  .webmap :global(.wm-disc .web svg) { width: 100%; height: 100%; margin: 0; }
+  .webmap :global(.web-node.picked circle) { r: 6.5; stroke: var(--ink); stroke-width: 1.4; }
+  .webmap :global(.wm-bar) {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    max-width: min(var(--d), calc(100vw - 2 * (0.9rem + 46px + 0.5rem)));
+    padding: 0.35rem 0.4rem 0.35rem 0.9rem;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: rgba(13, 18, 16, 0.88);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    font-size: 0.82rem;
+    pointer-events: auto;
+  }
+  .webmap :global(.wm-showing) { display: flex; align-items: center; gap: 0.55rem; min-width: 0; }
+  .webmap :global(.wm-showing > i) { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .webmap :global(.wm-showing > span) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .webmap :global(.wm-which) { display: block; font-size: 0.58rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-dim); }
+  .webmap :global(.wm-step) { flex: none; padding: 0.45em 0.95em; border-color: var(--accent); color: var(--accent); }
+  .webmap :global(.wm-hide) {
+    appearance: none;
+    flex: none;
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+    background: none;
+    color: inherit;
+    cursor: pointer;
+  }
+  .webmap :global(.wm-hide svg) { width: 16px; height: 16px; }
+  .webmap :global(.wm-bar), .webmap :global(.web text) { transition: opacity 0.35s; }
+  .webmap :global(.mini .wm-disc) { transform: translate(var(--mx), var(--my)) scale(var(--s)); cursor: pointer; }
+  .webmap :global(.mini .wm-disc *) { pointer-events: none; }
+  .webmap :global(.mini .web text), .webmap :global(.mini .wm-bar) { opacity: 0; }
+  .webmap :global(.mini .wm-bar) { pointer-events: none; }
+  .webmap :global(.mini .web-line) { stroke-width: 1.6; }
+  .webmap :global(.mini .wm-disc:focus-visible) { outline: none; }
+  .webmap :global(.mini .wm-disc:focus-visible .wm-face) { box-shadow: 0 0 0 8px var(--accent); }
+
+  /* ---- Through time, from the landing ---------------------------------------
+     As the web and the network's intro are: the map dimmed (#land-dim), a
+     few words at the top; then the curve of the globe rising from the foot,
+     orbits over it, and a satellite on them for each map with its years --
+     picked, that map on, going through its years. */
+  .time-view { position: absolute; inset: 0; z-index: 8; overflow: hidden; animation: ex-in 0.3s ease-out; }
+  .time-view[hidden] { display: none; }
+  /* Picked: nothing more to pick while its map draws; then faded out into
+     it (the dim under it going at the same pace, see .land-dim.fading). */
+  .time-view.picked { pointer-events: none; }
+  .time-view.leaving { opacity: 0; transition: opacity 0.7s ease; }
+  .time-view :global(.tv-head) {
+    position: absolute;
+    top: calc(var(--safe-t) + 2.2rem);
+    left: 50%;
+    transform: translateX(-50%);
+    /* As wide as the web's card, its × in the same place: by the words, at
+       the top right of their block (the shared .net-start-close). */
+    width: min(52rem, calc(100% - 2rem));
+    display: grid;
+    gap: 0.5rem;
+    text-align: center;
+    text-shadow: 0 1px 8px rgba(0, 0, 0, 0.7);
+  }
+  .time-view :global(.tv-head h2) { margin: 0; font-size: clamp(1.4rem, 3.6vw, 1.9rem); font-weight: 600; letter-spacing: -0.01em; }
+  .time-view :global(.tv-head p:not(.eyebrow)) { margin: 0; color: var(--ink-dim); font-size: 0.95rem; line-height: 1.5; }
+  /* Space: black behind the globe and its stars. */
+  .time-view { background: radial-gradient(ellipse 90% 70% at 50% 110%, rgba(14, 20, 34, 0.9), rgba(2, 3, 5, 0.94) 70%); }
+  .time-view :global(.tv-sky) { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 80%; overflow: visible; }
+  .time-view :global(.tv-stars circle) { fill: #fff; }
+  /* The satellites: wire outlines, no fill; round their orbits slowly and
+     steadily (and held still while pointed at, to be picked). */
+  .time-view :global(.tv-orb) { animation: tv-orbit var(--dur) linear infinite; animation-delay: var(--delay); }
+  /* The words turned back about the satellite's own middle (the group's
+     origin, it being placed by a translate): upright whatever the orbit. */
+  .time-view :global(.tv-upright) { transform-origin: 0 0; animation: tv-upright var(--dur) linear infinite; animation-delay: var(--delay); }
+  .time-view :global(.tv-orb:hover), .time-view :global(.tv-orb:hover .tv-upright),
+  .time-view :global(.tv-orb:focus-within), .time-view :global(.tv-orb:focus-within .tv-upright) { animation-play-state: paused; }
+  /* Faded in as it comes up from beyond one side, out before it goes down
+     past the other (the turn itself runs evenly, start to end). */
+  @keyframes tv-orbit {
+    from { transform: rotate(var(--a0)); opacity: 0; }
+    12% { opacity: 1; }
+    88% { opacity: 1; }
+    to { transform: rotate(var(--a1)); opacity: 0; }
+  }
+  @keyframes tv-upright { from { transform: rotate(calc(-1 * var(--a0))); } to { transform: rotate(calc(-1 * var(--a1))); } }
+  .time-view :global(.tv-sat) { cursor: pointer; outline: none; }
+  .time-view :global(.tv-hit) { fill: transparent; }
+  .time-view :global(.tv-wire) { fill: none; stroke: rgba(235, 240, 245, 0.85); stroke-width: 1.1; stroke-linejoin: round; transition: stroke 0.2s; }
+  /* The name and years: a card under the satellite, only while it is
+     pointed at or has the keyboard. */
+  .time-view :global(.tv-card) { opacity: 0; transform: translateY(-4px); transition: opacity 0.18s, transform 0.18s; pointer-events: none; }
+  .time-view :global(.tv-sat:hover .tv-card), .time-view :global(.tv-sat:focus-visible .tv-card) { opacity: 1; transform: none; }
+  .time-view :global(.tv-card-bg) { fill: #0d1210; stroke: rgba(255, 255, 255, 0.2); stroke-width: 1; }
+  .time-view :global(.tv-name) { font-size: 14px; font-weight: 600; fill: var(--ink); }
+  .time-view :global(.tv-years) { font-size: 11.5px; fill: var(--ink-dim); }
+  .time-view :global(.tv-sat:hover .tv-wire), .time-view :global(.tv-sat:focus-visible .tv-wire) { stroke: var(--accent); }
+  /* On the globe: View all, and the list of chips it opens above it, the
+     satellites faded back while it is out. */
+  .time-view :global(.tv-all-wrap) {
+    position: absolute;
+    left: 50%;
+    bottom: calc(9% + var(--foot, 0px));
+    transform: translateX(-50%);
+    width: min(44rem, calc(100% - 2rem));
+    display: grid;
+    justify-items: center;
+    gap: 0.8rem;
+  }
+  .time-view :global(.tv-all) {
+    appearance: none;
+    padding: 0.5rem 1.2rem;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    background: rgba(13, 18, 16, 0.85);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: var(--ink);
+    font: inherit;
+    font-size: 0.86rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .time-view :global(.tv-all:hover) { border-color: var(--accent); color: var(--accent); }
+  .time-view :global(.tv-list) { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5rem; animation: net-in 0.22s ease-out; }
+  .time-view :global(.tv-list[hidden]) { display: none; }
+  .time-view :global(.tv-chip) { background: rgba(13, 18, 16, 0.94); }
+  .time-view :global(.tv-chip em) { font-style: normal; font-size: 0.72rem; color: var(--ink-dim); }
+  .time-view :global(.tv-orb) { transition: filter 0.25s; }
+  .time-view.listing :global(.tv-orb) { filter: opacity(0.25); }
+  .time-view :global(.tv-credit) { position: absolute; left: 1rem; bottom: calc(0.6rem + var(--foot, 0px)); margin: 0; font-size: 0.66rem; color: rgba(238, 242, 239, 0.4); }
+  @media (prefers-reduced-motion: reduce) { .time-view :global(.tv-orb), .time-view :global(.tv-upright) { animation-play-state: paused; } }
+
+  /* ---- The network's intro, from the landing --------------------------------
+     Laid out as the landing's web is: the map dimmed (#land-dim), a few
+     words over, and the network's own wheel large in the middle as the
+     example -- live, open on a start map -- with the start maps under it.
+     Anything picked ends it, and the wheel goes on as the network. */
+  #net.intro {
+    z-index: 9;
+    pointer-events: auto;
+    place-items: center;
+    align-content: center;
+    grid-auto-flow: row;
+    gap: 1.1rem;
+    padding: calc(var(--safe-t) + 1rem) 1rem 1rem;
+  }
+  #net.intro :global(.net-ring) { --d: min(30rem, calc(100vw - 2rem), calc(100dvh - var(--safe-t) - 21rem)); margin-right: 0; }
+  #net.intro :global(.net-bar), #net.intro :global(.net-arc), #net.intro :global(.net-trail) { display: none; }
+  /* A picture, not the tool: nothing on the wheel is picked from here (the
+     start maps under it are the way in). Pointed at, a third goes dark,
+     its maps fade, and a line or two says what that kind of link is. */
+  #net.intro :global(.net-thirds), #net.intro :global(.net-hub) { pointer-events: none; }
+  #net.intro :global(.net-disc) { pointer-events: auto; }
+  #net.intro :global(.net-third) { transition: fill-opacity 0.22s; }
+  #net.intro :global(.net-third.dark) { fill-opacity: 0.02; }
+  #net.intro :global(.net-set .net-chip), #net.intro :global(.net-set .net-none) { transition: opacity 0.22s; }
+  #net.intro :global(.net-set.why-on .net-chip), #net.intro :global(.net-set.why-on .net-none) { opacity: 0; }
+  .net :global(.net-why) { display: none; }
+  #net.intro :global(.net-why) {
+    display: block;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 1.5em;
+    margin: 0;
+    font-size: 0.82rem;
+    line-height: 1.45;
+    text-align: center;
+    color: var(--ink);
+    opacity: 0;
+    transition: opacity 0.22s;
+  }
+  #net.intro :global(.net-set.why-on .net-why) { opacity: 1; }
+  #net.intro :global(.net-disc) { margin-top: 0; }
+  .net :global(.net-intro), .net :global(.net-intro-starts), .net :global(.net-intro-close) { display: none; }
+  #net.intro :global(.net-intro) { position: relative; display: grid; gap: 0.5rem; width: min(52rem, calc(100vw - 2rem)); text-align: center; text-shadow: 0 1px 8px rgba(0, 0, 0, 0.7); pointer-events: auto; }
+  #net.intro :global(.net-intro h2) { margin: 0; font-size: clamp(1.4rem, 3.6vw, 1.9rem); font-weight: 600; letter-spacing: -0.01em; }
+  #net.intro :global(.net-intro p:not(.eyebrow)) { margin: 0; color: var(--ink-dim); font-size: 0.95rem; line-height: 1.5; }
+  #net.intro :global(.net-intro-starts) { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 0.5rem; max-width: 40rem; pointer-events: auto; }
+  #net.intro :global(.net-intro-starts .eyebrow) { flex-basis: 100%; text-align: center; margin: 0; }
+  /* By the words, at the top right of their block, as the web's is. */
+  #net.intro :global(.net-intro-close) { display: grid; }
+
   /* ---- The network --------------------------------------------------------
      A circle over the middle of the map, cut in three, the maps linked to
      the one in focus in each third; put away, small in the top corner. */
   .net { position: absolute; inset: 0; z-index: 3; pointer-events: none; display: grid; place-items: center; -webkit-user-select: none; user-select: none; }
+  /* Out, the circle sits in the top right, under the attribution button,
+     where it shrinks to when put away -- so it goes in place, not across
+     the map. The start card stays in the middle. On a phone the circle is
+     the width of the screen, and centred is the same place. */
+  @media (min-width: 48rem) {
+    .net:not([data-view='start']) { place-items: start end; padding: calc(var(--safe-t) + 40px - 0.8rem) calc(0.9rem + 46px + 0.8rem) 0 0; }
+    /* Room at the side for the trail's words round the rim. */
+    .net:not([data-view='start']) :global(.net-ring) { margin-right: calc(var(--d) * 0.05); }
+  }
   /* The layers list and its search stay: a map picked there goes in the
      middle of the circle. The lens stays too: it takes you out of the
      network, the focus left on under it (see the network's wiring). */
@@ -879,41 +1600,9 @@ const config = {
   .net :global(.net-showing > i) { width: 10px; height: 10px; border-radius: 50%; flex: none; }
   .net :global(.net-showing > span) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .net :global(.net-focus) { flex: none; padding: 0.45em 0.95em; border-color: var(--accent); color: var(--accent); }
-  .net :global(.net-hide) {
-    appearance: none;
-    flex: none;
-    width: 34px;
-    height: 34px;
-    display: grid;
-    place-items: center;
-    border-radius: 50%;
-    border: 1px solid var(--line);
-    background: none;
-    cursor: pointer;
-  }
-  .net :global(.net-hide svg) { width: 16px; height: 16px; }
+  /* Nothing at its right end but the words: as much room there as at the left. */
+  .net :global(.net-bar:not(:has(.net-focus))) { padding-right: 0.9rem; }
 
-  /* How clear the map laid over the focus is: placed by the script (under
-     the bar, or under the shrunk circle in the corner), gliding between. */
-  .net :global(.net-fade) {
-    position: absolute;
-    left: 0;
-    top: 0;
-    display: flex;
-    align-items: center;
-    gap: 0.55rem;
-    padding: 0.4rem 0.75rem;
-    border-radius: 999px;
-    border: 1px solid var(--line);
-    background: rgba(13, 18, 16, 0.88);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    pointer-events: auto;
-    transition: transform 0.65s cubic-bezier(0.4, 0, 0.2, 1), width 0.65s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-  .net :global(.net-fade .net-which) { flex: none; }
-  .net :global(.net-fade input) { flex: 1; min-width: 0; margin: 0; accent-color: var(--accent); }
-  .net[data-view='mini'] :global(.net-fade .net-which) { display: none; }
 
   /* Put away: the circle itself, shrunk into the top right corner, its
      words gone and only its colours left; tapped, it comes back. */
@@ -1058,6 +1747,9 @@ const config = {
      ends named. */
   .legend-body :global(.lg-ramp) { display: flex; height: 9px; border-radius: 3px; overflow: hidden; }
   .legend-body :global(.lg-ramp i) { flex: 1; }
+  .legend-body :global(.lg-fade) { display: flex; align-items: center; gap: 0.55rem; margin-top: 0.45rem; font-size: 0.66rem; color: var(--ink-dim); }
+  .legend-body :global(.lg-fade span) { flex: none; letter-spacing: 0.04em; }
+  .legend-body :global(.lg-fade input) { flex: 1; min-width: 0; height: 14px; margin: 0; accent-color: var(--accent); cursor: pointer; }
   .legend-body :global(.lg-ends) { display: flex; justify-content: space-between; margin-top: 0.25rem; font-size: 0.7rem; color: var(--ink-dim); }
   /* Categories: no order between them, so a swatch list rather than a ramp. */
   .legend-body :global(.lg-cats) { display: grid; gap: 0.35rem; margin-top: 0.15rem; }
@@ -1069,6 +1761,7 @@ const config = {
   .legend-body :global(.lg-off) {
     appearance: none;
     flex: none;
+    margin-left: auto;
     width: 24px;
     height: 24px;
     display: grid;
@@ -1086,20 +1779,6 @@ const config = {
   .legend-body :global(.lg-off:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
   /* A layer that is only in the lens. */
   .legend-body :global(.lg-where) { display: block; margin-bottom: 0.1rem; font-size: 0.6rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); }
-  .legend-body :global(.lg-time) {
-    appearance: none;
-    -webkit-appearance: none;
-    margin-left: auto;
-    padding: 0.2rem 0.55rem;
-    border-radius: 999px;
-    border: 1px solid var(--line);
-    background: none;
-    color: var(--ink-dim);
-    font: inherit;
-    font-size: 0.68rem;
-    cursor: pointer;
-  }
-  .legend-body :global(.lg-time[aria-pressed='true']) { border-color: var(--accent); color: var(--accent); }
 
   /* The years: along the foot of the map, clear of the columns either side. */
   .ts-bar {
@@ -1160,19 +1839,47 @@ const config = {
   /* A tool rather than a control: dashed, so it does not read as part of the
      page a visitor would see. */
   .place-me { border-style: dashed; }
+  #inspect-btn[aria-pressed='true'] { color: var(--bg); background: var(--accent); border-color: var(--accent); }
+  .inspecting :global(.maplibregl-canvas) { cursor: crosshair; }
+  /* The inspector's pin: a drop in the accent, its point on the spot. */
+  :global(.probe-pin) { width: 30px; height: 40px; cursor: grab; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.55)); }
+  :global(.probe-pin svg) { display: block; width: 100%; height: 100%; }
+  /* The tag reading at the pin, not at you: a pin before it says so. */
+  :global(.here-tag.at-pin) { border-color: var(--accent); }
+  :global(.here-tag .ht-pin) { display: none; width: 12px; height: 12px; flex: none; color: var(--accent); }
+  :global(.here-tag.at-pin .ht-pin) { display: block; }
+  :global(.here-tag.many.at-pin .ht-pin) { margin-bottom: 0.1rem; }
   .place-me[aria-pressed='true'] { color: var(--bg); background: var(--accent); border-color: var(--accent); }
   .placing :global(.maplibregl-canvas) { cursor: crosshair; }
   /* The search: a word under the glass, so it reads as the way in. */
-  .search-btn { height: auto; padding: 0.8rem 0 0.95rem; border-radius: 23px; gap: 0.5rem; align-content: start; }
+  /* The ways in (search, network, through time, web), as the landing's row
+     turned on end: one opened out into a pill with its name up it, the rest
+     circles; pointed at, another opens and the one before draws in. */
+  .ways { display: flex; flex-direction: column; gap: 0.6rem; }
+  /* One movement only: the icon held at the top, where it sits in the circle
+     too (12px down), and the name under it let out -- its room, its own
+     top gap included, opening at the same pace as it shows -- so the pill,
+     the icon and the words go together. */
+  .way { height: auto; min-height: 46px; padding: 12px 0; gap: 0; border-radius: 23px; align-content: start; }
   /* Up the pill, bottom to top, as the Bear's reads. */
-  .search-btn span {
+  .way-label {
+    box-sizing: border-box;
     writing-mode: vertical-rl;
     transform: rotate(180deg);
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    white-space: nowrap;
     font-size: 0.74rem;
     font-weight: 600;
     letter-spacing: 0.1em;
     text-transform: uppercase;
+    transition: max-height 0.34s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.34s cubic-bezier(0.4, 0, 0.2, 1);
   }
+  .way.wide .way-label { max-height: 9rem; opacity: 1; }
+  /* The gap between the icon and the name: part of the name's own run, at
+     its end -- the top, it reading upwards -- so it is let out with it. */
+  .way-label::after { content: ''; display: inline-block; inline-size: 0.5rem; }
 
   /* Under the top edge, centred: the one thing that is news. */
   .nearby {
@@ -1196,7 +1903,10 @@ const config = {
 
   /* Beside your dot, when the ground under you is in a layer that asks: a
      small tag naming it, which opens the card. */
+  /* Over the compare bar's second map (z-index 2), as your dot is: seen
+     inside the filter's circle and either side of the swipe. */
   :global(.here-tag) {
+    z-index: 3;
     appearance: none;
     -webkit-appearance: none;
     display: flex;
@@ -1221,6 +1931,9 @@ const config = {
   :global(.here-tag b) { font-weight: 700; }
   :global(.here-tag i[style*='transparent']) { box-shadow: inset 0 0 0 1px var(--ink-dim); }
   :global(.here-tag .sep) { color: var(--ink-dim); font-weight: 400; }
+  :global(.here-tag .ht-row) { display: inline-flex; align-items: center; gap: 0.4rem; }
+  :global(.here-tag.many) { flex-direction: column; align-items: flex-start; gap: 0.25rem; border-radius: 12px; padding: 0.4rem 0.7rem 0.4rem 0.55rem; }
+  :global(.here-tag.many .sep) { display: none; }
   :global(.here-tag:focus) { outline: none; }
   :global(.here-tag:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
 
@@ -1529,7 +2242,8 @@ const config = {
      one more pin -- and, once the phone says which way it faces, a soft cone
      that way, about as wide as its camera sees. The marker is a wrapper round
      the two, so the cone can sit behind the dot. */
-  /* Over the lens too (z-index 2), so you are never lost under it. */
+  /* Over the lens and the compare bar's second map (z-index 2), so you are
+     never lost under them. */
   :global(.me-wrap) { position: relative; width: 18px; height: 18px; z-index: 3; }
   :global(.me-cone) {
     position: absolute;
@@ -1588,6 +2302,7 @@ const config = {
   import { network, type NetConfig } from './lib/network';
   import { explore } from './lib/explore';
   import { web } from './lib/web';
+  import { TOWNS, LANDMARKS } from '../shared/lib/towns';
   import { confirmLeave } from '../shared/lib/leave';
   import { headingOf as compassHeading, requestCompass, hasCompassApi, needsTap, ORIENTATION_EVENTS } from '../shared/lib/compass';
 
@@ -1622,6 +2337,7 @@ const config = {
     declination: number;
     basemap: string;
     terrain: string;
+    globe: string;
     glyphs: string;
     layers: Layer[];
     themes: Theme[];
@@ -1677,6 +2393,8 @@ const config = {
     style: studyStyle({ basemap: abs(config.basemap), glyphs: abs(config.glyphs), limit: config.limit }),
   });
   map.addControl(new maplibregl.AttributionControl({ compact: true }), 'top-right');
+  // In dev only, the map to the console, for looking into what is drawn.
+  if (import.meta.env.DEV) (window as unknown as { __map: maplibregl.Map }).__map = map;
   // Compact still opens expanded on a narrow screen, across the top where the
   // near-you chip is. Folded to its (i) until asked.
   map.once('load', () => el.querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show'));
@@ -1693,6 +2411,10 @@ const config = {
   /** The map in the network's middle, and the one it has laid over it, if
    *  any (see the network). Here, as the legend reads them. */
   let netFocus: string | undefined;
+  /** A legend opacity slider held, and a redraw of the legend waiting on it
+   *  (see renderLegend). Up here: the legend is drawn early. */
+  let fadeHeld = false;
+  let legendStale = false;
   let netOverlay: string | undefined;
   const swatch = (l: Layer) => (l.kind === 'categories' ? l.legend[0] : l.legend.at(-1))?.colour ?? 'var(--ink)';
   // ?layers=a,b opens the map with those layers on -- how a post's "Explore
@@ -1713,6 +2435,10 @@ const config = {
    *  and on a phone forty of those at once hold up the basemap. Slotted in
    *  under the next layer in the list that is already there, so the stack
    *  comes out the same whatever order they are switched on in. */
+  /** A layer's lowest place on the map: its own, or, going through time, its
+   *  years' copies (drawn just under it, id@year) where lower. What goes
+   *  under it goes under those too. */
+  const lowestOf = (id: string) => map.getStyle().layers.find((l) => l.id === id || l.id.startsWith(`${id}@`))?.id ?? id;
   const addToMap = (layer: Layer) => {
     if (!styled || map.getLayer(layer.id)) return;
     const after = config.layers.slice(config.layers.indexOf(layer) + 1).find((l) => map.getLayer(l.id));
@@ -1732,7 +2458,7 @@ const config = {
         layout: { visibility: state.get(layer.id)!.on ? 'visible' : 'none' },
         paint: { 'raster-opacity': state.get(layer.id)!.opacity, 'raster-resampling': layer.resampling, 'raster-fade-duration': 150 },
       },
-      after?.id ?? firstRoad,
+      after ? lowestOf(after.id) : firstRoad,
     );
   };
 
@@ -1744,6 +2470,8 @@ const config = {
     // Top of the stack first, so each finds the one above it already there.
     for (const layer of [...config.layers].reverse()) if (state.get(layer.id)!.on) addToMap(layer);
     syncCallouts();
+    // Only now on the map to be hidden from it (three or more, compared).
+    requestAnimationFrame(cmpUpdate);
   });
 
   // ---- 3D ----------------------------------------------------------------
@@ -1850,9 +2578,10 @@ const config = {
    *  whose tiles are not in yet: dragged fast, the years between are not
    *  fetched one by one. A year already loaded is shown at once. */
   const YEAR_REST = 160;
-  /** How long one year takes to fade into the next, in ms: short, so the
-   *  picture keeps up with the slider rather than trailing it. */
-  const YEAR_FADE = 120;
+  /** How long one year takes to fade into the next, in ms: long enough to
+   *  read as a change rather than a flicker, well inside a year's turn when
+   *  playing (YEAR_STEP). */
+  const YEAR_FADE = 350;
   /** Playing: the least time a year stays up, in ms. A year whose tiles are
    *  slow to come stays up longer -- the next one is only faded in once drawn. */
   const YEAR_STEP = 900;
@@ -1903,20 +2632,44 @@ const config = {
 
     const idOf = (s: Series, year: number) => `${s.layer}@${year}`;
     const year = () => active!.years[index];
-    const fade = (id: string, opacity: number) => {
-      map.setPaintProperty(id, 'raster-opacity-transition', { duration: YEAR_FADE, delay: 0 });
-      map.setPaintProperty(id, 'raster-opacity', opacity);
+    /** One year into the next with the picture as solid all the way as either
+     *  alone. Faded one over the other, two see-through layers add up: the
+     *  base map dims mid-way, and brightens with a jump as the old one goes.
+     *  So each frame the old is set to what, under the new, still makes the
+     *  layer's own opacity o: over b the new at a covers a + b(1 - a) = o,
+     *  so b = (o - a) / (1 - a). A later fade of either layer stops this one. */
+    const fadeRun = new Map<string, number>();
+    let fadeTurn = 0;
+    const crossfade = (inId: string, outId: string | null, target: () => number, done?: () => void) => {
+      const turn = ++fadeTurn;
+      for (const id of [inId, outId]) if (id && map.getLayer(id)) (map.setPaintProperty(id, 'raster-opacity-transition', { duration: 0, delay: 0 }), fadeRun.set(id, turn));
+      const t0 = performance.now();
+      const step = (now: number) => {
+        if (fadeRun.get(inId) !== turn) return;
+        const t = Math.min(1, (now - t0) / YEAR_FADE);
+        const e = t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
+        // Read each frame: a slider moved mid-fade is followed, not undone.
+        const o = target();
+        const a = o * e;
+        const b = a >= o || a >= 1 ? 0 : (o - a) / (1 - a);
+        if (map.getLayer(inId)) map.setPaintProperty(inId, 'raster-opacity', a);
+        if (outId && fadeRun.get(outId) === turn && map.getLayer(outId)) map.setPaintProperty(outId, 'raster-opacity', b);
+        if (t < 1) requestAnimationFrame(step);
+        else done?.();
+      };
+      requestAnimationFrame(step);
     };
     /** A year's tiles all in for the view: it can be shown now. */
     const ready = (id: string) => !!map.getLayer(id) && map.isSourceLoaded(id);
 
-    /** The three it should hold, the rest let go; then the year showing faded
-     *  in, if it is not already. */
+    /** The years it should hold -- the one showing and two either side, so a
+     *  scrub or a play finds its next years already drawn -- the rest let go;
+     *  then the year showing faded in, if it is not already. */
     const load = (done?: () => void) => {
       const s = active;
       if (!s || !map.getLayer(s.layer)) return;
       const want = s.years[index];
-      const keep = new Set([index - 1, index, index + 1].filter((i) => i >= 0 && i < s.years.length).map((i) => s.years[i]));
+      const keep = new Set([index - 2, index - 1, index, index + 1, index + 2].filter((i) => i >= 0 && i < s.years.length).map((i) => s.years[i]));
       if (shown !== undefined) keep.add(shown);
       for (const y of leaving) keep.add(y);
       for (const y of s.years) {
@@ -1938,21 +2691,22 @@ const config = {
       const land = () => {
         // Moved on again, or put away, before its tiles were in.
         if (active !== s || s.years[index] !== want) return;
-        fade(on, opacityOf(s.layer));
+        // To the top of the years first, so it fades in over the one showing
+        // (not under it, then that one cut away -- the flash).
+        map.moveLayer(on, s.layer);
         if (shown !== undefined) {
-          // Taken down only once the new one is over it, so nothing shows
-          // through between them.
+          // Crossed over from the one showing, kept till the new one is in.
           const old = shown;
           leaving.add(old);
-          setTimeout(() => {
+          crossfade(on, idOf(s, old), () => opacityOf(s.layer), () => {
             leaving.delete(old);
             if (active !== s || old === shown) return;
             if (map.getLayer(idOf(s, old))) snapOpacity(map, idOf(s, old), 0);
             load();
-          }, YEAR_FADE);
+          });
         } else {
-          // The first year: the layer's own map faded out under it.
-          fadeOpacity(map, s.layer, 0);
+          // The first year, over the layer's own map, which goes under it.
+          crossfade(on, s.layer, () => opacityOf(s.layer));
         }
         shown = want;
         landed();
@@ -1995,7 +2749,7 @@ const config = {
     const start = (s: Series) => {
       if (active) stop('closed');
       active = s;
-      index = s.years.length - 1;
+      index = 0;
       shown = undefined;
       slider.min = '0';
       slider.max = String(s.years.length - 1);
@@ -2123,15 +2877,43 @@ const config = {
       hereAgain();
     },
   });
+  legendBody.addEventListener('pointerdown', (e) => {
+    if (!(e.target as Element).closest('[data-fade]')) return;
+    fadeHeld = true;
+    const up = () => {
+      fadeHeld = false;
+      removeEventListener('pointerup', up);
+      removeEventListener('pointercancel', up);
+      if (legendStale) {
+        legendStale = false;
+        renderLegend();
+      }
+    };
+    addEventListener('pointerup', up);
+    addEventListener('pointercancel', up);
+  });
+  // A layer's opacity from its slider. Not drawn again as it goes, so the
+  // slider under the finger stays the one being dragged.
+  legendBody.addEventListener('input', (e) => {
+    const r = (e.target as HTMLElement).closest<HTMLInputElement>('[data-fade]');
+    if (!r) return;
+    const id = r.dataset.fade!;
+    const v = Number(r.value);
+    setOpacity(id, v);
+    // The network's overlay keeps this for the next map it lays over.
+    if (id === netOverlay) netFade = v;
+    requestAnimationFrame(cmpUpdate);
+  });
   legendBody.addEventListener('click', (e) => {
     const off = (e.target as HTMLElement).closest<HTMLElement>('[data-off]');
     if (off) return setLayer(off.dataset.off!, false);
-    const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-series]');
-    if (!btn) return;
-    years.toggle(btn.dataset.series!);
-    legendBody.querySelector<HTMLElement>(`[data-series="${btn.dataset.series}"]`)?.focus();
   });
   function renderLegend() {
+    // Whenever what is on changes, so does whether there are two to compare.
+    requestAnimationFrame(cmpUpdate);
+    // A slider in it held: drawn once it is let go, not swapped from under
+    // the finger mid-drag (a year landing redraws the legend).
+    if (fadeHeld) return void (legendStale = true);
     years.sync((id) => state.get(id)?.on === true);
     const now = years.active();
     const lensId = lensUi?.showing();
@@ -2157,7 +2939,6 @@ const config = {
         // Only in the lens, not on the map: said so, and no years for it --
         // those are for the map.
         const lensOnly = l.id === lensId && !state.get(l.id)!.on;
-        const s = !lensOnly && years.of(l.id);
         // Off from here: the one place a layer is switched off, now the search
         // only puts them on. Not in the lens, nor with the network out, which
         // choose their own.
@@ -2168,10 +2949,14 @@ const config = {
               `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17" /></svg></button>`;
         const name =
           `<div class="lg-name"><b>${esc(l.name)}</b>` +
-          (s ? `<button class="lg-time" type="button" data-series="${esc(l.id)}" aria-pressed="${now?.series === s}">Through time</button>` : '') +
           off +
           `</div>`;
-        return `<div>${lensOnly ? '<span class="lg-where">In the lens</span>' : ''}${name}` + (l.about ? `<p>${esc(l.about)}</p>` : '') + body + `</div>`;
+        // How much of it shows: a small slider under its key, to let the base
+        // map through (the same opacity the layer has everywhere).
+        const fade = lensOnly
+          ? ''
+          : `<label class="lg-fade"><span>Opacity</span><input type="range" min="0" max="1" step="0.05" value="${state.get(l.id)!.opacity}" data-fade="${esc(l.id)}" aria-label="${esc(l.name)} opacity" /></label>`;
+        return `<div>${lensOnly ? '<span class="lg-where">In the lens</span>' : ''}${name}` + (l.about ? `<p>${esc(l.about)}</p>` : '') + body + fade + `</div>`;
       })
       .join('');
   }
@@ -2359,13 +3144,11 @@ const config = {
       renderLegend();
       hereAgain();
     },
-    opacity: (v) => {
-      netFade = v;
-      if (netOverlay) setOpacity(netOverlay, v);
-    },
     onToggle: (on) => {
       main.classList.toggle('net-on', on);
+      if (!on) netRoot.classList.remove('intro');
       if (on) {
+        if (wmOn) wmToggle(false);
         if (lensBtn.getAttribute('aria-pressed') === 'true') lensBtn.click();
         if (!sheet.hidden) closeSheet();
         // Through time closed first, so what it put away is back to be saved.
@@ -2411,6 +3194,113 @@ const config = {
   map.on('pitchstart', (e) => e.originalEvent && net.collapse());
   map.on('click', net.collapse);
 
+  // ---- The network's intro, from the landing ---------------------------------
+  // Its wheel as the example, open on the first start map, large in the
+  // middle over the dimmed map; a few words above, the start maps below.
+  // A map picked -- one of those, or one in the wheel -- ends it, and the
+  // network goes on from there; the ×, Escape or the dimmed map round it
+  // go back to the landing.
+  const intro = document.createElement('div');
+  intro.className = 'net-intro';
+  intro.innerHTML =
+    `<p class="eyebrow">Explore by connections</p>` +
+    `<h2>Start from one map and follow what it touches</h2>` +
+    `<p>Each map sits in the middle of its own wheel: what lives alongside it, what pressures it, and what protects it. Point at a part of this one to see what it holds, then pick a map below to start.</p>`;
+  const introStarts = document.createElement('div');
+  introStarts.className = 'net-intro-starts';
+  const introClose = document.createElement('button');
+  introClose.type = 'button';
+  introClose.className = 'net-start-close net-intro-close';
+  introClose.setAttribute('aria-label', 'Close');
+  introClose.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>`;
+  const ringHost = netRoot.querySelector('.net-ring')!;
+  ringHost.before(intro);
+  ringHost.after(introStarts);
+  intro.append(introClose);
+  const introing = () => netRoot.classList.contains('intro');
+  function startIntro() {
+    const starts = config.network.starts;
+    introStarts.innerHTML =
+      `<p class="eyebrow">Start from</p>` +
+      starts
+        .map((id) => {
+          const colour = Object.values(config.network.roles).find((r) => r.layers.includes(id))?.colour ?? 'var(--ink-dim)';
+          const name = config.network.names[id] ?? config.layers.find((l) => l.id === id)!.name;
+          return `<button type="button" class="net-chip" data-id="${esc(id)}"><i style="background:${colour}"></i><span>${esc(name)}</span></button>`;
+        })
+        .join('');
+    // Fresh: whatever the network had before -- its trail, a map laid over
+    // -- let go, so the example is drawn over nothing.
+    if (net.active()) net.off();
+    net.enter();
+    // Only drawn, as the example: nothing on the map until a map is picked.
+    net.focus(starts[0], true, true);
+    netRoot.classList.add('intro');
+    // Each third's words, for when it is pointed at.
+    Object.keys(config.network.roles).forEach((r, i) => {
+      const set = netRoot.querySelector(`.net-set-${i}`);
+      if (set && !set.querySelector('.net-why')) set.insertAdjacentHTML('beforeend', `<p class="net-why">${esc(ROLE_WHY[r] ?? '')}</p>`);
+    });
+    // The landing gives way to it (the wheel is open, so the network stays).
+    search.close();
+  }
+  /** What each third of the wheel holds, said when it is pointed at. */
+  const ROLE_WHY: Record<string, string> = {
+    life: 'The animals and land it lives alongside. What is good for one is often good for the others.',
+    pressures: 'What puts pressure on it, from roads and towns to wildfire and a changing landscape.',
+    protection: 'What protects it, from protected areas and wildlife corridors to places that hold up as the climate changes.',
+  };
+  // The third pointed at: by its angle from the wheel's middle, clockwise
+  // from the top, each a third of the way round from -60 degrees; none in
+  // the middle, over the focus.
+  const introDisc = netRoot.querySelector<HTMLElement>('.net-disc')!;
+  const whyAt = (k: number) => {
+    netRoot.querySelectorAll('.net-set').forEach((el, i) => el.classList.toggle('why-on', i === k));
+    netRoot.querySelectorAll('.net-third').forEach((el, i) => el.classList.toggle('dark', i === k));
+  };
+  introDisc.addEventListener('pointermove', (e) => {
+    if (!introing()) return;
+    const b = introDisc.getBoundingClientRect();
+    const x = e.clientX - b.left - b.width / 2;
+    const y = e.clientY - b.top - b.height / 2;
+    if (Math.hypot(x, y) < b.width * 0.13) return whyAt(-1);
+    const deg = ((Math.atan2(x, -y) * 180) / Math.PI + 60 + 360) % 360;
+    whyAt(Math.floor(deg / 120));
+  });
+  introDisc.addEventListener('pointerleave', () => introing() && whyAt(-1));
+  const endIntro = () => {
+    whyAt(-1);
+    netRoot.classList.remove('intro');
+  };
+  const closeIntro = () => {
+    endIntro();
+    net.off();
+    search.open(true);
+  };
+  netRoot.addEventListener('click', (e) => {
+    if (!introing()) return;
+    const t = e.target as Element;
+    if (t === netRoot || t.closest('.net-intro-close')) return closeIntro();
+    const start = t.closest<HTMLElement>('.net-intro-starts [data-id]');
+    if (start) {
+      // The map picked is the focus, the trail begun from it alone (not
+      // from the example the wheel was drawn round).
+      net.begin(start.dataset.id!);
+      return endIntro();
+    }
+    // The wheel itself is a picture here: the start maps are the way in.
+    // (On the way down, before the network's own handlers.)
+  }, true);
+  addEventListener(
+    'keydown',
+    (e) => {
+      if (e.key !== 'Escape' || !introing()) return;
+      e.stopImmediatePropagation();
+      closeIntro();
+    },
+    true,
+  );
+
   // ---- Where it starts -------------------------------------------------------
   // Opened fresh -- no ?layers, nothing on -- the map waits dimmed under the
   // question "What do you want to explore?" (explore.ts). Arriving from the
@@ -2434,38 +3324,1182 @@ const config = {
     `<p class="eyebrow">How every map connects</p>` +
     `<h2 id="web-title">One landscape, woven together</h2>` +
     `<p>Every map, round one circle, with a line to each map it connects to. Point at one to see what it touches; pick one to start exploring from it.</p>`;
-  webCard.append(
-    web({
-      layers: config.layers,
-      net: config.network,
-      onPick: (id) => {
-        closeWeb();
-        net.enter();
-        net.focus(id);
-      },
-    }),
-  );
+  const cardWeb = web({
+    layers: config.layers,
+    net: config.network,
+    // From the landing, the network started from the map picked; from the
+    // network, that map its next step.
+    onPick: (id) => {
+      const from = webFrom;
+      closeWeb();
+      if (from !== 'network' || !net.active()) net.enter();
+      // Its circle open round the map picked, for the next pick.
+      net.focus(id, true);
+    },
+  });
+  webCard.append(cardWeb);
+  /** Where the web was opened from: the landing, or the network (its Web
+   *  button, while it is out), which is left as it was unless a map is
+   *  picked. */
+  let webFrom: 'landing' | 'network' = 'landing';
   const webView = document.getElementById('web-view')!;
   webView.append(webCard);
-  const openWeb = () => {
+  const timeView = document.getElementById('time-view')!;
+  // The dim under the landing and the web, as deep as whichever is up; the
+  // landing counts as gone as soon as it starts to fade.
+  const landDim = document.getElementById('land-dim')!;
+  const exploreRoot = document.getElementById('explore')!;
+  const syncDim = () => {
+    const level =
+      !webView.hidden || netRoot.classList.contains('intro') || (!timeView.hidden && !timeView.classList.contains('leaving'))
+        ? 'web'
+        : !exploreRoot.hidden && !exploreRoot.classList.contains('leaving')
+          ? 'search'
+          : '';
+    landDim.classList.toggle('fading', timeView.classList.contains('leaving'));
+    if (level) landDim.dataset.level = level;
+    else delete landDim.dataset.level;
+  };
+  const dimWatch = new MutationObserver(syncDim);
+  for (const e of [webView, exploreRoot, netRoot, timeView]) dimWatch.observe(e, { attributes: true, attributeFilter: ['hidden', 'class'] });
+  const openWeb = (from: typeof webFrom = 'landing') => {
+    webFrom = from;
     search.close();
     webView.hidden = false;
+    // From the network: the map in its middle lit, the pair on the map now
+    // marked out, and its circle put away so the web has the screen.
+    const fromNet = from === 'network';
+    cardWeb.pick(fromNet ? (netFocus ?? null) : null);
+    cardWeb.current(fromNet ? (netFocus ?? null) : null, fromNet ? (netOverlay ?? null) : null);
+    if (fromNet) net.collapse();
+    cardWeb.fit();
   };
-  /** Shut; `back` to the landing it was opened from. */
+  /** Shut; `back` to the landing, if that is where it was opened from. */
   const closeWeb = (back = false) => {
     if (webView.hidden) return;
     webView.hidden = true;
-    if (back) search.open(true);
+    if (back && webFrom === 'landing') search.open(true);
   };
   webCard.querySelector('.net-start-close')!.addEventListener('click', () => closeWeb(true));
   // A tap on the dimmed map round it, or Escape: back to the landing.
   webView.addEventListener('click', (e) => e.target === webView && closeWeb(true));
-  addEventListener('keydown', (e) => {
-    if (e.key !== 'Escape' || webView.hidden) return;
-    // Handled: not on to the landing's own Escape, which would shut it again.
-    e.stopImmediatePropagation();
-    closeWeb(true);
+  // First, on the capture phase: handled, not on to the landing's own
+  // Escape (which would shut it again) or the network's (which would put
+  // its circle away under the web).
+  addEventListener(
+    'keydown',
+    (e) => {
+      if (e.key !== 'Escape' || webView.hidden) return;
+      e.stopImmediatePropagation();
+      closeWeb(true);
+    },
+    true,
+  );
+
+  // ---- Compare ---------------------------------------------------------------
+  // Two maps on, however they got there -- the search, the network, the web:
+  // the lower is the focus, the one on top the connection. The bar along the
+  // foot sets one against the other: a filter, a circle dragged about that
+  // shows the focus under the connection; a swipe, the focus left of a line
+  // and the connection right of it; or the connection's opacity. The first
+  // two draw the focus alone in a second map cut to the shape, following the
+  // first's every move (as the lens did), and only flat.
+  //
+  // Three or more on (stacked up from the search): the first put on is home,
+  // the rest after it in the order they were put on. The map shows home, and
+  // the filter's circle the second -- its rim turned for the third and on.
+  // The swipe cuts the screen into a slice for each, spokes from a hub that
+  // is dragged about as the middle of a cut pizza would be. Opacity goes: it
+  // has no sense for more than two.
+  const cmpRoot = document.getElementById('cmp')!;
+  const cmpBar = document.getElementById('cmp-bar')!;
+  const cmpMapEl = cmpRoot.querySelector<HTMLElement>('.cmp-map')!;
+  const cmpHub = cmpRoot.querySelector<SVGCircleElement>('.cmp-hub')!;
+  const cmpSlices = cmpRoot.querySelector<HTMLElement>('.cmp-slices')!;
+  const cmpNames = cmpBar.querySelector<HTMLElement>('.cmp-names')!;
+  const cmpOpacityBtn = cmpBar.querySelector<HTMLElement>('[data-mode="opacity"]')!;
+  const cmpCircle = cmpRoot.querySelector<HTMLElement>('.cmp-circle')!;
+  const cmpSize = cmpRoot.querySelector<HTMLElement>('.cmp-size')!;
+  const cmpKnob = cmpRoot.querySelector<HTMLElement>('.cmp-knob')!;
+  const cmpPathEl = cmpRoot.querySelector<SVGPathElement>('.cmp-path')!;
+  const cmpHit = cmpRoot.querySelector<SVGPathElement>('.cmp-hit')!;
+  const cmpNodes = cmpRoot.querySelector<SVGGElement>('.cmp-nodes')!;
+  const cmpBend = cmpBar.querySelector<HTMLElement>('.cmp-bend')!;
+  const cmpHint = cmpBar.querySelector<HTMLElement>('.cmp-hint')!;
+  const cmpOpacity = cmpBar.querySelector<HTMLInputElement>('.cmp-opacity')!;
+  let cmpMode: 'filter' | 'swipe' | 'opacity' = 'opacity';
+  /** [focus, connection], or null when not exactly two are on. */
+  let cmpPair: [string, string] | null = null;
+  /** Three or more on: home first, then the rest in the order put on. */
+  let cmpMulti: string[] | null = null;
+  /** The maps on, in the order they were put on (for cmpMulti). */
+  let cmpOrder: string[] = [];
+  /** Which of the others the filter's circle shows, three or more on. */
+  let ringIdx = 0;
+  /** The most slices the swipe cuts: each is a map of its own drawing. */
+  const SLICES = 6;
+  /** The extra maps: the second, and with the pizza one per slice past the
+   *  first. Each follows the page's map, and holds one layer. */
+  type Pane = { el: HTMLElement; map: maplibregl.Map | null; styled: boolean; road?: string; shown?: string; want?: string };
+  const panes: Pane[] = [{ el: cmpMapEl, map: null, styled: false }];
+  // The circle's middle and size in px.
+  let cmpX = 0;
+  let cmpY = 0;
+  let cmpR = 0;
+  // The swipe's line: through a point, at an angle (0 upright, the focus to
+  // its left), in px. Bent, it runs from one far end to the other through
+  // the visitor's own points instead, the side kept from the angle it had.
+  type Pt = { x: number; y: number };
+  let swC: Pt | null = null;
+  let swA = 0;
+  let swNodes: Pt[] | null = null;
+  let swEnds: [Pt, Pt] = [{ x: 0, y: 0 }, { x: 0, y: 0 }];
+  /** Far enough past any screen's edge to be the line's ends. */
+  const FAR = 8000;
+  const nameOf = (id: string) => config.layers.find((l) => l.id === id)!.name;
+
+  function cmpUpdate() {
+    const on = config.layers.filter((l) => state.get(l.id)!.on).map((l) => l.id);
+    // Put on since last time: to the end, in the list's order when several
+    // came at once; taken off: out.
+    cmpOrder = [...cmpOrder.filter((id) => on.includes(id)), ...on.filter((id) => !cmpOrder.includes(id))];
+    cmpPair = null;
+    const wasMulti = cmpMulti?.join();
+    cmpMulti = on.length >= 3 ? [...cmpOrder] : null;
+    // The callout over your dot names each compared map, in this order: told
+    // again when the line-up changes (it may have read before this did).
+    if (cmpMulti?.join() !== wasMulti) hereAgain();
+    if (on.length === 2) {
+      // Which is on top is the map's own order (the network moves the one it
+      // lays over to the top), else the list's, lowest first.
+      // Where each is drawn: going through time, its year's copy (lowestOf).
+      const order = styled ? map.getStyle().layers.map((l) => l.id) : [];
+      const [a, b] = on;
+      const at = (id: string) => (styled ? order.indexOf(lowestOf(id)) : -1);
+      cmpPair = at(a) > at(b) && at(b) >= 0 ? [b, a] : [a, b];
+    }
+    cmpBar.hidden = !cmpPair && !cmpMulti;
+    const dot = (id: string) => `<i style="background:${roleColour.get(id) ?? 'var(--ink-dim)'}"></i>`;
+    if (cmpPair) {
+      const [f, c] = cmpPair;
+      cmpNames.innerHTML = `${dot(f)}<span>${esc(nameOf(f))}</span><span class="cmp-and">under</span>${dot(c)}<span>${esc(nameOf(c))}</span>`;
+      if (document.activeElement !== cmpOpacity) cmpOpacity.value = String(state.get(c)!.opacity);
+      cmpRoot.querySelector('.cmp-tag-l')!.textContent = nameOf(f);
+      cmpRoot.querySelector('.cmp-tag-r')!.textContent = nameOf(c);
+    }
+    if (cmpMulti) {
+      const [home, ...rest] = cmpMulti;
+      cmpNames.innerHTML =
+        `<span class="cmp-and">Home</span>${dot(home)}<span>${esc(nameOf(home))}</span>` +
+        `<span class="cmp-and">then</span>${rest.map((id) => `${dot(id)}<span>${esc(nameOf(id))}</span>`).join('<span class="cmp-and">·</span>')}`;
+      ringIdx %= cmpMulti.length - 1;
+      if (cmpMode === 'opacity') cmpMode = 'filter';
+    }
+    cmpRender();
+  }
+
+  function cmpRender() {
+    cmpBar.querySelectorAll<HTMLElement>('[data-mode]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === cmpMode)));
+    cmpOpacity.hidden = cmpMode !== 'opacity';
+    cmpOpacityBtn.hidden = !!cmpMulti;
+    // Three or more, the swipe is a pizza, and called one.
+    cmpBar.querySelector('[data-mode="swipe"]')!.textContent = cmpMulti ? 'Pizza' : 'Swipe';
+    cmpRoot.classList.toggle('cmp-multi', !!cmpMulti);
+    cmpBend.hidden = cmpMode !== 'swipe' || !!cmpMulti;
+    cmpHint.hidden = !(cmpMode === 'swipe' || (cmpMode === 'filter' && cmpMulti));
+    cmpBend.setAttribute('aria-pressed', String(!!swNodes));
+    cmpBend.setAttribute('aria-label', swNodes ? 'Straighten the line again' : 'Bend the line');
+    cmpBend.title = swNodes ? 'Reset: straighten the line again' : 'Bend the line: points to drag it by';
+    cmpRoot.classList.toggle('cmp-bent', !!swNodes);
+    cmpHint.textContent = cmpMulti
+      ? cmpMode === 'swipe'
+        ? 'Drag the middle to size the slices'
+        : 'Turn the rim for the next map'
+      : swNodes
+        ? 'Drag a point · tap the line to add one · double-click to remove'
+        : 'Drag to slide · turn it from either end';
+    const cut = (!!cmpPair || !!cmpMulti) && cmpMode !== 'opacity' && map.getPitch() === 0;
+    cmpRoot.hidden = !cut;
+    cmpRoot.dataset.mode = cmpMode;
+    // What each extra map holds: two on, the focus; three or more, the
+    // circle's map, or a slice's each.
+    const want: string[] = !cut
+      ? []
+      : cmpPair
+        ? [cmpPair[0]]
+        : cmpMode === 'filter'
+          ? [cmpMulti![1 + ringIdx]]
+          : cmpMulti!.slice(1, SLICES);
+    // Three or more, the page's map shows home alone under them.
+    mainOnly(cut && cmpMulti ? cmpMulti[0] : null);
+    panes.forEach((p, i) => i >= want.length && (p.el.hidden = true));
+    if (!cut) return;
+    want.forEach((id, i) => paneShow(i, id));
+    cmpPlace();
+    if (cmpMulti && cmpMode === 'filter') {
+      const n = cmpMulti.length;
+      cmpRoot.querySelector('.cmp-circle-tag')!.textContent = `${nameOf(cmpMulti[1 + ringIdx])} · ${ringIdx + 2} of ${n}`;
+      dialDraw();
+    } else if (cmpPair) cmpRoot.querySelector('.cmp-circle-tag')!.textContent = nameOf(cmpPair[0]);
+  }
+
+  /** The page's map with only `home` showing of the layers on (null: all of
+   *  them, as they are) -- the others hidden from it, not switched off. */
+  let mainHid: string[] = [];
+  function mainOnly(home: string | null) {
+    for (const id of mainHid) if (state.get(id)?.on && map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'visible');
+    mainHid = [];
+    if (!home) return;
+    for (const l of config.layers)
+      if (l.id !== home && state.get(l.id)!.on && map.getLayer(l.id)) {
+        map.setLayoutProperty(l.id, 'visibility', 'none');
+        mainHid.push(l.id);
+      }
+  }
+
+  const cmpSync = () => {
+    if (cmpRoot.hidden) return;
+    for (const p of panes) if (p.map && !p.el.hidden) p.map.jumpTo({ center: map.getCenter(), zoom: map.getZoom(), bearing: map.getBearing(), pitch: 0 });
+  };
+  map.on('move', cmpSync);
+  /** Extra map `i` shown, holding `id` and nothing else; made the first time
+   *  it is wanted. */
+  function paneShow(i: number, id: string) {
+    let p = panes[i];
+    if (!p) {
+      const el = document.createElement('div');
+      el.className = 'cmp-map';
+      panes[i - 1].el.after(el);
+      p = panes[i] = { el, map: null, styled: false };
+    }
+    p.want = id;
+    p.el.hidden = false;
+    if (!p.map) {
+      const pane = p;
+      const m = new maplibregl.Map({
+        container: p.el,
+        style: studyStyle({ basemap: abs(config.basemap), glyphs: abs(config.glyphs), limit: config.limit }),
+        center: map.getCenter(),
+        zoom: map.getZoom(),
+        bearing: map.getBearing(),
+        interactive: false,
+        attributionControl: false,
+        fadeDuration: 0,
+      });
+      p.map = m;
+      m.on('load', () => {
+        addRelief(m, abs(config.terrain));
+        pane.road = m.getStyle().layers.find((l) => l.id.startsWith('roads_tunnels'))?.id;
+        pane.styled = true;
+        paneLoad(pane);
+      });
+    } else {
+      p.map.resize();
+      p.map.jumpTo({ center: map.getCenter(), zoom: map.getZoom(), bearing: map.getBearing(), pitch: 0 });
+    }
+    paneLoad(p);
+  }
+  /** The layer the pane holds -- going through time, the year the map
+   *  shows (its file and its own id, id@year), followed as the year moves. */
+  function paneLoad(p: Pane) {
+    if (!p.map || !p.styled || !p.want) return;
+    const m = p.map;
+    const l = config.layers.find((x) => x.id === p.want)!;
+    const now = years.active();
+    const year = now?.series.layer === l.id ? now.year : undefined;
+    const id = year ? `${l.id}@${year}` : l.id;
+    const src = year ? now!.series.src.replace('{year}', String(year)) : l.src;
+    const resampling = year ? now!.series.resampling : l.resampling;
+    if (p.shown === id) {
+      m.setPaintProperty(id, 'raster-opacity', state.get(l.id)!.opacity);
+      return;
+    }
+    const old = p.shown;
+    m.addSource(id, { type: 'raster', url: `pmtiles://${abs(src)}`, tileSize: 256 });
+    m.addLayer(
+      { id, type: 'raster', source: id, paint: { 'raster-opacity': state.get(l.id)!.opacity, 'raster-resampling': resampling, 'raster-fade-duration': 150 } },
+      p.road,
+    );
+    p.shown = id;
+    // The one before let go once the new one is drawn over it, so a year
+    // moving on doesn't flash the ground between them.
+    if (old && m.getLayer(old))
+      whenDrawn(m, () => {
+        if (!m.getLayer(old) || p.shown === old) return;
+        m.removeLayer(old);
+        m.removeSource(old);
+      });
+  }
+
+  function cmpPlace() {
+    const { clientWidth: w, clientHeight: h } = map.getContainer();
+    if (!cmpR) {
+      cmpR = Math.round(Math.min(200, Math.max(90, 0.28 * Math.min(w, h))));
+      cmpX = w / 2;
+      cmpY = h / 2;
+    }
+    cmpR = Math.min(cmpR, Math.floor(Math.min(w, h) / 2) - 8);
+    cmpX = Math.min(Math.max(cmpX, 0), w);
+    cmpY = Math.min(Math.max(cmpY, 0), h);
+    cmpRoot.style.setProperty('--x', `${cmpX}px`);
+    cmpRoot.style.setProperty('--y', `${cmpY}px`);
+    cmpRoot.style.setProperty('--r', `${cmpR}px`);
+    if (cmpMulti && cmpMode === 'swipe') pizzaPlace(w, h);
+    else {
+      for (const p of panes.slice(1)) p.el.style.clipPath = '';
+      swPlace(w, h);
+    }
+  }
+
+  // ---- The pizza: three or more on, the swipe ------------------------------
+  // A slice each, spokes from the hub out to the screen's edge. The spokes'
+  // ends stay put, where they cut the edge evenly round from its middle;
+  // moving the hub makes some slices bigger and some smaller. Home is the
+  // first slice clockwise from the top: the page's map, under the rest.
+  let hub: Pt | null = null;
+  function pizzaPlace(w: number, h: number) {
+    if (!hub) hub = { x: w / 2, y: h / 2 };
+    hub = { x: Math.min(Math.max(hub.x, 20), w - 20), y: Math.min(Math.max(hub.y, 20), h - 20) };
+    const ids = cmpMulti!.slice(0, SLICES);
+    const k = ids.length;
+    const mid = { x: w / 2, y: h / 2 };
+    /** Where a ray from the middle at `deg` (clockwise from up) leaves the screen. */
+    const edge = (deg: number): Pt => {
+      const t = ((deg - 90) * Math.PI) / 180;
+      const dx = Math.cos(t);
+      const dy = Math.sin(t);
+      const s = Math.min(dx ? (dx > 0 ? w - mid.x : -mid.x) / dx : Infinity, dy ? (dy > 0 ? h - mid.y : -mid.y) / dy : Infinity);
+      return { x: mid.x + dx * s, y: mid.y + dy * s };
+    };
+    const degOf = (p: Pt) => ((Math.atan2(p.y - mid.y, p.x - mid.x) * 180) / Math.PI + 90 + 360) % 360;
+    const corners = [{ x: w, y: 0 }, { x: w, y: h }, { x: 0, y: h }, { x: 0, y: 0 }].map((p) => ({ p, deg: degOf(p) }));
+    const angles = ids.map((_, i) => (i * 360) / k);
+    const ends = angles.map(edge);
+    const slice = (i: number): Pt[] => {
+      const a0 = angles[i];
+      const a1 = i + 1 < k ? angles[i + 1] : 360;
+      const between = corners.filter((c) => c.deg > a0 && c.deg < a1).sort((x, y) => x.deg - y.deg).map((c) => c.p);
+      return [hub!, ends[i], ...between, ends[(i + 1) % k]];
+    };
+    ids.forEach((_, i) => {
+      if (!i) return;
+      const p = panes[i - 1];
+      if (p) p.el.style.clipPath = `polygon(${slice(i).map((q) => `${q.x.toFixed(1)}px ${q.y.toFixed(1)}px`).join(', ')})`;
+    });
+    cmpPathEl.setAttribute('d', ends.map((e) => `M${hub!.x.toFixed(1)} ${hub!.y.toFixed(1)} L${e.x.toFixed(1)} ${e.y.toFixed(1)}`).join(' '));
+    cmpHit.setAttribute('d', '');
+    cmpNodes.innerHTML = '';
+    cmpHub.setAttribute('cx', hub.x.toFixed(1));
+    cmpHub.setAttribute('cy', hub.y.toFixed(1));
+    // A name in each slice: towards the middle of its corners from the hub,
+    // not all the way, where the legend or the bar may be over it.
+    cmpSlices.innerHTML = ids
+      .map((id, i) => {
+        const pts = slice(i);
+        const m = pts.reduce((a, q) => ({ x: a.x + q.x / pts.length, y: a.y + q.y / pts.length }), { x: 0, y: 0 });
+        const c = { x: hub!.x + (m.x - hub!.x) * 0.5, y: hub!.y + (m.y - hub!.y) * 0.5 };
+        return `<span style="left:${c.x.toFixed(0)}px;top:${c.y.toFixed(0)}px"><i style="background:${roleColour.get(id) ?? 'var(--ink-dim)'}"></i>${esc(nameOf(id))}${i ? '' : ' · home'}</span>`;
+      })
+      .join('');
+  }
+  cmpHub.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const b = cmpRoot.getBoundingClientRect();
+    const move = (ev: PointerEvent) => {
+      const { clientWidth: w, clientHeight: h } = map.getContainer();
+      hub = { x: ev.clientX - b.left, y: ev.clientY - b.top };
+      // Near the screen's middle, it settles there: even slices again.
+      if (Math.hypot(hub.x - w / 2, hub.y - h / 2) < 28) hub = { x: w / 2, y: h / 2 };
+      pizzaPlace(w, h);
+    };
+    const up = () => {
+      removeEventListener('pointermove', move);
+      removeEventListener('pointerup', up);
+      removeEventListener('pointercancel', up);
+    };
+    addEventListener('pointermove', move);
+    addEventListener('pointerup', up);
+    addEventListener('pointercancel', up);
   });
+
+  // ---- The filter's dial: three or more on ----------------------------------
+  // Down the left third of the rim: a notch for each map after home, evenly,
+  // the first at the top, and a node dragged along between them that
+  // settles in the nearest.
+  const dialTicks = cmpRoot.querySelector<HTMLElement>('.cmp-dial-ticks')!;
+  const dialNode = cmpRoot.querySelector<HTMLElement>('.cmp-dial-node')!;
+  const ARC = 120;
+  /** Notch k of m, in degrees clockwise from the right (left is 180): from
+   *  the upper left down to the lower left. */
+  const TOP = 180 + ARC / 2;
+  const notch = (k: number, m: number) => TOP - (m > 1 ? (ARC * k) / (m - 1) : ARC / 2);
+  const placeAt = (el: HTMLElement, deg: number) => {
+    el.style.setProperty('--c', String(Math.cos((deg * Math.PI) / 180)));
+    el.style.setProperty('--s', String(Math.sin((deg * Math.PI) / 180)));
+  };
+  let dialDragging = false;
+  function dialDraw() {
+    const others = cmpMulti!.slice(1);
+    const m = others.length;
+    if (dialTicks.childElementCount !== m) {
+      dialTicks.innerHTML = others.map((_, k) => `<button type="button" class="cmp-tick" tabindex="-1" data-k="${k}"></button>`).join('');
+    }
+    [...dialTicks.children].forEach((t, k) => {
+      const el = t as HTMLElement;
+      placeAt(el, notch(k, m));
+      el.title = nameOf(others[k]);
+      el.classList.toggle('on', k === ringIdx);
+    });
+    if (!dialDragging) placeAt(dialNode, notch(ringIdx, m));
+  }
+  const dialTo = (k: number) => {
+    if (k === ringIdx) return;
+    ringIdx = k;
+    cmpRender();
+  };
+  dialTicks.addEventListener('pointerdown', (e) => e.stopPropagation(), true);
+  dialTicks.addEventListener('click', (e) => {
+    const t = (e.target as Element).closest<HTMLElement>('[data-k]');
+    if (t) dialTo(Number(t.dataset.k));
+  });
+  dialNode.addEventListener('pointerdown', (e) => {
+    if (!cmpMulti || e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const m = cmpMulti.length - 1;
+    const b = cmpRoot.getBoundingClientRect();
+    dialDragging = true;
+    dialNode.classList.add('dragging');
+    const move = (ev: PointerEvent) => {
+      // Round from the right, 0 to 360, so the left side is all one run:
+      // held to the arc, the right half going to whichever end is nearer.
+      let deg = (Math.atan2(ev.clientY - b.top - cmpY, ev.clientX - b.left - cmpX) * 180) / Math.PI;
+      if (deg < 0) deg += 360;
+      deg = Math.min(TOP, Math.max(TOP - ARC, deg));
+      placeAt(dialNode, deg);
+      const k = Math.round(((TOP - deg) / ARC) * (m - 1));
+      dialTo(Math.min(m - 1, Math.max(0, k)));
+    };
+    const up = () => {
+      dialDragging = false;
+      dialNode.classList.remove('dragging');
+      placeAt(dialNode, notch(ringIdx, m));
+      removeEventListener('pointermove', move);
+      removeEventListener('pointerup', up);
+      removeEventListener('pointercancel', up);
+    };
+    addEventListener('pointermove', move);
+    addEventListener('pointerup', up);
+    addEventListener('pointercancel', up);
+  });
+
+  // ---- The filter's rim: three or more on ----------------------------------
+  // Turned, it steps the circle on to the next map (and round), a step a
+  // sixth of a turn; the dashed band goes round with it.
+  const RIM = 22;
+  const STEP_DEG = 50;
+  let rimRot = 0;
+  const onRim = (e: PointerEvent) => {
+    const b = cmpRoot.getBoundingClientRect();
+    return Math.hypot(e.clientX - b.left - cmpX, e.clientY - b.top - cmpY) > cmpR - RIM;
+  };
+  cmpCircle.addEventListener('pointermove', (e) => cmpCircle.classList.toggle('turn', !!cmpMulti && onRim(e)));
+  cmpCircle.addEventListener(
+    'pointerdown',
+    (e) => {
+      if (!cmpMulti || e.button !== 0 || !onRim(e) || (e.target as Element).closest('.cmp-size, .cmp-dial-node, .cmp-tick')) return;
+      // Handled here: not on to the circle's own move.
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      const b = cmpRoot.getBoundingClientRect();
+      const ang = (ev: PointerEvent) => (Math.atan2(ev.clientY - b.top - cmpY, ev.clientX - b.left - cmpX) * 180) / Math.PI;
+      let last = ang(e);
+      let turned = 0;
+      const start = ringIdx;
+      cmpCircle.classList.add('turning');
+      const move = (ev: PointerEvent) => {
+        const a = ang(ev);
+        let d = a - last;
+        if (d > 180) d -= 360;
+        if (d < -180) d += 360;
+        last = a;
+        turned += d;
+        rimRot += d;
+        cmpCircle.style.setProperty('--rot', `${rimRot}deg`);
+        const n = cmpMulti!.length - 1;
+        const idx = (((start + Math.trunc(turned / STEP_DEG)) % n) + n) % n;
+        if (idx !== ringIdx) {
+          ringIdx = idx;
+          cmpRender();
+        }
+      };
+      const up = () => {
+        cmpCircle.classList.remove('turning');
+        removeEventListener('pointermove', move);
+        removeEventListener('pointerup', up);
+        removeEventListener('pointercancel', up);
+      };
+      addEventListener('pointermove', move);
+      addEventListener('pointerup', up);
+      addEventListener('pointercancel', up);
+    },
+    true,
+  );
+
+  // ---- The swipe's line --------------------------------------------------
+  const swDir = (): Pt => ({ x: -Math.sin(swA), y: Math.cos(swA) });
+  /** The side the focus is on, square to the line. */
+  const swLeft = (): Pt => {
+    const d = swDir();
+    return { x: -d.y, y: d.x };
+  };
+  const swPoints = (): Pt[] => {
+    if (swNodes) return [swEnds[0], ...swNodes, swEnds[1]];
+    const d = swDir();
+    return [{ x: swC!.x - d.x * FAR, y: swC!.y - d.y * FAR }, { x: swC!.x + d.x * FAR, y: swC!.y + d.y * FAR }];
+  };
+  /** Where the straight line crosses the screen, as distances along it from
+   *  its point: its visible stretch, for telling its thirds apart. */
+  const swSpan = (w: number, h: number): [number, number] => {
+    const d = swDir();
+    let t0 = -Infinity;
+    let t1 = Infinity;
+    for (const [c, v, max] of [[swC!.x, d.x, w], [swC!.y, d.y, h]] as const) {
+      if (Math.abs(v) < 1e-9) continue;
+      const a = (0 - c) / v;
+      const b = (max - c) / v;
+      t0 = Math.max(t0, Math.min(a, b));
+      t1 = Math.min(t1, Math.max(a, b));
+    }
+    return [t0, t1];
+  };
+  /** The line as drawn: bent, a smooth curve through its points (centripetal
+   *  Catmull-Rom, which never loops or overshoots however unequal the
+   *  stretches -- and those to the far ends are very long), walked in short
+   *  steps; `seg` says which stretch between points each step is on. */
+  const swCurve = (): { pts: Pt[]; seg: number[] } => {
+    const P = swPoints();
+    if (!swNodes) return { pts: P, seg: [0, 0] };
+    const out: Pt[] = [P[0]];
+    const seg: number[] = [0];
+    const knot = (a: Pt, b: Pt) => Math.sqrt(Math.hypot(b.x - a.x, b.y - a.y)) || 1e-3;
+    for (let i = 0; i < P.length - 1; i++) {
+      const p0 = P[i - 1] ?? P[i];
+      const p1 = P[i];
+      const p2 = P[i + 1];
+      const p3 = P[i + 2] ?? p2;
+      const t1 = knot(p0, p1);
+      const t2 = t1 + knot(p1, p2);
+      const t3 = t2 + knot(p2, p3);
+      const lerp = (a: Pt, b: Pt, ta: number, tb: number, t: number): Pt => {
+        const f = tb === ta ? 0 : (t - ta) / (tb - ta);
+        return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f };
+      };
+      const n = Math.min(600, Math.max(8, Math.round(Math.hypot(p2.x - p1.x, p2.y - p1.y) / 6)));
+      for (let k = 1; k <= n; k++) {
+        const t = t1 + ((t2 - t1) * k) / n;
+        const a1 = lerp(p0, p1, 0, t1, t);
+        const a2 = lerp(p1, p2, t1, t2, t);
+        const a3 = lerp(p2, p3, t2, t3, t);
+        const b1 = lerp(a1, a2, 0, t2, t);
+        const b2 = lerp(a2, a3, t1, t3, t);
+        out.push(lerp(b1, b2, t1, t2, t));
+        seg.push(i);
+      }
+    }
+    return { pts: out, seg };
+  };
+  function swPlace(w: number, h: number) {
+    // The knob low on the line to begin with, clear of your dot, which the
+    // map keeps in the middle.
+    if (!swC) swC = { x: w / 2, y: Math.round((h * 2) / 3) };
+    swC = { x: Math.min(Math.max(swC.x, 0), w), y: Math.min(Math.max(swC.y, 0), h) };
+    const pts = swCurve().pts;
+    const L = swLeft();
+    // The focus's side: the line, then round the far side of it.
+    const side = [...pts, { x: pts.at(-1)!.x + L.x * FAR, y: pts.at(-1)!.y + L.y * FAR }, { x: pts[0].x + L.x * FAR, y: pts[0].y + L.y * FAR }];
+    cmpMapEl.style.clipPath = cmpMode === 'swipe' ? `polygon(${side.map((p) => `${p.x.toFixed(1)}px ${p.y.toFixed(1)}px`).join(', ')})` : '';
+    // Drawn, and taking the pointer, only where it is on the screen (and a
+    // little past): the full curve runs thousands of px off it, and Safari
+    // took the hollow of a bend that size as the line's own, swallowing
+    // the map's scroll-to-zoom there.
+    const m = 60;
+    const on = (p: Pt) => p.x > -m && p.x < w + m && p.y > -m && p.y < h + m;
+    const shown = pts.filter((p, i) => on(p) || (pts[i - 1] && on(pts[i - 1])) || (pts[i + 1] && on(pts[i + 1])));
+    const d = (shown.length > 1 ? shown : pts).map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+    cmpPathEl.setAttribute('d', d);
+    cmpHit.setAttribute('d', d);
+    // The points: made afresh only when there are more or fewer, so the one
+    // being dragged is not swapped out from under the pointer.
+    const nodes = swNodes ?? [];
+    if (cmpNodes.childElementCount !== nodes.length) {
+      cmpNodes.innerHTML = nodes.map((_, i) => `<circle r="7" data-i="${i}" />`).join('');
+    }
+    nodes.forEach((p, i) => {
+      const c = cmpNodes.children[i] as SVGCircleElement;
+      c.setAttribute('cx', p.x.toFixed(1));
+      c.setAttribute('cy', p.y.toFixed(1));
+    });
+    cmpRoot.style.setProperty('--kx', `${swC.x}px`);
+    cmpRoot.style.setProperty('--ky', `${swC.y}px`);
+    cmpRoot.style.setProperty('--ka', `${swA}rad`);
+    swTags(pts, L, w);
+  }
+
+  /** The two names along the top, either side of where the line crosses it:
+   *  the focus on the side the focus is (left of the way the line runs, as
+   *  its cut is drawn), the connection on the other. Where the line doesn't
+   *  reach the top, either side of the knob or the middle point instead. */
+  const tagF = cmpRoot.querySelector<HTMLElement>('.cmp-tag-l')!;
+  const tagC = cmpRoot.querySelector<HTMLElement>('.cmp-tag-r')!;
+  function swTags(pts: Pt[], L: Pt, w: number) {
+    // Along the top as the sheet puts it (under a phone's notch): measured
+    // there, the height the line is crossed at.
+    tagF.style.top = tagC.style.top = '';
+    const y0 = tagF.offsetTop + tagF.offsetHeight / 2;
+    let cross: { x: number; left: boolean } | null = null;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const a = pts[i];
+      const b = pts[i + 1];
+      if ((a.y - y0) * (b.y - y0) > 0 || a.y === b.y) continue;
+      const x = a.x + ((y0 - a.y) / (b.y - a.y)) * (b.x - a.x);
+      if (x < 0 || x > w || (cross && x > cross.x)) continue;
+      // Left of the way the line runs is the focus's side: square to it,
+      // across the screen, that is -dy.
+      cross = { x, left: -(b.y - a.y) < 0 };
+    }
+    const put = (el: HTMLElement, x: number, y: number | null, align: 'l' | 'r' | 'c', room: number) => {
+      el.style.left = `${x}px`;
+      if (y !== null) el.style.top = `${y}px`;
+      el.style.maxWidth = `${Math.max(80, Math.min(224, room))}px`;
+      el.style.transform = `translate(${align === 'l' ? '-100%' : align === 'r' ? '0' : '-50%'}, ${y === null ? '0' : '-50%'})`;
+    };
+    if (cross) {
+      const gap = 12;
+      const [l, r] = cross.left ? [tagF, tagC] : [tagC, tagF];
+      put(l, cross.x - gap, null, 'l', cross.x - gap - 12);
+      put(r, cross.x + gap, null, 'r', w - cross.x - gap - 12);
+    } else {
+      const at = swNodes ? swNodes[Math.floor(swNodes.length / 2)] : swC!;
+      put(tagF, at.x + L.x * 100, at.y + L.y * 100, 'c', 224);
+      put(tagC, at.x - L.x * 100, at.y - L.y * 100, 'c', 224);
+    }
+  }
+
+  const swAt = (e: PointerEvent): Pt => {
+    const b = cmpRoot.getBoundingClientRect();
+    return { x: e.clientX - b.left, y: e.clientY - b.top };
+  };
+  /** In the straight line's top or bottom third, where a drag turns it. */
+  const swTurning = (p: Pt) => {
+    const { clientWidth: w, clientHeight: h } = map.getContainer();
+    const [t0, t1] = swSpan(w, h);
+    const d = swDir();
+    const t = (p.x - swC!.x) * d.x + (p.y - swC!.y) * d.y;
+    const f = (t - t0) / (t1 - t0);
+    return f < 1 / 3 || f > 2 / 3;
+  };
+  /** A drag from `e`, `move` told each place the pointer goes. */
+  const swDrag = (e: PointerEvent, move: (p: Pt) => void) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const onMove = (ev: PointerEvent) => {
+      move(swAt(ev));
+      const { clientWidth: w, clientHeight: h } = map.getContainer();
+      swPlace(w, h);
+    };
+    const onUp = () => {
+      removeEventListener('pointermove', onMove);
+      removeEventListener('pointerup', onUp);
+      removeEventListener('pointercancel', onUp);
+    };
+    addEventListener('pointermove', onMove);
+    addEventListener('pointerup', onUp);
+    addEventListener('pointercancel', onUp);
+  };
+  /** Slid square to itself, as a slider slides: the knob keeps its place
+   *  along the line (low down, to begin with). */
+  const swMove = (e: PointerEvent) => {
+    const from = swAt(e);
+    const c0 = { ...swC! };
+    const L = swLeft();
+    swDrag(e, (p) => {
+      const k = (p.x - from.x) * L.x + (p.y - from.y) * L.y;
+      swC = { x: c0.x + L.x * k, y: c0.y + L.y * k };
+    });
+  };
+  cmpKnob.addEventListener('pointerdown', (e) => e.button === 0 && swMove(e));
+  // A scroll on the line, a point, the knob or the filter's circle is the
+  // map's: handed on to it, to zoom as anywhere else.
+  for (const el of [cmpHit, cmpNodes, cmpKnob, cmpCircle] as Element[])
+    el.addEventListener(
+      'wheel',
+      (e) => {
+        const w = e as WheelEvent;
+        w.preventDefault();
+        map.getCanvas().dispatchEvent(
+          new WheelEvent('wheel', {
+            bubbles: true,
+            cancelable: true,
+            deltaX: w.deltaX,
+            deltaY: w.deltaY,
+            deltaZ: w.deltaZ,
+            deltaMode: w.deltaMode,
+            clientX: w.clientX,
+            clientY: w.clientY,
+            screenX: w.screenX,
+            screenY: w.screenY,
+            ctrlKey: w.ctrlKey,
+            shiftKey: w.shiftKey,
+            altKey: w.altKey,
+            metaKey: w.metaKey,
+          }),
+        );
+      },
+      { passive: false },
+    );
+  cmpHit.addEventListener('pointermove', (e) => cmpHit.classList.toggle('turn', !swNodes && swTurning(swAt(e))));
+  cmpHit.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    const p = swAt(e);
+    if (swNodes) {
+      // Bent: a new point where the curve was touched, between the two
+      // points of the stretch nearest, and dragged from there at once.
+      const { pts, seg } = swCurve();
+      let best = 0;
+      let bestD = Infinity;
+      pts.forEach((q, i) => {
+        const dd = Math.hypot(q.x - p.x, q.y - p.y);
+        if (dd < bestD) {
+          bestD = dd;
+          best = seg[i];
+        }
+      });
+      const node = { ...p };
+      swNodes.splice(best, 0, node);
+      swDrag(e, (q) => Object.assign(node, q));
+      const { clientWidth: w, clientHeight: h } = map.getContainer();
+      swPlace(w, h);
+    } else if (swTurning(p)) {
+      // Turned about its point, and upright or level when near either.
+      const c = swC!;
+      const a0 = swA - Math.atan2(p.y - c.y, p.x - c.x);
+      swDrag(e, (q) => {
+        const a = a0 + Math.atan2(q.y - c.y, q.x - c.x);
+        const quarter = Math.round(a / (Math.PI / 2)) * (Math.PI / 2);
+        swA = Math.abs(a - quarter) < 0.05 ? quarter : a;
+      });
+    } else swMove(e);
+  });
+  cmpNodes.addEventListener('pointerdown', (e) => {
+    const c = (e.target as Element).closest<SVGCircleElement>('circle');
+    if (!c || !swNodes || e.button !== 0) return;
+    const node = swNodes[Number(c.dataset.i)];
+    swDrag(e, (q) => Object.assign(node, q));
+  });
+  // A point double-clicked goes, down to the last one.
+  cmpNodes.addEventListener('dblclick', (e) => {
+    const c = (e.target as Element).closest<SVGCircleElement>('circle');
+    if (!c || !swNodes || swNodes.length < 2) return;
+    swNodes.splice(Number(c.dataset.i), 1);
+    const { clientWidth: w, clientHeight: h } = map.getContainer();
+    swPlace(w, h);
+  });
+  /** Bent through points to drag, or straight again. Bent, it starts with
+   *  three points along the stretch that is on the screen. */
+  cmpBend.addEventListener('click', () => {
+    const { clientWidth: w, clientHeight: h } = map.getContainer();
+    if (swNodes) swNodes = null;
+    else {
+      const d = swDir();
+      const c = swC!;
+      const [t0, t1] = swSpan(w, h);
+      swEnds = [{ x: c.x - d.x * FAR, y: c.y - d.y * FAR }, { x: c.x + d.x * FAR, y: c.y + d.y * FAR }];
+      swNodes = [0.25, 0.5, 0.75].map((f) => {
+        const t = t0 + (t1 - t0) * f;
+        return { x: c.x + d.x * t, y: c.y + d.y * t };
+      });
+    }
+    cmpRender();
+  });
+
+  /** A pointer dragged on `el`, `move` told where it is on the map. */
+  const cmpDrag = (el: HTMLElement, move: (x: number, y: number, start: { x: number; y: number; cx: number; cy: number }) => void) => {
+    el.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const b = cmpRoot.getBoundingClientRect();
+      const start = { x: e.clientX - b.left, y: e.clientY - b.top, cx: cmpX, cy: cmpY };
+      el.setPointerCapture(e.pointerId);
+      el.classList.add('dragging');
+      const onMove = (ev: PointerEvent) => {
+        move(ev.clientX - b.left, ev.clientY - b.top, start);
+        cmpPlace();
+      };
+      const onUp = () => {
+        el.classList.remove('dragging');
+        el.removeEventListener('pointermove', onMove);
+        el.removeEventListener('pointerup', onUp);
+        el.removeEventListener('pointercancel', onUp);
+      };
+      el.addEventListener('pointermove', onMove);
+      el.addEventListener('pointerup', onUp);
+      el.addEventListener('pointercancel', onUp);
+    });
+  };
+  cmpDrag(cmpCircle, (x, y, s) => {
+    cmpX = s.cx + x - s.x;
+    cmpY = s.cy + y - s.y;
+  });
+  cmpDrag(cmpSize, (x, y) => {
+    cmpR = Math.max(50, Math.round(Math.hypot(x - cmpX, y - cmpY)));
+  });
+
+  cmpBar.addEventListener('click', (e) => {
+    const b = (e.target as Element).closest<HTMLElement>('[data-mode]');
+    if (!b) return;
+    cmpMode = b.dataset.mode as typeof cmpMode;
+    // The filter and the swipe look straight down: laid flat first.
+    if (cmpMode !== 'opacity' && map.getPitch() > 0) map.easeTo({ pitch: 0, duration: 600 });
+    cmpRender();
+  });
+  cmpOpacity.addEventListener('input', () => {
+    if (!cmpPair) return;
+    const c = cmpPair[1];
+    const v = Number(cmpOpacity.value);
+    setOpacity(c, v);
+    // The network's overlay keeps this for the next map it lays over.
+    if (c === netOverlay) netFade = v;
+  });
+  // Tilted, the cut would not line up with the ground: it goes, and comes
+  // back when the map is flat again.
+  let cmpFlat = true;
+  map.on('pitch', () => {
+    const flat = map.getPitch() === 0;
+    if (flat === cmpFlat) return;
+    cmpFlat = flat;
+    cmpRender();
+  });
+  addEventListener('resize', () => !cmpRoot.hidden && cmpPlace());
+
+  // ---- The web over the map -------------------------------------------------
+  // The web's circle over the map, as the network's is: every map round it,
+  // and the one picked on the map under it, one at a time, its connections
+  // kept lit. Whatever was on is put away while it is out and back after.
+  // Put away by a hand on the map, it shrinks into the top corner. "Step
+  // through" hands the map picked on to the network, as its middle.
+  const wmRoot = document.getElementById('webmap')!;
+  const wmBtn = document.getElementById('web-btn')!;
+  let wmOn = false;
+  let wmMini = false;
+  let wmPick: string | undefined;
+  let wmSaved: string[] = [];
+  const wmWeb = web({ layers: config.layers, net: config.network, onPick: (id) => wmShow(id) });
+  wmRoot.innerHTML = `<div class="wm-ring"><div class="wm-disc"><div class="wm-face"></div></div><div class="wm-bar"></div></div>`;
+  const wmRing = wmRoot.querySelector<HTMLElement>('.wm-ring')!;
+  const wmDisc = wmRoot.querySelector<HTMLElement>('.wm-disc')!;
+  const wmBar = wmRoot.querySelector<HTMLElement>('.wm-bar')!;
+  wmDisc.append(wmWeb);
+
+  const wmRenderBar = () => {
+    const l = wmPick ? config.layers.find((x) => x.id === wmPick) : undefined;
+    wmBar.innerHTML =
+      `<span class="wm-showing">` +
+      (l ? `<i style="background:${roleColour.get(l.id) ?? 'var(--ink-dim)'}"></i>` : '') +
+      `<span><span class="wm-which">On the map</span>${l ? esc(l.name) : 'Pick a map on the web'}</span></span>` +
+      (l ? `<button type="button" class="chip wm-step">Step through</button>` : '') +
+      `<button type="button" class="wm-hide" aria-label="Put the web away">` +
+      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg></button>`;
+  };
+  function wmShow(id: string) {
+    if (!wmOn) return;
+    if (wmPick && wmPick !== id) setLayer(wmPick, false);
+    wmPick = id;
+    if (!state.get(id)!.on) setLayer(id, true);
+    wmWeb.pick(id);
+    wmRenderBar();
+  }
+  /** Where the circle shrinks to: its top right corner to the map's, from
+   *  where it sits unshrunk (its box in the ring, which no move touches). */
+  const wmCorner = () => {
+    const ring = wmRing.getBoundingClientRect();
+    const host = wmRoot.getBoundingClientRect();
+    wmDisc.style.setProperty('--mx', `${host.right - 12 - (ring.left + wmDisc.offsetLeft + wmDisc.offsetWidth)}px`);
+    wmDisc.style.setProperty('--my', `${host.top + 40 - (ring.top + wmDisc.offsetTop)}px`);
+    wmDisc.style.setProperty('--s', '0.25');
+  };
+  const wmSetMini = (mini: boolean) => {
+    wmMini = mini;
+    if (mini) wmCorner();
+    wmRing.classList.toggle('mini', mini);
+    if (mini) {
+      wmDisc.setAttribute('role', 'button');
+      wmDisc.tabIndex = 0;
+      wmDisc.setAttribute('aria-label', 'Open the web');
+    } else {
+      wmDisc.removeAttribute('role');
+      wmDisc.removeAttribute('tabindex');
+      wmDisc.removeAttribute('aria-label');
+    }
+  };
+  const wmCollapse = () => wmOn && !wmMini && wmSetMini(true);
+  /** On or off. Off with `keep`, the map picked stays on as the map. */
+  const wmToggle = (on: boolean, keep = false) => {
+    if (on === wmOn) return;
+    wmOn = on;
+    wmRoot.hidden = !on;
+    wmBtn.setAttribute('aria-pressed', String(on));
+    main.classList.toggle('wm-on', on);
+    if (on) {
+      if (net.active()) net.off();
+      if (lensBtn.getAttribute('aria-pressed') === 'true') lensBtn.click();
+      if (!sheet.hidden) closeSheet();
+      years.close();
+      search.close();
+      closeWeb();
+      wmSaved = config.layers.filter((l) => state.get(l.id)!.on).map((l) => l.id);
+      for (const id of wmSaved) setLayer(id, false);
+      wmPick = undefined;
+      wmWeb.pick(null);
+      wmSetMini(false);
+      wmRenderBar();
+      // Once on screen, where its names have a length to fit to.
+      wmWeb.fit();
+    } else {
+      if (!keep) {
+        if (wmPick) setLayer(wmPick, false);
+        for (const id of wmSaved) setLayer(id, true);
+      }
+      wmPick = undefined;
+    }
+  };
+  // With the network out, the Web button opens the big web over it, as the
+  // landing does, the network left as it is; otherwise the web over the map.
+  // The Web button: the web large in the middle, as the landing has it --
+  // over the network, left as it is, when that is out; else from the landing,
+  // which it closes back to. (The web as a circle over the map, above, is
+  // put by for now: nothing opens it.)
+  wmBtn.addEventListener('click', () => {
+    if (!sheet.hidden) closeSheet();
+    if (net.active()) openWeb('network');
+    else {
+      if (wmOn) wmToggle(false);
+      openWeb('landing');
+    }
+  });
+  // The ways in: pointed at (or reached by a key), one opens out with its
+  // name; the pointer gone from them, search again.
+  const waysEl = document.querySelector<HTMLElement>('.map-side')!;
+  const widen = (b: Element | null) => {
+    // 3D on, its tilt slides out beside it: left as a circle then.
+    if (b?.id === 'three-d' && b.getAttribute('aria-pressed') === 'true') b = document.getElementById('search-btn');
+    waysEl.querySelectorAll('.way').forEach((w) => w.classList.toggle('wide', w === b));
+  };
+  waysEl.addEventListener('pointerover', (e) => (e as PointerEvent).pointerType === 'mouse' && widen((e.target as Element).closest('.way')));
+  waysEl.addEventListener('pointerleave', () => widen(document.getElementById('search-btn')));
+  waysEl.addEventListener('focusin', (e) => (e.target as Element).matches(':focus-visible') && widen(e.target as Element));
+  waysEl.addEventListener('focusout', () => widen(document.getElementById('search-btn')));
+  // The stopwatch: Through time, as the landing has it, closing back to it.
+  document.getElementById('time-btn')!.addEventListener('click', () => {
+    if (!sheet.hidden) closeSheet();
+    net.collapse();
+    openTime();
+  });
+  wmBar.addEventListener('click', (e) => {
+    const t = e.target as Element;
+    if (t.closest('.wm-hide')) wmCollapse();
+    else if (t.closest('.wm-step') && wmPick) {
+      const id = wmPick;
+      wmToggle(false);
+      net.enter();
+      net.focus(id);
+    }
+  });
+  wmDisc.addEventListener('click', (e) => {
+    if (!wmMini) return;
+    e.stopPropagation();
+    wmSetMini(false);
+  });
+  // With a mouse, resting on the shrunk circle opens it -- after a moment,
+  // so passing over the corner on the way elsewhere doesn't.
+  let wmHover: ReturnType<typeof setTimeout> | undefined;
+  wmDisc.addEventListener('pointerenter', (e) => {
+    if (!wmMini || e.pointerType !== 'mouse') return;
+    wmHover = setTimeout(() => wmMini && wmSetMini(false), 180);
+  });
+  wmDisc.addEventListener('pointerleave', () => clearTimeout(wmHover));
+  wmDisc.addEventListener('keydown', (e) => {
+    if (wmMini && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault();
+      wmSetMini(false);
+    }
+  });
+  addEventListener('keydown', (e) => e.key === 'Escape' && wmCollapse());
+  addEventListener('resize', () => wmMini && wmCorner());
+  map.on('dragstart', wmCollapse);
+  map.on('zoomstart', (e) => e.originalEvent && wmCollapse());
+  map.on('rotatestart', (e) => e.originalEvent && wmCollapse());
+  map.on('pitchstart', (e) => e.originalEvent && wmCollapse());
+  map.on('click', wmCollapse);
+  // The lens pressed while the web is out: out of the web, the map picked
+  // kept on for the lens to look through from (capture phase, as the
+  // network's).
+  lensBtn.addEventListener('click', () => wmOn && wmToggle(false, true), true);
+
+  // ---- Through time, from the landing ---------------------------------------
+  // The globe's curve along the foot, orbits over it, a satellite on them for
+  // each map with its years (timeseries.json). One picked: the landing gone,
+  // that map on and going through its years from the first. The ×, Escape or
+  // the dimmed map round it: back to the landing.
+  function openTime() {
+    // The drawing's own units: 1000 wide, 600 high, the foot of the screen at
+    // the bottom. The globe (public/img/night-globe.webp, made by
+    // map/tools/night-globe.py: the Earth at night round western Canada,
+    // the top 0.45 of its radius) sits in it at its own size; its middle far
+    // below the foot.
+    const W = 1000;
+    const H = 600;
+    const R = 540;
+    const CAP = 0.45;
+    const CX = W / 2;
+    const CY = H + R * (1 - CAP);
+    const top = CY - R;
+    const list = config.series;
+    const n = list.length;
+    // The satellites: each on an orbit of its own height, going round at a
+    // slow, steady pace -- some one way, some the other -- in from beyond
+    // one side and out beyond the other, spread out along the way. Each turns
+    // with its orbit, so it keeps level with the ground under it; only its
+    // name and years are turned back, to stay upright to read.
+    const SWEEP = 58;
+    const sats = list
+      .map((s, i) => {
+        const r = R + 95 + (i % 3) * 62;
+        const dur = 150 + (i % 3) * 40;
+        const right = i % 2 === 0;
+        const [a0, a1] = right ? [-SWEEP, SWEEP] : [SWEEP, -SWEEP];
+        const delay = -((i + 0.5) / n) * dur;
+        const y = CY - r;
+        const years = `${s.years[0]}–${s.years.at(-1)}`;
+        return (
+          `<g class="tv-orb" style="--a0:${a0}deg;--a1:${a1}deg;--dur:${dur}s;--delay:${delay.toFixed(1)}s;transform-origin:${CX}px ${CY}px">` +
+          `<g class="tv-sat" data-layer="${esc(s.layer)}" role="button" tabindex="0" aria-label="${esc(s.name)}, ${years}" transform="translate(${CX} ${y})">` +
+          `<circle class="tv-hit" r="34" />` +
+          `<g class="tv-wire">` +
+          `<rect x="-7" y="-8" width="14" height="16" rx="1.5" />` +
+          `<path d="M-7 0H-11M7 0H11" />` +
+          `<rect x="-29" y="-5.5" width="18" height="11" /><path d="M-23 -5.5V5.5M-17 -5.5V5.5M-29 0H-11" />` +
+          `<rect x="11" y="-5.5" width="18" height="11" /><path d="M17 -5.5V5.5M23 -5.5V5.5M11 0H29" />` +
+          `<path d="M0 -8V-14" /><circle cx="0" cy="-15.5" r="1.6" />` +
+          `</g>` +
+          // Its name and years, on a card that shows only while it is
+          // pointed at (sized to its words once drawn, below).
+          `<g class="tv-upright"><g class="tv-card">` +
+          `<rect class="tv-card-bg" x="-60" y="24" width="120" height="44" rx="9" />` +
+          `<text class="tv-name" y="42" text-anchor="middle">${esc(s.name)}</text>` +
+          `<text class="tv-years" y="58" text-anchor="middle">${years}</text>` +
+          `</g></g></g></g>`
+        );
+      })
+      .join('');
+    // Stars: the same scatter each time, faint, over the sky and not the globe.
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const stars = Array.from({ length: 110 }, () => {
+      const x = rnd() * W * 1.4 - W * 0.2;
+      const y = rnd() * H;
+      if (Math.hypot(x - CX, y - CY) < R + 6) return '';
+      return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(0.4 + rnd() * 0.9).toFixed(2)}" opacity="${(0.25 + rnd() * 0.6).toFixed(2)}" />`;
+    }).join('');
+    timeView.innerHTML =
+      `<div class="tv-head"><p class="eyebrow">Through time</p><h2>Watch the landscape change, year by year</h2>` +
+      `<p>Satellites have looked down on this ground every year since the 1980s, and these maps are built on what they saw. Pick one to watch it change.</p>` +
+      `<button class="net-start-close tv-close" type="button" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg></button></div>` +
+      `<svg class="tv-sky" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMax meet" role="group" aria-label="Maps through time">` +
+      `<defs><radialGradient id="tv-air" cx="${CX}" cy="${CY}" r="${R + 30}" gradientUnits="userSpaceOnUse">` +
+      `<stop offset="0.955" stop-color="#8fb4ff" stop-opacity="0" /><stop offset="0.975" stop-color="#8fb4ff" stop-opacity="0.22" /><stop offset="1" stop-color="#8fb4ff" stop-opacity="0" /></radialGradient></defs>` +
+      `<g class="tv-stars">${stars}</g>` +
+      `<circle cx="${CX}" cy="${CY}" r="${R + 30}" fill="url(#tv-air)" />` +
+      `<image href="${esc(config.globe)}" x="${CX - R}" y="${top}" width="${2 * R}" height="${R * CAP}" preserveAspectRatio="none" />` +
+      sats +
+      `</svg>` +
+      `<p class="tv-credit">Earth at night: NASA Earth Observatory</p>` +
+      // On the globe: every one of them as a plain list of chips, for those
+      // who would rather read than chase satellites.
+      `<div class="tv-all-wrap"><div class="tv-list" hidden>` +
+      list
+        .map(
+          (s) =>
+            `<button type="button" class="net-chip tv-chip" data-layer="${esc(s.layer)}"><i style="background:${roleColour.get(s.layer) ?? 'var(--ink-dim)'}"></i>` +
+            `<span>${esc(s.name)}</span><em>${s.years[0]}–${s.years.at(-1)}</em></button>`,
+        )
+        .join('') +
+      `</div><button type="button" class="tv-all" aria-expanded="false">View all</button></div>`;
+    search.close();
+    timeView.hidden = false;
+    // Each card as wide as its longer line, now there is a length to measure.
+    timeView.querySelectorAll<SVGGElement>('.tv-card').forEach((c) => {
+      const w = Math.max(...[...c.querySelectorAll<SVGTextElement>('text')].map((t) => t.getComputedTextLength())) + 28;
+      const bg = c.querySelector('rect')!;
+      bg.setAttribute('x', String(-w / 2));
+      bg.setAttribute('width', String(w));
+    });
+  }
+  const closeTime = (back = true) => {
+    if (timeView.hidden) return;
+    timeView.hidden = true;
+    if (back) search.open(true);
+  };
+  /** A satellite picked: its map on, going through its years from the
+   *  first -- and, once that is drawn, the view faded away into it, the dim
+   *  under it with it, rather than cut from dark to the bright map. */
+  const pickTime = (layer: string) => {
+    if (timeView.classList.contains('leaving')) return;
+    if (!state.get(layer)!.on) setLayer(layer, true);
+    if (years.active()?.series.layer !== layer) years.toggle(layer);
+    timeView.classList.add('picked');
+    whenDrawn(map, () => {
+      timeView.classList.add('leaving');
+      setTimeout(() => {
+        timeView.hidden = true;
+        timeView.classList.remove('leaving', 'picked');
+      }, 700);
+    });
+  };
+  timeView.addEventListener('click', (e) => {
+    const t = e.target as Element;
+    const sat = t.closest<HTMLElement | SVGGElement>('.tv-sat, .tv-chip');
+    if (sat) return pickTime(sat.dataset.layer!);
+    const all = t.closest<HTMLElement>('.tv-all');
+    if (all) {
+      const open = all.getAttribute('aria-expanded') !== 'true';
+      all.setAttribute('aria-expanded', String(open));
+      all.textContent = open ? 'Hide list' : 'View all';
+      timeView.querySelector<HTMLElement>('.tv-list')!.hidden = !open;
+      timeView.classList.toggle('listing', open);
+      return;
+    }
+    if (t.closest('.tv-close') || t === timeView || t.classList.contains('tv-sky')) closeTime();
+  });
+  timeView.addEventListener('keydown', (e) => {
+    const sat = (e.target as Element).closest<SVGGElement>('.tv-sat');
+    if (sat && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault();
+      pickTime(sat.dataset.layer!);
+    }
+  });
+  addEventListener(
+    'keydown',
+    (e) => {
+      if (e.key !== 'Escape' || timeView.hidden) return;
+      e.stopImmediatePropagation();
+      closeTime();
+    },
+    true,
+  );
 
   const search = explore({
     root: document.getElementById('explore')!,
@@ -2476,14 +4510,32 @@ const config = {
     whereOf,
     open: !layersAsked.size && ![...state.values()].some((s) => s.on),
     // With the network out, a map picked goes in the middle of its circle.
-    onPick: (id) => (net.active() ? net.focus(id) : setLayer(id, true)),
+    // Otherwise, put on, the search staying up to add more (its roster).
+    onPick: (id) => {
+      if (net.active()) net.focus(id);
+      else if (wmOn) wmShow(id);
+      else {
+        setLayer(id, true);
+        return true;
+      }
+      return false;
+    },
+    current: () => config.layers.filter((l) => state.get(l.id)!.on).map((l) => l.id),
+    // Where: a town found by name, the map flown there at a town's scale.
+    places: [
+      ...TOWNS.map(([name, lng, lat]) => ({ name, kind: 'town' as const, lng, lat })),
+      ...LANDMARKS.map(([name, kind, lng, lat]) => ({ name, kind, lng, lat })),
+    ],
+    onPlace: (p) => {
+      setFollowing(false);
+      map.flyTo({ center: [p.lng, p.lat], zoom: Math.max(map.getZoom(), 12.5), duration: 1800, essential: true });
+    },
+    onRemove: (id) => setLayer(id, false),
     // The network's start card under the search row, the question and the
     // row staying up so the other ways in are still there.
-    onNetwork: () => {
-      net.enter();
-      search.panel(net.startCard);
-    },
+    onNetwork: () => startIntro(),
     onWeb: () => openWeb(),
+    onTime: () => openTime(),
     // The card let go -- back to the search, or the landing shut: the card
     // home to the network's own layer, and the network off unless a map was
     // picked from it (then it is in its circle, and stays).
@@ -2510,6 +4562,7 @@ const config = {
   document.getElementById('search-btn')!.addEventListener('click', () => {
     if (!sheet.hidden) closeSheet();
     net.collapse();
+    wmCollapse();
     search.open(false);
   });
   // "/" to search, as on most sites with a search box.
@@ -2633,6 +4686,9 @@ const config = {
   // How close the map comes in on you: walking scale, about a kilometre and
   // a half across a phone -- the trail and what is beside it, not the valley.
   const HERE_ZOOM = 15;
+  /** How far the map flies in to you when it first knows where you are: the
+   *  valley round you, not the street -- the follow button goes closer. */
+  const ARRIVE_ZOOM = 12;
   let me: maplibregl.Marker | null = null;
   let meOn = false;
   let watch: number | null = null;
@@ -2721,7 +4777,7 @@ const config = {
       flown = true;
       if (inside(here)) {
         arriving = true;
-        map.flyTo({ center: here, zoom: HERE_ZOOM, duration: 2200, essential: true });
+        map.flyTo({ center: here, zoom: ARRIVE_ZOOM, duration: 2200, essential: true });
         map.once('moveend', () => {
           arriving = false;
           // Walked on during the flight: catch up.
@@ -2823,6 +4879,70 @@ const config = {
     });
   }
 
+  // ---- The inspector ---------------------------------------------------------
+  // On, a tap on the map drops a pin -- the next tap moves it, and it can be
+  // dragged -- and the tag reads what is at the pin rather than where you
+  // are, marked with a pin of its own; the card it opens is "At the pin".
+  // The map stops following you meanwhile. Off (the button again, or
+  // Escape), the pin goes and the tag is yours again.
+  let probe: LngLat | null = null;
+  let probePin: maplibregl.Marker | null = null;
+  let inspecting = false;
+  const inspectBtn = document.getElementById('inspect-btn')!;
+  const setProbe = (at: LngLat | null) => {
+    probe = at;
+    if (at) {
+      if (!probePin) {
+        const pinEl = document.createElement('div');
+        pinEl.className = 'probe-pin';
+        pinEl.setAttribute('aria-label', 'The pin');
+        pinEl.innerHTML =
+          `<svg viewBox="0 0 30 40" aria-hidden="true"><path d="M15 39s13-12.2 13-23.5a13 13 0 10-26 0C2 26.8 15 39 15 39z" fill="var(--accent)" stroke="#0d1210" stroke-width="2" />` +
+          `<circle cx="15" cy="15.5" r="5" fill="#0d1210" /></svg>`;
+        probePin = new maplibregl.Marker({ element: pinEl, anchor: 'bottom', draggable: true });
+        // Dragged, the tag keeps up; what is there is read once let go.
+        probePin.on('drag', () => {
+          const { lng, lat } = probePin!.getLngLat();
+          probe = [lng, lat];
+          tag?.setLngLat(probe);
+        });
+        probePin.on('dragend', () => {
+          const { lng, lat } = probePin!.getLngLat();
+          setProbe([lng, lat]);
+        });
+      }
+      probePin.setLngLat(at).addTo(map);
+      setFollowing(false);
+    } else probePin?.remove();
+    lookChanged = true;
+    if (probe ?? here) updateHere();
+    else {
+      tag?.remove();
+      tag = null;
+      tagShown = false;
+    }
+  };
+  const inspect = (on: boolean) => {
+    inspecting = on;
+    inspectBtn.setAttribute('aria-pressed', String(on));
+    el.classList.toggle('inspecting', on);
+    if (on) say('Tap the map to drop a pin and see what is there.');
+    else {
+      toast.hidden = true;
+      setProbe(null);
+      if (sheetFor === 'here') closeSheet();
+    }
+  };
+  inspectBtn.addEventListener('click', () => inspect(!inspecting));
+  map.on('click', (e) => {
+    if (!inspecting) return;
+    toast.hidden = true;
+    setProbe([e.lngLat.lng, e.lngLat.lat]);
+  });
+  addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && inspecting) inspect(false);
+  });
+
   // Asked for on arrival, since being placed on the map is the point of it --
   // unless the answer is already no, in which case the button is there.
   (async () => {
@@ -2830,6 +4950,8 @@ const config = {
     // near-you list and the tag, which are set up further down. The real
     // position is always a wait away; the ?at one is not.
     await Promise.resolve();
+    // Not over the password: asked once in (the gate, shared/layouts/Shell.astro).
+    await (window as unknown as { __gate?: Promise<void> }).__gate;
     if (spoofing) {
       if (spoof) place(spoof);
       return;
@@ -2988,7 +5110,8 @@ const config = {
   const keyOf = (hs: Here[]) => hs.map((h) => `${h.layer.id}=${h.value ?? ''}`).join();
 
   async function updateHere() {
-    const at = here;
+    // At the inspector's pin while there is one; else where you are.
+    const at = probe ?? here;
     const ask = ++asked;
     let now: Here[] = [];
     if (at && inside(at)) {
@@ -3003,7 +5126,10 @@ const config = {
         .filter((l) => (state.get(l.id)!.on || l.id === lensId) && l.legend.length)
         .map((l) => (through?.series.layer === l.id ? { ...l, legend: through.series.legend } : l))
         .reverse()
-        .sort((a, b) => Number(b.id === lensId) - Number(a.id === lensId) || Number(b.id === netOverlay) - Number(a.id === netOverlay));
+        .sort((a, b) => Number(b.id === lensId) - Number(a.id === lensId) || Number(b.id === netOverlay) - Number(a.id === netOverlay))
+        // Three or more compared: each of them, in the compare's order --
+        // home, then the rest as they were put on -- as the slices are.
+        .sort((a, b) => (cmpMulti ? cmpMulti.indexOf(a.id) - cmpMulti.indexOf(b.id) : 0));
       if (on.length) {
         const reads = await Promise.all(on.map((l) => pixel(l, at).catch(() => undefined)));
         on.forEach((l, i) => {
@@ -3019,7 +5145,7 @@ const config = {
           const c = px ? classOf(l, px) : { label: 'none here', colour: 'transparent' };
           if (c) now.push({ layer: l, value: c.label, colour: c.colour });
         });
-        now = now.slice(0, HERE_MOST);
+        now = now.slice(0, cmpMulti ? SLICES : HERE_MOST);
       }
     }
     if (ask !== asked) return;
@@ -3028,7 +5154,7 @@ const config = {
     // Walking along an edge, fixes a few metres apart land either side of it.
     // A change is only taken once two readings in a row agree -- except the
     // first answer, and a placed (?at) position, which only reads once.
-    if (changed && tagShown && !spoofing && !lookChanged && pendingKey !== key) {
+    if (changed && tagShown && !spoofing && !probe && !lookChanged && pendingKey !== key) {
       pendingKey = key;
       return;
     }
@@ -3052,6 +5178,8 @@ const config = {
         if (sheetFor === 'here') return closeSheet();
         showHere();
         // Opening what is under you is looking at where you are: follow.
+        // At the pin, the pin is shown instead, and you are not followed.
+        if (probe) return reveal(probe);
         setFollowing(true);
         if (here) reveal(here);
       });
@@ -3061,12 +5189,20 @@ const config = {
       tag = new maplibregl.Marker({ element: el, anchor: 'bottom', offset: [0, -16] });
     }
     const el = tag.getElement();
-    if (changed || !el.childElementCount) {
+    // Over the pin it stands higher, clear of the pin's head.
+    tag.setOffset([0, probe ? -44 : -16]);
+    const forPin = !!probe;
+    if (changed || !el.childElementCount || el.classList.contains('at-pin') !== forPin) {
+      el.classList.toggle('at-pin', forPin);
       const words = (h: Here) => (h.value ? `${shortName(h.layer)}: ${h.value}` : h.layer.here!.label);
-      el.innerHTML = inLayers
-        .map((h) => `<i style="background:${esc(h.colour)}"></i>${h.value ? `<span>${esc(shortName(h.layer))}: <b>${esc(h.value)}</b></span>` : esc(h.layer.here!.label)}`)
+      el.innerHTML =
+        `<svg class="ht-pin" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 22s7-6 7-12a7 7 0 10-14 0c0 6 7 12 7 12z" /></svg>` +
+        inLayers
+        .map((h) => `<span class="ht-row"><i style="background:${esc(h.colour)}"></i>${h.value ? `<span>${esc(shortName(h.layer))}: <b>${esc(h.value)}</b></span>` : esc(h.layer.here!.label)}</span>`)
         .join('<span class="sep">·</span>');
-      el.setAttribute('aria-label', `Where you are: ${inLayers.map(words).join('; ')}`);
+      // More than two: a short list, a row each, not one long line.
+      el.classList.toggle('many', inLayers.length > 2);
+      el.setAttribute('aria-label', `${forPin ? 'At the pin' : 'Where you are'}: ${inLayers.map(words).join('; ')}`);
       if (sheetFor === 'here') showHere();
     }
     tag.setLngLat(at);
@@ -3079,7 +5215,7 @@ const config = {
    *  run, so everything updateHere reads is set up. */
   const hereAgain = () => {
     lookChanged = true;
-    queueMicrotask(() => here && updateHere());
+    queueMicrotask(() => (probe ?? here) && updateHere());
   };
 
   /** The card: what is under you. For a layer that is on, its class here and
@@ -3092,10 +5228,12 @@ const config = {
     const tabs = inLayers.length > 1;
     const one = inLayers[0];
     const headline = tabs
-      ? 'What is under you'
+      ? probe
+        ? 'At the pin'
+        : 'What is under you'
       : one.value
         ? `${one.layer.name}: ${one.value}`
-        : `You're in ${one.layer.here!.what}`;
+        : `${probe ? 'The pin is in' : "You're in"} ${one.layer.here!.what}`;
     const panel = (h: Here) => {
       const l = h.layer;
       const key = h.value
@@ -3122,7 +5260,7 @@ const config = {
     };
     openSheet(
       'here',
-      `<p class="eyebrow">Where you are</p>` +
+      `<p class="eyebrow">${probe ? 'Pin location' : 'Where you are'}</p>` +
         `<h2 id="sheet-title">${tabs ? '' : `<span class="here-swatch" style="background:${esc(one.colour)}"></span>`}${esc(headline)}</h2>` +
         (tabs
           ? `<div class="pills" role="tablist" aria-label="What is under you">` +

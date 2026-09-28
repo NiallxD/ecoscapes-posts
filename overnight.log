@@ -1,0 +1,230 @@
+ecosystem_resilience                     ecosystem_resilience       monitor  1995-2022  (GeoTIFFs only)
+                                         for 01-01-01-adaptive-capacity
+ecosystem_services_value                 ecosystem_services         monitor  1984-2024  (GeoTIFFs only)
+                                         for 01-01-04-ecosystem-services
+landcover_class                          landcover                  monitor  1984-2024  -> PMTiles as landcover
+                                         for 01-01-06-land-cover
+human_footprint                          human_footprint            monitor  1985-2022  -> PMTiles as human-footprint
+                                         for 01-02-01-human-footprint
+cascadia_false_color_composite           landsat                    monitor  1984-2024  (GeoTIFFs only)
+                                         for 01-02-02-habitat-fragmentation
+ecosystem_change                         ecosystem_resilience       monitor  1995-2022  (GeoTIFFs only)
+                                         for 01-02-03-biodiversity-hotspots
+cascadia_forest_ecosystem_habitat        forest_ecosystems          monitor  1985-2022  (GeoTIFFs only)
+                                         for 02-01-01-habitat-suitability
+forest_ecosystem_permeability            forest_ecosystem_habitat   monitor  1985-2022  (GeoTIFFs only)
+                                         for 02-01-02-landscape-permeability
+developed_prob                           landcover                  monitor  1984-2024  (GeoTIFFs only)
+                                         for 02-02-01-urbanization, 02-02-02-linear-infrastructure, 02-02-03-outdoor-recreation
+disturbance_class                        forest_disturbance         monitor  1985-2021  (GeoTIFFs only)
+                                         for 02-02-04-forest-harvest, 02-02-06-wildfire
+forest_ecosystem_habitat                 forest_ecosystem_habitat   monitor  1985-2022  (GeoTIFFs only)
+                                         for 02-03-01-forest-ecosystems, 03-01-01-biogeoclimatic-zones, 03-02-01-site-series
+freshwater_emergent_wetland_prob         landcover                  monitor  1984-2024  (GeoTIFFs only)
+                                         for 02-03-02-riparian-and-wetland-areas
+mesic_shrub_prob                         landcover                  monitor  1984-2024  (GeoTIFFs only)
+                                         for 02-03-03-mesic-vegetation
+xeric_shrub_prob                         landcover                  monitor  1984-2024  (GeoTIFFs only)
+                                         for 02-03-04-xeric-vegetation
+mat_30yr_normal                          temperature_normals        project  1990-2100  (GeoTIFFs only)
+                                         for 04-01-01-climate-refugia, 04-01-02-climate-corridors, 04-01-03-climate-adaptation-priorities
+
+00:02 [1/15] ecosystem_resilience
+    00:02 ecosystem_resilience: 28 years, 38x42 tiles at z12
+    00:03 1/28 1995 1.4% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/ecosystem_resilience/ecosystem_resilience_1995.tif
+    00:03 2/28 1996 1.4% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/ecosystem_resilience/ecosystem_resilience_1996.tif
+    00:06 3/28 1997 1.4% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/ecosystem_resilience/ecosystem_resilience_1997.tif
+developed_prob                           landcover                  monitor  1984-2024  (GeoTIFFs only)
+                                         for 02-02-01-urbanization, 02-02-02-linear-infrastructure, 02-02-03-outdoor-recreation
+freshwater_emergent_wetland_prob         landcover                  monitor  1984-2024  (GeoTIFFs only)
+                                         for 02-03-02-riparian-and-wetland-areas
+mesic_shrub_prob                         landcover                  monitor  1984-2024  (GeoTIFFs only)
+                                         for 02-03-03-mesic-vegetation
+xeric_shrub_prob                         landcover                  monitor  1984-2024  (GeoTIFFs only)
+                                         for 02-03-04-xeric-vegetation
+
+08:30 [1/4] developed_prob
+    08:30 developed_prob: 41 years, 38x42 tiles at z12
+    08:30 1/41 1984 0.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/developed_prob/developed_prob_1984.tif
+    08:31 2/41 1985 0.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/developed_prob/developed_prob_1985.tif
+    08:32 3/41 1986 0.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/developed_prob/developed_prob_1986.tif
+    08:33 4/41 1987 0.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/developed_prob/developed_prob_1987.tif
+    08:33 5/41 1988 0.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/developed_prob/developed_prob_1988.tif
+    08:34 6/41 1989 0.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/developed_prob/developed_prob_1989.tif
+    08:35 7/41 1990 0.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/developed_prob/developed_prob_1990.tif
+    08:36 8/41 1991 0.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/developed_prob/developed_prob_1991.tif
+    08:36 9/41 1992 0.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/developed_prob/developed_prob_1992.tif
+    08:37 10/41 1993 0.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/developed_prob/developed_prob_1993.tif
+    08:38 11/41 1994 0.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/developed_prob/developed_prob_1994.tif
+    08:39 12/41 1995 0.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/developed_prob/developed_prob_1995.tif
+    08:39 13/41 1996 0.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/developed_prob/developed_prob_1996.tif
+    08:40 14/41 1997 0.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/developed_prob/developed_prob_1997.tif
+    08:41 15/41 1998 0.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/developed_prob/developed_prob_1998.tif
+    08:42 16/41 1999 0.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/developed_prob/developed_prob_1999.tif
+    08:42 17/41 2000 0.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/developed_prob/developed_prob_2000.tif
+    08:43 18/41 2001 0.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/developed_prob/developed_prob_2001.tif
+    08:44 19/41 2002 0.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/developed_prob/developed_prob_2002.tif
+    08:44 20/41 2003 0.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/developed_prob/developed_prob_2003.tif
+    08:45 21/41 2004 0.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/developed_prob/developed_prob_2004.tif
+    08:46 22/41 2005 0.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/developed_prob/developed_prob_2005.tif
+    08:47 23/41 2006 0.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/developed_prob/developed_prob_2006.tif
+    08:47 24/41 2007 0.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/developed_prob/developed_prob_2007.tif
+    08:48 25/41 2008 0.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/developed_prob/developed_prob_2008.tif
+    08:49 26/41 2009 0.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/developed_prob/developed_prob_2009.tif
+    08:50 27/41 2010 0.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/developed_prob/developed_prob_2010.tif
+    08:51 28/41 2011 0.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/developed_prob/developed_prob_2011.tif
+    08:52 29/41 2012 0.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/developed_prob/developed_prob_2012.tif
+    08:52 30/41 2013 0.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/developed_prob/developed_prob_2013.tif
+    08:53 31/41 2014 0.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/developed_prob/developed_prob_2014.tif
+    08:54 32/41 2015 0.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/developed_prob/developed_prob_2015.tif
+    08:55 33/41 2016 0.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/developed_prob/developed_prob_2016.tif
+    08:56 34/41 2017 0.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/developed_prob/developed_prob_2017.tif
+    08:56 35/41 2018 0.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/developed_prob/developed_prob_2018.tif
+    08:57 36/41 2019 0.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/developed_prob/developed_prob_2019.tif
+    08:58 37/41 2020 0.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/developed_prob/developed_prob_2020.tif
+    08:59 38/41 2021 0.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/developed_prob/developed_prob_2021.tif
+    08:59 39/41 2022 0.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/developed_prob/developed_prob_2022.tif
+    09:00 40/41 2023 0.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/developed_prob/developed_prob_2023.tif
+    09:01 41/41 2024 0.1% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/developed_prob/developed_prob_2024.tif
+09:01 [1/4] developed_prob ok in 31 min
+
+09:01 [2/4] freshwater_emergent_wetland_prob
+    09:01 freshwater_emergent_wetland_prob: 41 years, 38x42 tiles at z12
+    09:02 1/41 1984 0.4% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/freshwater_emergent_wetland_prob/freshwater_emergent_wetland_prob_1984.tif
+    09:02 2/41 1985 0.4% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/freshwater_emergent_wetland_prob/freshwater_emergent_wetland_prob_1985.tif
+    09:03 3/41 1986 0.4% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/freshwater_emergent_wetland_prob/freshwater_emergent_wetland_prob_1986.tif
+    09:04 4/41 1987 0.4% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/freshwater_emergent_wetland_prob/freshwater_emergent_wetland_prob_1987.tif
+    09:05 5/41 1988 0.4% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/freshwater_emergent_wetland_prob/freshwater_emergent_wetland_prob_1988.tif
+    09:05 6/41 1989 0.4% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/freshwater_emergent_wetland_prob/freshwater_emergent_wetland_prob_1989.tif
+    09:06 7/41 1990 0.4% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/freshwater_emergent_wetland_prob/freshwater_emergent_wetland_prob_1990.tif
+    09:07 8/41 1991 0.4% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/freshwater_emergent_wetland_prob/freshwater_emergent_wetland_prob_1991.tif
+    09:08 9/41 1992 0.4% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/freshwater_emergent_wetland_prob/freshwater_emergent_wetland_prob_1992.tif
+    09:08 10/41 1993 0.4% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/freshwater_emergent_wetland_prob/freshwater_emergent_wetland_prob_1993.tif
+    09:09 11/41 1994 0.5% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/freshwater_emergent_wetland_prob/freshwater_emergent_wetland_prob_1994.tif
+    09:10 12/41 1995 0.5% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/freshwater_emergent_wetland_prob/freshwater_emergent_wetland_prob_1995.tif
+    09:11 13/41 1996 0.5% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/freshwater_emergent_wetland_prob/freshwater_emergent_wetland_prob_1996.tif
+    09:11 14/41 1997 0.5% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/freshwater_emergent_wetland_prob/freshwater_emergent_wetland_prob_1997.tif
+    09:12 15/41 1998 0.5% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/freshwater_emergent_wetland_prob/freshwater_emergent_wetland_prob_1998.tif
+    09:13 16/41 1999 0.4% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/freshwater_emergent_wetland_prob/freshwater_emergent_wetland_prob_1999.tif
+    09:14 17/41 2000 0.5% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/freshwater_emergent_wetland_prob/freshwater_emergent_wetland_prob_2000.tif
+    09:15 18/41 2001 0.5% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/freshwater_emergent_wetland_prob/freshwater_emergent_wetland_prob_2001.tif
+    09:15 19/41 2002 0.5% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/freshwater_emergent_wetland_prob/freshwater_emergent_wetland_prob_2002.tif
+    09:16 20/41 2003 0.5% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/freshwater_emergent_wetland_prob/freshwater_emergent_wetland_prob_2003.tif
+    09:17 21/41 2004 0.5% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/freshwater_emergent_wetland_prob/freshwater_emergent_wetland_prob_2004.tif
+    09:18 22/41 2005 0.5% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/freshwater_emergent_wetland_prob/freshwater_emergent_wetland_prob_2005.tif
+    09:18 23/41 2006 0.5% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/freshwater_emergent_wetland_prob/freshwater_emergent_wetland_prob_2006.tif
+    09:19 24/41 2007 0.4% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/freshwater_emergent_wetland_prob/freshwater_emergent_wetland_prob_2007.tif
+    09:20 25/41 2008 0.4% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/freshwater_emergent_wetland_prob/freshwater_emergent_wetland_prob_2008.tif
+    09:21 26/41 2009 0.4% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/freshwater_emergent_wetland_prob/freshwater_emergent_wetland_prob_2009.tif
+    09:21 27/41 2010 0.4% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/freshwater_emergent_wetland_prob/freshwater_emergent_wetland_prob_2010.tif
+    09:22 28/41 2011 0.4% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/freshwater_emergent_wetland_prob/freshwater_emergent_wetland_prob_2011.tif
+    09:23 29/41 2012 0.4% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/freshwater_emergent_wetland_prob/freshwater_emergent_wetland_prob_2012.tif
+    09:24 30/41 2013 0.4% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/freshwater_emergent_wetland_prob/freshwater_emergent_wetland_prob_2013.tif
+    09:25 31/41 2014 0.4% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/freshwater_emergent_wetland_prob/freshwater_emergent_wetland_prob_2014.tif
+    09:25 32/41 2015 0.4% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/freshwater_emergent_wetland_prob/freshwater_emergent_wetland_prob_2015.tif
+    09:26 33/41 2016 0.4% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/freshwater_emergent_wetland_prob/freshwater_emergent_wetland_prob_2016.tif
+    09:27 34/41 2017 0.4% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/freshwater_emergent_wetland_prob/freshwater_emergent_wetland_prob_2017.tif
+    09:28 35/41 2018 0.4% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/freshwater_emergent_wetland_prob/freshwater_emergent_wetland_prob_2018.tif
+    09:28 36/41 2019 0.4% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/freshwater_emergent_wetland_prob/freshwater_emergent_wetland_prob_2019.tif
+    09:29 37/41 2020 0.4% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/freshwater_emergent_wetland_prob/freshwater_emergent_wetland_prob_2020.tif
+    09:30 38/41 2021 0.4% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/freshwater_emergent_wetland_prob/freshwater_emergent_wetland_prob_2021.tif
+    09:31 39/41 2022 0.4% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/freshwater_emergent_wetland_prob/freshwater_emergent_wetland_prob_2022.tif
+    09:31 40/41 2023 0.4% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/freshwater_emergent_wetland_prob/freshwater_emergent_wetland_prob_2023.tif
+    09:32 41/41 2024 0.1% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/freshwater_emergent_wetland_prob/freshwater_emergent_wetland_prob_2024.tif
+09:32 [2/4] freshwater_emergent_wetland_prob ok in 31 min
+
+09:32 [3/4] mesic_shrub_prob
+    09:32 mesic_shrub_prob: 41 years, 38x42 tiles at z12
+    09:33 1/41 1984 4.0% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/mesic_shrub_prob/mesic_shrub_prob_1984.tif
+    09:34 2/41 1985 4.0% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/mesic_shrub_prob/mesic_shrub_prob_1985.tif
+    09:35 3/41 1986 4.0% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/mesic_shrub_prob/mesic_shrub_prob_1986.tif
+    09:36 4/41 1987 4.0% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/mesic_shrub_prob/mesic_shrub_prob_1987.tif
+    09:37 5/41 1988 4.1% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/mesic_shrub_prob/mesic_shrub_prob_1988.tif
+    09:37 6/41 1989 4.1% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/mesic_shrub_prob/mesic_shrub_prob_1989.tif
+    09:38 7/41 1990 4.1% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/mesic_shrub_prob/mesic_shrub_prob_1990.tif
+    09:39 8/41 1991 4.1% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/mesic_shrub_prob/mesic_shrub_prob_1991.tif
+    09:40 9/41 1992 4.2% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/mesic_shrub_prob/mesic_shrub_prob_1992.tif
+    09:41 10/41 1993 4.2% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/mesic_shrub_prob/mesic_shrub_prob_1993.tif
+    09:42 11/41 1994 4.2% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/mesic_shrub_prob/mesic_shrub_prob_1994.tif
+    09:43 12/41 1995 4.2% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/mesic_shrub_prob/mesic_shrub_prob_1995.tif
+    09:44 13/41 1996 4.2% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/mesic_shrub_prob/mesic_shrub_prob_1996.tif
+    09:44 14/41 1997 4.2% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/mesic_shrub_prob/mesic_shrub_prob_1997.tif
+    09:45 15/41 1998 4.2% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/mesic_shrub_prob/mesic_shrub_prob_1998.tif
+    09:46 16/41 1999 4.2% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/mesic_shrub_prob/mesic_shrub_prob_1999.tif
+    09:47 17/41 2000 4.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/mesic_shrub_prob/mesic_shrub_prob_2000.tif
+    09:48 18/41 2001 4.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/mesic_shrub_prob/mesic_shrub_prob_2001.tif
+    09:49 19/41 2002 4.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/mesic_shrub_prob/mesic_shrub_prob_2002.tif
+    09:50 20/41 2003 4.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/mesic_shrub_prob/mesic_shrub_prob_2003.tif
+    09:51 21/41 2004 4.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/mesic_shrub_prob/mesic_shrub_prob_2004.tif
+    09:52 22/41 2005 4.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/mesic_shrub_prob/mesic_shrub_prob_2005.tif
+    09:53 23/41 2006 4.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/mesic_shrub_prob/mesic_shrub_prob_2006.tif
+    09:53 24/41 2007 4.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/mesic_shrub_prob/mesic_shrub_prob_2007.tif
+    09:54 25/41 2008 4.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/mesic_shrub_prob/mesic_shrub_prob_2008.tif
+    09:55 26/41 2009 4.3% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/mesic_shrub_prob/mesic_shrub_prob_2009.tif
+    09:56 27/41 2010 4.4% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/mesic_shrub_prob/mesic_shrub_prob_2010.tif
+    09:57 28/41 2011 4.4% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/mesic_shrub_prob/mesic_shrub_prob_2011.tif
+    09:58 29/41 2012 4.4% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/mesic_shrub_prob/mesic_shrub_prob_2012.tif
+    09:59 30/41 2013 4.4% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/mesic_shrub_prob/mesic_shrub_prob_2013.tif
+    10:00 31/41 2014 4.4% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/mesic_shrub_prob/mesic_shrub_prob_2014.tif
+    10:00 32/41 2015 4.4% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/mesic_shrub_prob/mesic_shrub_prob_2015.tif
+    10:01 33/41 2016 4.4% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/mesic_shrub_prob/mesic_shrub_prob_2016.tif
+    10:02 34/41 2017 4.5% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/mesic_shrub_prob/mesic_shrub_prob_2017.tif
+    10:03 35/41 2018 4.5% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/mesic_shrub_prob/mesic_shrub_prob_2018.tif
+    10:04 36/41 2019 4.5% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/mesic_shrub_prob/mesic_shrub_prob_2019.tif
+    10:05 37/41 2020 4.5% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/mesic_shrub_prob/mesic_shrub_prob_2020.tif
+    10:06 38/41 2021 4.5% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/mesic_shrub_prob/mesic_shrub_prob_2021.tif
+    10:07 39/41 2022 4.5% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/mesic_shrub_prob/mesic_shrub_prob_2022.tif
+    10:08 40/41 2023 4.2% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/mesic_shrub_prob/mesic_shrub_prob_2023.tif
+    10:08 41/41 2024 1.7% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/mesic_shrub_prob/mesic_shrub_prob_2024.tif
+10:08 [3/4] mesic_shrub_prob ok in 36 min
+
+10:08 [4/4] xeric_shrub_prob
+    10:09 xeric_shrub_prob: 41 years, 38x42 tiles at z12
+    10:09 1/41 1984 2.8% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/xeric_shrub_prob/xeric_shrub_prob_1984.tif
+    10:10 2/41 1985 2.8% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/xeric_shrub_prob/xeric_shrub_prob_1985.tif
+    10:11 3/41 1986 2.8% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/xeric_shrub_prob/xeric_shrub_prob_1986.tif
+    10:12 4/41 1987 2.8% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/xeric_shrub_prob/xeric_shrub_prob_1987.tif
+    10:13 5/41 1988 2.8% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/xeric_shrub_prob/xeric_shrub_prob_1988.tif
+    10:14 6/41 1989 2.8% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/xeric_shrub_prob/xeric_shrub_prob_1989.tif
+    10:15 7/41 1990 2.8% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/xeric_shrub_prob/xeric_shrub_prob_1990.tif
+    10:16 8/41 1991 2.8% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/xeric_shrub_prob/xeric_shrub_prob_1991.tif
+    10:17 9/41 1992 2.8% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/xeric_shrub_prob/xeric_shrub_prob_1992.tif
+    10:18 10/41 1993 2.8% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/xeric_shrub_prob/xeric_shrub_prob_1993.tif
+    10:18 11/41 1994 2.8% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/xeric_shrub_prob/xeric_shrub_prob_1994.tif
+    10:19 12/41 1995 2.8% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/xeric_shrub_prob/xeric_shrub_prob_1995.tif
+    10:20 13/41 1996 2.8% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/xeric_shrub_prob/xeric_shrub_prob_1996.tif
+    10:21 14/41 1997 2.8% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/xeric_shrub_prob/xeric_shrub_prob_1997.tif
+    10:22 15/41 1998 2.8% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/xeric_shrub_prob/xeric_shrub_prob_1998.tif
+    10:23 16/41 1999 2.8% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/xeric_shrub_prob/xeric_shrub_prob_1999.tif
+    10:24 17/41 2000 2.8% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/xeric_shrub_prob/xeric_shrub_prob_2000.tif
+    10:24 18/41 2001 2.8% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/xeric_shrub_prob/xeric_shrub_prob_2001.tif
+    10:25 19/41 2002 2.8% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/xeric_shrub_prob/xeric_shrub_prob_2002.tif
+    10:26 20/41 2003 2.8% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/xeric_shrub_prob/xeric_shrub_prob_2003.tif
+    10:27 21/41 2004 2.8% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/xeric_shrub_prob/xeric_shrub_prob_2004.tif
+    10:28 22/41 2005 2.8% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/xeric_shrub_prob/xeric_shrub_prob_2005.tif
+    10:29 23/41 2006 2.9% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/xeric_shrub_prob/xeric_shrub_prob_2006.tif
+    10:29 24/41 2007 2.9% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/xeric_shrub_prob/xeric_shrub_prob_2007.tif
+    10:30 25/41 2008 2.8% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/xeric_shrub_prob/xeric_shrub_prob_2008.tif
+    10:31 26/41 2009 2.9% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/xeric_shrub_prob/xeric_shrub_prob_2009.tif
+    10:32 27/41 2010 2.9% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/xeric_shrub_prob/xeric_shrub_prob_2010.tif
+    10:32 28/41 2011 2.9% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/xeric_shrub_prob/xeric_shrub_prob_2011.tif
+    10:33 29/41 2012 2.9% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/xeric_shrub_prob/xeric_shrub_prob_2012.tif
+    10:34 30/41 2013 2.9% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/xeric_shrub_prob/xeric_shrub_prob_2013.tif
+    10:35 31/41 2014 2.9% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/xeric_shrub_prob/xeric_shrub_prob_2014.tif
+    10:36 32/41 2015 3.0% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/xeric_shrub_prob/xeric_shrub_prob_2015.tif
+    10:37 33/41 2016 3.0% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/xeric_shrub_prob/xeric_shrub_prob_2016.tif
+    10:37 34/41 2017 3.0% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/xeric_shrub_prob/xeric_shrub_prob_2017.tif
+    10:38 35/41 2018 3.0% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/xeric_shrub_prob/xeric_shrub_prob_2018.tif
+    10:39 36/41 2019 3.0% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/xeric_shrub_prob/xeric_shrub_prob_2019.tif
+    10:40 37/41 2020 3.0% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/xeric_shrub_prob/xeric_shrub_prob_2020.tif
+    10:41 38/41 2021 3.1% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/xeric_shrub_prob/xeric_shrub_prob_2021.tif
+    10:41 39/41 2022 3.1% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/xeric_shrub_prob/xeric_shrub_prob_2022.tif
+    10:42 40/41 2023 2.7% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/xeric_shrub_prob/xeric_shrub_prob_2023.tif
+    10:43 41/41 2024 1.1% doubtful /Users/niallbell/.cache/ecoscapes-terradapt/xeric_shrub_prob/xeric_shrub_prob_2024.tif
+10:43 [4/4] xeric_shrub_prob ok in 34 min
+
+2026-09-28 10:43, 2.2 h
+developed_prob                           fetched
+freshwater_emergent_wetland_prob         fetched
+mesic_shrub_prob                         fetched
+xeric_shrub_prob                         fetched

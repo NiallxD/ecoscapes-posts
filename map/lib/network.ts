@@ -54,8 +54,6 @@ export function network(opts: {
   /** The maps on the map: the focus, underneath, and the one laid over it
    *  (or none). */
   show: (focus: string, overlay: string | undefined) => void;
-  /** How clear the laid-over map is, 0 to 1. */
-  opacity: (v: number) => void;
   /** Told which view is up whenever it is drawn: the start card, the circle
    *  or the circle shrunk. */
   onView?: (view: 'start' | 'ring' | 'mini') => void;
@@ -109,11 +107,7 @@ export function network(opts: {
     `<nav class="net-trail" aria-label="Maps focused so far"></nav>` +
     `<div class="net-disc">${disc()}${arc()}<div class="net-thirds"></div><button class="net-hub" type="button"></button></div>` +
     `<div class="net-bar"></div>` +
-    `</div>` +
-    // How clear the laid-over map is: under the bar, and into the corner
-    // with the circle when it shrinks (placeFade).
-    `<label class="net-fade" hidden><span class="net-which">Overlay</span>` +
-    `<input type="range" min="0.1" max="1" step="0.05" aria-label="How clear the map laid over the focus is" /></label>`;
+    `</div>`;
   const startEl = root.querySelector<HTMLElement>('.net-start')!;
   const startsEl = root.querySelector<HTMLElement>('.net-starts')!;
   root.querySelector('.net-start-close')!.addEventListener('click', () => toggle(false));
@@ -123,8 +117,6 @@ export function network(opts: {
   const hubEl = root.querySelector<HTMLButtonElement>('.net-hub')!;
   const barEl = root.querySelector<HTMLElement>('.net-bar')!;
   const discEl = root.querySelector<HTMLElement>('.net-disc')!;
-  const fadeEl = root.querySelector<HTMLElement>('.net-fade')!;
-  const fadeInput = fadeEl.querySelector('input')!;
   const arcEl = root.querySelector<SVGSVGElement>('.net-arc')!;
   const arcText = root.querySelector<SVGTextPathElement>('.net-arc textPath')!;
 
@@ -276,9 +268,9 @@ export function network(opts: {
   /** The link laid over the focus, if one is. The focus is always on,
    *  underneath it. */
   let overlay: string | undefined;
-  /** How clear the laid-over map is. */
-  let fade = 0.7;
-  fadeInput.value = String(fade);
+  /** Drawn round a map without putting it on (focus's `preview`): the wheel
+   *  as an example, until something on it is picked. */
+  let previewing = false;
 
   const chip = (id: string, cls = '') => {
     const l = byId.get(id)!;
@@ -307,7 +299,7 @@ export function network(opts: {
     startsEl.innerHTML = net.starts.map((id) => chip(id)).join('');
 
     const focus = trail.at(-1);
-    if (!focus) return placeFade();
+    if (!focus) return;
     const fl = byId.get(focus)!;
     const links = linksOf(focus);
     // Clockwise from the top, as the circle's thirds are drawn.
@@ -322,7 +314,7 @@ export function network(opts: {
       .join('');
     thirdsEl.classList.toggle('fresh', fresh);
     hubEl.style.setProperty('--c', colourOf(focus));
-    hubEl.setAttribute('aria-pressed', String(!overlay));
+    hubEl.setAttribute('aria-pressed', String(!overlay && !previewing));
     hubEl.innerHTML = `<span class="net-which">Focus</span><b>${esc(short(focus))}</b>`;
     hubEl.classList.toggle('fresh', fresh);
 
@@ -342,44 +334,14 @@ export function network(opts: {
       `<span class="net-showing"><i style="background:${colourOf(overlay ?? focus)}"></i><span><span class="net-which">On the map</span>` +
       (overlay ? `${esc(short(overlay))} over ${esc(short(focus))}` : esc(byId.get(focus)!.name)) +
       `</span></span>` +
-      (overlay ? `<button type="button" class="chip net-focus">Focus</button>` : '') +
-      `<button type="button" class="net-hide" aria-label="Put the circle away">` +
-      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg></button>`;
-    placeFade();
+      (overlay ? `<button type="button" class="chip net-focus">Focus</button>` : '');
   }
 
   /** The page told what should be on: the focus, and over it the overlay. */
-  const apply = () => opts.show(trail.at(-1)!, overlay);
-
-  /** The slider: under the bar while the circle is out, under it in the
-   *  corner once it has shrunk -- moving there with it -- and only while a
-   *  map is laid over the focus. */
-  function placeFade() {
-    const show = on && view !== 'start' && !!overlay;
-    fadeEl.hidden = !show;
-    if (!show) return;
-    const host = root.getBoundingClientRect();
-    let x: number;
-    let y: number;
-    let w: number;
-    if (view === 'mini') {
-      const size = discEl.offsetWidth * MINI;
-      w = Math.max(size, 120);
-      x = host.width - 12 - w;
-      y = 40 + size + 10;
-    } else {
-      const b = barEl.getBoundingClientRect();
-      w = Math.min(b.width, 280);
-      x = b.left - host.left + (b.width - w) / 2;
-      y = b.bottom - host.top + 8;
-    }
-    fadeEl.style.width = `${w}px`;
-    fadeEl.style.transform = `translate(${x}px, ${y}px)`;
-  }
-  fadeInput.addEventListener('input', () => {
-    fade = Number(fadeInput.value);
-    opts.opacity(fade);
-  });
+  const apply = () => {
+    previewing = false;
+    opts.show(trail.at(-1)!, overlay);
+  };
 
   /** Round a map, the circle open. `back` is a step back down the trail. */
   const focusOn = (id: string, back = false) => {
@@ -463,7 +425,6 @@ export function network(opts: {
   barEl.addEventListener('click', (e) => {
     const t = e.target as HTMLElement;
     if (t.closest('.net-focus') && overlay) focusOn(overlay);
-    else if (t.closest('.net-hide')) collapse();
   });
   const reopen = () => {
     view = 'ring';
@@ -474,6 +435,14 @@ export function network(opts: {
     e.stopPropagation();
     reopen();
   });
+  // With a mouse, resting on the shrunk circle opens it -- after a moment,
+  // so passing over the corner on the way elsewhere doesn't.
+  let hover: ReturnType<typeof setTimeout> | undefined;
+  discEl.addEventListener('pointerenter', (e) => {
+    if (view !== 'mini' || e.pointerType !== 'mouse') return;
+    hover = setTimeout(() => view === 'mini' && reopen(), 180);
+  });
+  discEl.addEventListener('pointerleave', () => clearTimeout(hover));
   discEl.addEventListener('keydown', (e) => {
     if (view === 'mini' && (e.key === 'Enter' || e.key === ' ')) {
       e.preventDefault();
@@ -482,21 +451,19 @@ export function network(opts: {
   });
 
   /** Where the circle goes to shrink: its top right corner to the map's,
-   *  under the attribution button. From where it sits unshrunk, which is
-   *  where it sits now less the move already made. */
+   *  under the attribution button. From where it sits unshrunk, read off
+   *  the layout (its box in the ring), which no move or shrink -- made,
+   *  or still gliding -- touches. */
   const corner = () => {
-    const r = discEl.getBoundingClientRect();
+    const ring = ringEl.getBoundingClientRect();
     const host = root.getBoundingClientRect();
-    const dx = parseFloat(discEl.style.getPropertyValue('--mx')) || 0;
-    const dy = parseFloat(discEl.style.getPropertyValue('--my')) || 0;
-    discEl.style.setProperty('--mx', `${host.right - 12 - (r.right - dx)}px`);
-    discEl.style.setProperty('--my', `${host.top + 40 - (r.top - dy)}px`);
+    const left = ring.left + discEl.offsetLeft;
+    const top = ring.top + discEl.offsetTop;
+    discEl.style.setProperty('--mx', `${host.right - 12 - (left + discEl.offsetWidth)}px`);
+    discEl.style.setProperty('--my', `${host.top + 40 - top}px`);
     discEl.style.setProperty('--s', String(MINI));
   };
-  addEventListener('resize', () => {
-    if (view === 'mini') corner();
-    placeFade();
-  });
+  addEventListener('resize', () => view === 'mini' && corner());
 
   /** The circle out of the way, to look at the map: while the map is being
    *  handled, or when anything else opens over it. */
@@ -518,7 +485,6 @@ export function network(opts: {
       overlay = undefined;
       render();
     }
-    if (!on) fadeEl.hidden = true;
     opts.onToggle(on);
   };
   button.addEventListener('click', () => toggle(!on));
@@ -530,13 +496,17 @@ export function network(opts: {
 
   /** A map picked some other way -- the layers list or its search -- while
    *  the network is out: put on as the one it shows and the circle redrawn
-   *  round it, left shrunk if it was. */
-  const focus = (id: string) => {
+   *  round it, left shrunk if it was -- or opened, with `open` (a map picked
+   *  from the web, to go on from). With `preview`, the wheel is drawn round
+   *  it but nothing is put on the map until a map on it is picked (the
+   *  landing's example). */
+  const focus = (id: string, open = false, preview = false) => {
     if (!on || !byId.has(id)) return;
     trail = [...trail.filter((t) => t !== id), id];
     overlay = undefined;
-    apply();
-    if (view !== 'mini') view = 'ring';
+    if (preview) previewing = true;
+    else apply();
+    if (open || view !== 'mini') view = 'ring';
     render(true);
   };
 
@@ -547,5 +517,13 @@ export function network(opts: {
     render();
   };
 
-  return { collapse, focus, enter, startCard: startEl, active: () => on, off: () => toggle(false) };
+  /** Begun afresh from a map: it alone on the trail, as the focus, nothing
+   *  laid over it, the circle open (a start map picked). */
+  const begin = (id: string) => {
+    if (!on || !byId.has(id)) return;
+    trail = [];
+    focusOn(id);
+  };
+
+  return { collapse, focus, begin, enter, startCard: startEl, active: () => on, off: () => toggle(false) };
 }

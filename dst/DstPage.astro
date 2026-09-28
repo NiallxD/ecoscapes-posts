@@ -101,7 +101,7 @@ const config = {
   })),
 };
 ---
-<Shell title="EcoScapes Data Sandbox" description="Choose what matters and how much, and see where across the Sea-to-Sky fits best.">
+<Shell title="EcoScapes Data Sandbox" description="Choose what matters and how much, and see where across the Sea-to-Sky fits best." gate>
   <!-- On a phone: not the tool, which needs the room, but a way to send
        yourself the link for later, and the map to look at now. iPads and
        computers never see this. -->
@@ -1213,6 +1213,7 @@ const config = {
   import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
   import { Protocol } from 'pmtiles';
   import { studyStyle } from '../shared/lib/study-style';
+  import { TOWNS } from '../shared/lib/towns';
   import { addRelief, addSky, tilting } from '../shared/lib/terrain';
   import { confirmLeave } from '../shared/lib/leave';
   import { PALETTES, paletteById, rgb } from './lib/palettes';
@@ -3340,19 +3341,8 @@ const config = {
   }
 
   // ---- The best places, and a tour of them -------------------------------------
-  // Named by the nearest town, so "12 km north-east of Pemberton" rather than
-  // coordinates. Approximate positions, enough for "near".
-  const TOWNS: [string, number, number][] = [
-    ['Squamish', -123.156, 49.702], ['Brackendale', -123.157, 49.771], ['Britannia Beach', -123.203, 49.625],
-    ['Lions Bay', -123.236, 49.458], ['Horseshoe Bay', -123.273, 49.373], ['Whistler', -122.957, 50.116],
-    ['Pemberton', -122.803, 50.319], ['Mount Currie', -122.717, 50.32], ["D'Arcy", -122.48, 50.549],
-    ['Birken', -122.62, 50.48], ['Lillooet', -121.937, 50.686], ['Seton Portage', -122.292, 50.706],
-    ['Gold Bridge', -122.841, 50.853], ['Gibsons', -123.508, 49.399], ['Sechelt', -123.755, 49.474],
-    ['Pender Harbour', -124.03, 49.63], ['Egmont', -123.93, 49.75], ['Powell River', -124.525, 49.835],
-    ['Vancouver', -123.121, 49.283], ['Harrison Hot Springs', -121.786, 49.301], ['Hope', -121.442, 49.386],
-    ['Chilliwack', -121.952, 49.158], ['Mission', -122.311, 49.134], ['Bralorne', -122.816, 50.778],
-    ['Lytton', -121.582, 50.232], ['Boston Bar', -121.444, 49.866], ['Port Mellon', -123.486, 49.523],
-  ];
+  // Named by the nearest town (shared/lib/towns.ts), so "12 km north-east of
+  // Pemberton" rather than coordinates.
   const km = (a: [number, number], b: [number, number]) => {
     const r = Math.PI / 180;
     const x = Math.sin(((b[1] - a[1]) * r) / 2) ** 2 + Math.cos(a[1] * r) * Math.cos(b[1] * r) * Math.sin(((b[0] - a[0]) * r) / 2) ** 2;

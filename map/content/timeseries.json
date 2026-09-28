@@ -94,5 +94,202 @@
       2022
     ],
     "resampling": "nearest"
+  },
+  {
+    "layer": "ecosystem-resilience",
+    "name": "Ecosystem resilience",
+    "about": "How able the land was to withstand and recover from disturbance, in {year}.",
+    "src": "/tiles/ecoscapes/ecosystem-resilience-series/{year}.pmtiles",
+    "years": [
+      1995,
+      2022
+    ],
+    "resampling": "nearest",
+    "legend": [
+      {
+        "colour": "#440154",
+        "label": "Very low"
+      },
+      {
+        "colour": "#433982",
+        "label": "Low"
+      },
+      {
+        "colour": "#30678d",
+        "label": "Somewhat low"
+      },
+      {
+        "colour": "#218f8b",
+        "label": "Moderate"
+      },
+      {
+        "colour": "#36b677",
+        "label": "Somewhat high"
+      },
+      {
+        "colour": "#8ed542",
+        "label": "High"
+      },
+      {
+        "colour": "#fde725",
+        "label": "Very high"
+      }
+    ]
+  },
+  {
+    "layer": "ecosystem-services",
+    "name": "Ecosystem services",
+    "about": "The value of what nature here provided in {year}, such as clean water, flood protection and carbon storage.",
+    "src": "/tiles/ecoscapes/ecosystem-services-series/{year}.pmtiles",
+    "years": [
+      1984,
+      2024
+    ],
+    "resampling": "nearest",
+    "legend": [
+      {
+        "colour": "#440154",
+        "label": "Very low"
+      },
+      {
+        "colour": "#433982",
+        "label": "Low"
+      },
+      {
+        "colour": "#30678d",
+        "label": "Somewhat low"
+      },
+      {
+        "colour": "#218f8b",
+        "label": "Moderate"
+      },
+      {
+        "colour": "#36b677",
+        "label": "Somewhat high"
+      },
+      {
+        "colour": "#8ed542",
+        "label": "High"
+      },
+      {
+        "colour": "#fde725",
+        "label": "Very high"
+      }
+    ]
+  },
+  {
+    "layer": "habitat-permeability-2022",
+    "name": "Landscape permeability",
+    "about": "How easily forest wildlife could move through the land in {year}.",
+    "src": "/tiles/ecoscapes/forest-permeability/{year}.pmtiles",
+    "years": [
+      1985,
+      2022
+    ],
+    "resampling": "nearest",
+    "legend": [
+      {
+        "colour": "#000004",
+        "label": "Very low"
+      },
+      {
+        "colour": "#2c105c",
+        "label": "Low"
+      },
+      {
+        "colour": "#711f81",
+        "label": "Somewhat low"
+      },
+      {
+        "colour": "#b63679",
+        "label": "Moderate"
+      },
+      {
+        "colour": "#ee605e",
+        "label": "Somewhat high"
+      },
+      {
+        "colour": "#fdae78",
+        "label": "High"
+      },
+      {
+        "colour": "#fcfdbf",
+        "label": "Very high"
+      }
+    ]
+  },
+  {
+    "layer": "habitat-suitability-2022",
+    "name": "Forest habitat",
+    "about": "How good the land was as forest habitat in {year}.",
+    "src": "/tiles/ecoscapes/forest-habitat/{year}.pmtiles",
+    "years": [
+      1985,
+      2022
+    ],
+    "resampling": "nearest",
+    "legend": [
+      {
+        "colour": "#440154",
+        "label": "Very low"
+      },
+      {
+        "colour": "#433982",
+        "label": "Low"
+      },
+      {
+        "colour": "#30678d",
+        "label": "Somewhat low"
+      },
+      {
+        "colour": "#218f8b",
+        "label": "Moderate"
+      },
+      {
+        "colour": "#36b677",
+        "label": "Somewhat high"
+      },
+      {
+        "colour": "#8ed542",
+        "label": "High"
+      },
+      {
+        "colour": "#fde725",
+        "label": "Very high"
+      }
+    ]
+  },
+  {
+    "layer": "forest-change-40yr",
+    "name": "Forest loss",
+    "about": "Where forest was lost in {year}, and to what.",
+    "src": "/tiles/ecoscapes/forest-disturbance/{year}.pmtiles",
+    "years": [
+      1985,
+      2021
+    ],
+    "resampling": "nearest",
+    "legend": [
+      {
+        "colour": "#e10000",
+        "label": "Fire"
+      },
+      {
+        "colour": "#fc35ea",
+        "label": "Timber harvest"
+      },
+      {
+        "colour": "#c5dc00",
+        "label": "Pests"
+      },
+      {
+        "colour": "#b700dc",
+        "label": "Thinning"
+      },
+      {
+        "colour": "#e16d00",
+        "label": "Loss after fire"
+      }
+    ]
   }
 ]

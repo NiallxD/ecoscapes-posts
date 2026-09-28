@@ -21,9 +21,13 @@ export type ExploreLayer = {
 };
 
 /** The hints the empty box turns through. */
-const TRIES = ['Grizzly bear', 'human impacts', 'wildfire', 'frogs', 'wildlife corridors', 'protected areas', 'climate refuges', 'forest'];
-/** How long each hint shows, in ms. */
-const TURN = 2800;
+// Lined up with the question (ASKS, the same beat): a place comes round with
+// "Where", a map with years with "When".
+const TRIES = ['grizzly bear', 'Squamish', 'wildfire', 'land cover', 'frogs', 'Pemberton', 'protected areas', 'forest loss'];
+/** The question's first word, turning: there is more than one way to ask. */
+const ASKS = ['What', 'Where', 'How', 'When'];
+/** How long each word of the question stays, in ms. */
+const ASK_TURN = 3400;
 /** At most this many results under the box. */
 const MOST = 6;
 
@@ -106,14 +110,24 @@ export function explore(opts: {
   whereOf: (l: ExploreLayer) => string;
   /** Open with the map dimmed and the question up. */
   open: boolean;
-  /** A result picked: put it on the map. */
-  onPick: (id: string) => void;
+  /** Places to be found by name (shared/lib/towns.ts), and one picked:
+   *  the map taken there. */
+  places: { name: string; kind: 'town' | 'mountain' | 'lake'; lng: number; lat: number }[];
+  onPlace: (p: { name: string; lng: number; lat: number }) => void;
+  /** A result picked: put it on the map. True to stay open for more (the
+   *  roster), false to give way (the network or the web took it). */
+  onPick: (id: string) => boolean;
+  /** The maps on now, and one taken off from the roster. */
+  current: () => string[];
+  onRemove: (id: string) => void;
   /** A way in chosen: the page shows its card under the row (panel()), the
    *  question and the row staying up to change one's mind. */
   onNetwork: () => void;
   /** The web of every map and its connections: opened on its own, the
    *  landing giving way to it. */
   onWeb: () => void;
+  /** Maps through the years: opened on its own, as the web is. */
+  onTime: () => void;
   /** The card under the row given up: back to searching, or the landing
    *  shut. */
   onPanelGone?: () => void;
@@ -187,74 +201,181 @@ export function explore(opts: {
 
   root.innerHTML =
     `<div class="ex-card" role="dialog" aria-modal="true" aria-labelledby="ex-title">` +
-    `<h2 id="ex-title">What do you want to explore?</h2>` +
+    // Read as the one question; seen, its first word turns (ASKS).
+    `<h2 id="ex-title"><span class="ex-sr">What do you want to explore?</span>` +
+    // The word's slot as wide as the widest of them (each laid in it unseen),
+    // the word against its right side: "do you want to explore?" stays put.
+    `<span aria-hidden="true"><span class="ex-ask">${ASKS.map((w) => `<span class="ex-size">${w}</span>`).join('')}` +
+    `<span class="ex-reel"></span>` +
+    `</span> do you want to explore?</span></h2>` +
     `<div class="ex-row">` +
     `<div class="ex-box">` +
     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4.5 4.5" /></svg>` +
     `<input class="ex-input" type="search" autocomplete="off" spellcheck="false" aria-label="What do you want to explore?" aria-controls="ex-results" aria-autocomplete="list" />` +
-    `<span class="ex-hint" aria-hidden="true"></span>` +
+    // "Try" stays; only the thing to try turns, in its quotes.
+    `<span class="ex-hint" aria-hidden="true">Try <span class="ex-try"></span></span>` +
     `</div>` +
     // Each opens out, with its words, over the search's room as it is
     // pointed at (see the row's data-wide, below).
     `<button class="step ex-mode" type="button" data-mode="network" aria-label="Explore by connections">` +
     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="3" /><circle cx="12" cy="3.8" r="2" /><circle cx="19.1" cy="16.1" r="2" /><circle cx="4.9" cy="16.1" r="2" /><path d="M12 9V5.8M14.6 13.5l2.8 1.6M9.4 13.5l-2.8 1.6" /></svg>` +
     `<span class="ex-label" aria-hidden="true">Explore by connections</span></button>` +
+    `<button class="step ex-mode" type="button" data-mode="time" aria-label="Explore through time">` +
+    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13.5" r="7.5" /><path d="M12 13.5V9.5M10 2.5h4M12 2.5v3.5M18.2 6.8l1.3-1.3" /></svg>` +
+    `<span class="ex-label" aria-hidden="true">Explore through time</span></button>` +
     `<button class="step ex-mode" type="button" data-mode="web" aria-label="See how every map connects">` +
     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="8.5" /><path d="M12 3.5C11 9 7 13 4.6 16.3M19.4 16.3C16 14 10 13 4.6 16.3M12 3.5c1 5.5 4.5 9.5 7.4 12.8M3.6 11c5 .5 11.5.5 16.8 0" stroke-width="1.1" /></svg>` +
     `<span class="ex-label" aria-hidden="true">See how every map connects</span></button>` +
     `</div>` +
     `<ul class="ex-results" id="ex-results" role="listbox" aria-label="Maps" hidden></ul>` +
+    // What has been put on so far, to keep adding to, and Go to see it.
+    `<p class="ex-sub">Keep adding layers by searching for more</p>` +
+    `<div class="ex-roster" hidden><ul class="ex-chips" aria-label="On the map"></ul>` +
+    `<button class="ex-go" type="button">Go</button></div>` +
     // A mode's card, under the row (the network's start card, for now).
     `<div class="ex-panel" hidden></div>` +
     `</div>`;
   const input = root.querySelector<HTMLInputElement>('.ex-input')!;
   const hint = root.querySelector<HTMLElement>('.ex-hint')!;
+  const tryEl = root.querySelector<HTMLElement>('.ex-try')!;
   const list = root.querySelector<HTMLElement>('.ex-results')!;
   const panelEl = root.querySelector<HTMLElement>('.ex-panel')!;
+  const rosterEl = root.querySelector<HTMLElement>('.ex-roster')!;
+  const chipsEl = root.querySelector<HTMLElement>('.ex-chips')!;
+  const byId = new Map(opts.layers.map((l) => [l.id, l]));
+
+  // ---- The roster: what is on, in the order it went on ------------------------
+  let roster: string[] = [];
+  const drawRoster = () => {
+    const on = opts.current();
+    roster = [...roster.filter((id) => on.includes(id)), ...on.filter((id) => !roster.includes(id))];
+    rosterEl.hidden = !roster.length;
+    chipsEl.innerHTML = roster
+      .map(
+        (id) =>
+          `<li class="ex-chip"><i style="background:${esc(opts.colourOf(id))}"></i><span>${esc(byId.get(id)?.name ?? id)}</span>` +
+          `<button type="button" data-off="${esc(id)}" aria-label="Take ${esc(byId.get(id)?.name ?? id)} off">` +
+          `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17" /></svg></button></li>`,
+      )
+      .join('');
+  };
+  chipsEl.addEventListener('click', (e) => {
+    const b = (e.target as Element).closest<HTMLElement>('[data-off]');
+    if (!b) return;
+    opts.onRemove(b.dataset.off!);
+    drawRoster();
+    draw();
+  });
+  root.querySelector('.ex-go')!.addEventListener('click', () => close());
+
+  // ---- The question's first word, turning -----------------------------------
+  // Rolled down, a letter at a time from the first: the old word's letters
+  // drop out of the bottom of its window as the new one's drop in from the
+  // top, each a beat after the one before it -- a wave across the word.
+  const reel = root.querySelector<HTMLElement>('.ex-reel')!;
+  let ask = 0;
+  let askTimer = 0;
+  const still = matchMedia('(prefers-reduced-motion: reduce)');
+  const word = (w: string, cls = '') => {
+    const el = document.createElement('span');
+    el.className = `ex-word ${cls}`;
+    el.innerHTML = [...w].map((c, i) => `<span style="--i:${i}">${c}</span>`).join('');
+    return el;
+  };
+  const nextAsk = () => {
+    ask = (ask + 1) % ASKS.length;
+    const old = reel.querySelector('.ex-word:not(.out)');
+    if (old) {
+      old.classList.add('out');
+      setTimeout(() => old.remove(), 900);
+    }
+    reel.append(word(ASKS[ask], 'in'));
+  };
+  /** Turning while the question is up and nothing is typed. */
+  const asking = (on: boolean) => {
+    clearInterval(askTimer);
+    // The hint below turns with it, on the same beat.
+    if (on && !still.matches)
+      askTimer = window.setInterval(() => {
+        nextAsk();
+        if (!input.value) showHint();
+      }, ASK_TURN);
+  };
 
   // ---- The hint: things to try, turning --------------------------------------
   let turn = 0;
   let timer = 0;
   const showHint = () => {
-    hint.classList.remove('in');
+    tryEl.classList.remove('in');
     // Out, then the next one in: a frame between so the fade restarts.
     requestAnimationFrame(() => {
-      hint.textContent = `Try “${TRIES[turn % TRIES.length]}”`;
-      hint.classList.add('in');
+      tryEl.textContent = `“${TRIES[turn % TRIES.length]}”`;
+      tryEl.classList.add('in');
       turn++;
     });
   };
+  /** The hint shown afresh; after that it turns with the question (asking),
+   *  or on its own where the question stays still (less motion asked for). */
   const turning = (on: boolean) => {
     clearInterval(timer);
     if (on && !input.value) {
       showHint();
-      timer = window.setInterval(showHint, TURN);
+      if (still.matches) timer = window.setInterval(showHint, ASK_TURN);
     }
   };
   // Hidden while there is typing to show instead.
   const syncHint = () => (hint.hidden = !!input.value);
 
   // ---- Results ---------------------------------------------------------------
+  // ---- Places: "where" ------------------------------------------------------
+  // A town, mountain or lake whose name every word typed starts or matches
+  // -- "squam", "pember", "chief", "garibaldi lake" -- a few at most, above
+  // the maps.
+  const placeWords = opts.places.map((p) => words(p.name));
+  const findPlaces = (query: string) => {
+    const qs = words(query).filter((w) => !STOP.has(w));
+    if (!qs.length) return [];
+    return opts.places
+      .map((p, i) => {
+        let score = 0;
+        for (const q of qs) {
+          const best = Math.max(0, ...placeWords[i].map((w) => match(q, w)));
+          if (best < 0.45) return null;
+          score += best;
+        }
+        return { p, score };
+      })
+      .filter((x): x is { p: (typeof opts.places)[number]; score: number } => !!x)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3)
+      .map((x) => x.p);
+  };
+
+  /** What is under the box, places first then maps, in the order a key
+   *  steps through them. */
+  type Item = { place: (typeof opts.places)[number] } | { hit: Hit };
+  let items: Item[] = [];
   let hits: Hit[] = [];
   let active = -1;
   const draw = () => {
     const { hits: found, near } = search(input.value);
+    const places = findPlaces(input.value);
     hits = found;
-    active = hits.length ? 0 : -1;
+    items = [...places.map((place) => ({ place })), ...(near && places.length ? [] : hits).map((hit) => ({ hit }))];
+    active = items.length ? 0 : -1;
     list.hidden = !input.value.trim();
     if (list.hidden) return;
+    const row = (it: Item, i: number) =>
+      'place' in it
+        ? `<li role="option" id="ex-opt-${i}" data-place="${i}" aria-selected="${i === active}" class="ex-place">` +
+          `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s6-5.1 6-10.2a6 6 0 10-12 0C6 15.9 12 21 12 21z" /><circle cx="12" cy="10.8" r="2.2" /></svg>` +
+          `<span><b>${esc(it.place.name)}</b><span class="ex-why">${{ town: 'Town', mountain: 'Mountain', lake: 'Lake' }[it.place.kind]} · go there on the map</span></span></li>`
+        : `<li role="option" id="ex-opt-${i}" data-id="${esc(it.hit.l.id)}" aria-selected="${i === active}"${roster.includes(it.hit.l.id) ? ' class="is-on"' : ''}>` +
+          `<i style="background:${esc(opts.colourOf(it.hit.l.id))}"></i>` +
+          `<span><b>${esc(it.hit.l.name)}</b><span class="ex-why">${roster.includes(it.hit.l.id) ? '✓ On the map' : esc(it.hit.why ?? opts.whereOf(it.hit.l))}</span></span></li>`;
     list.innerHTML =
-      (near && hits.length ? `<li class="ex-near" role="presentation">Nothing by that name. The closest we have:</li>` : '') +
-      (hits.length
-        ? hits
-            .map(
-              (h, i) =>
-                `<li role="option" id="ex-opt-${i}" data-id="${esc(h.l.id)}" aria-selected="${i === active}">` +
-                `<i style="background:${esc(opts.colourOf(h.l.id))}"></i>` +
-                `<span><b>${esc(h.l.name)}</b><span class="ex-why">${esc(h.why ?? opts.whereOf(h.l))}</span></span></li>`,
-            )
-            .join('')
-        : `<li class="ex-near" role="presentation">No maps yet for that. Try one of the hints.</li>`);
+      (near && hits.length && !places.length ? `<li class="ex-near" role="presentation">Nothing by that name. The closest we have:</li>` : '') +
+      (items.length ? items.map(row).join('') : `<li class="ex-near" role="presentation">No maps yet for that. Try one of the hints.</li>`);
     input.setAttribute('aria-activedescendant', active >= 0 ? `ex-opt-${active}` : '');
   };
   const choose = (i: number) => {
@@ -263,31 +384,62 @@ export function explore(opts: {
     input.setAttribute('aria-activedescendant', `ex-opt-${i}`);
     list.querySelector(`#ex-opt-${i}`)?.scrollIntoView({ block: 'nearest' });
   };
+  /** Put on, and -- unless the network or the web took it -- the search
+   *  kept up for the next, emptied. One already on stays as it is. */
   const pick = (id: string) => {
-    close();
-    opts.onPick(id);
+    if (roster.includes(id)) return;
+    if (!opts.onPick(id)) return close();
+    input.value = '';
+    syncHint();
+    drawRoster();
+    draw();
+    turning(true);
+    input.focus({ preventScroll: true });
   };
 
   input.addEventListener('input', () => {
     syncHint();
     turning(!input.value);
+    asking(!input.value);
     draw();
   });
+  /** A place: the map taken there behind the landing, which stays up -- a
+   *  layer is still to be found to see anything there -- the box emptied
+   *  for it, and the line under it saying where the map now is. */
+  const subEl = root.querySelector<HTMLElement>('.ex-sub')!;
+  const SUB = subEl.textContent!;
+  const goTo = (p: (typeof opts.places)[number]) => {
+    opts.onPlace(p);
+    subEl.textContent = `At ${p.name} · keep adding layers by searching for more`;
+    input.value = '';
+    syncHint();
+    draw();
+    turning(true);
+    asking(true);
+    input.focus({ preventScroll: true });
+  };
+  const take = (it: Item) => ('place' in it ? goTo(it.place) : pick(it.hit.l.id));
   input.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowDown' && hits.length) {
+    if (e.key === 'ArrowDown' && items.length) {
       e.preventDefault();
-      choose((active + 1) % hits.length);
-    } else if (e.key === 'ArrowUp' && hits.length) {
+      choose((active + 1) % items.length);
+    } else if (e.key === 'ArrowUp' && items.length) {
       e.preventDefault();
-      choose((active - 1 + hits.length) % hits.length);
+      choose((active - 1 + items.length) % items.length);
     } else if (e.key === 'Enter' && active >= 0) {
       e.preventDefault();
-      pick(hits[active].l.id);
+      take(items[active]);
+    } else if (e.key === 'Enter' && !input.value.trim() && roster.length) {
+      // Nothing typed, something picked: Go.
+      e.preventDefault();
+      close();
     }
   });
   list.addEventListener('click', (e) => {
-    const li = (e.target as HTMLElement).closest<HTMLElement>('[data-id]');
-    if (li) pick(li.dataset.id!);
+    const li = (e.target as HTMLElement).closest<HTMLElement>('[data-id], [data-place]');
+    if (!li) return;
+    if (li.dataset.place) return take(items[Number(li.dataset.place)]);
+    pick(li.dataset.id!);
   });
   // Pointed at (or reached by the keyboard), a mode opens out to the
   // search's width with its words, and the search draws in to a circle. It
@@ -320,6 +472,7 @@ export function explore(opts: {
   function pickMode(mode: string) {
     // The web has no card here: it opens on its own, over the map.
     if (mode === 'web') return opts.onWeb();
+    if (mode === 'time') return opts.onTime();
     if (chosen === mode) return;
     if (chosen) {
       panel(null);
@@ -380,6 +533,7 @@ export function explore(opts: {
     }
     root.classList.add('leaving');
     turning(false);
+    asking(false);
     setTimeout(() => {
       root.hidden = true;
       root.classList.remove('leaving');
@@ -393,9 +547,15 @@ export function explore(opts: {
     root.classList.toggle('search-only', !modes);
     widen();
     input.value = '';
+    roster = [];
+    subEl.textContent = SUB;
+    drawRoster();
     syncHint();
     draw();
     turning(true);
+    ask = 0;
+    reel.replaceChildren(word(ASKS[0]));
+    asking(true);
     // The keyboard only where there is one: on a phone it would cover the
     // question before it has been read.
     if (matchMedia('(pointer: fine)').matches) input.focus({ preventScroll: true });

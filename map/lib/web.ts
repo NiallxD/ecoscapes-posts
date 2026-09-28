@@ -43,9 +43,22 @@ export function web(opts: { layers: WebLayer[]; net: WebNet; onPick: (id: string
     const t = ((deg - 90) * Math.PI) / 180;
     return [r * Math.cos(t), r * Math.sin(t)] as const;
   };
+  /** A map's slice of the ring, from just inside its dot out to `out`: what
+   *  takes the pointer, so a map is easy to hit, not only its thin name. */
+  const wedge = (deg: number, out: number) => {
+    const a0 = deg - step / 2;
+    const a1 = deg + step / 2;
+    const r0 = R - 12;
+    const p = (a: number, r: number) => at(a, r).map((v) => v.toFixed(1)).join(' ');
+    return `M${p(a0, r0)} L${p(a0, out)} A${out} ${out} 0 0 1 ${p(a1, out)} L${p(a1, r0)} A${r0} ${r0} 0 0 0 ${p(a0, r0)} Z`;
+  };
   const colourOf = new Map(order.map(({ l, r }) => [l.id, net.roles[r].colour]));
 
-  // Each pair linked, once, whichever way the link was made.
+  // Each pair linked, once, whichever way the link was made: the weave
+  // drawn faint behind. A map's own connections, though, are its own list
+  // only, as the network shows them -- a map that lists this one without
+  // being on its list is not counted or lit for it (most links are listed
+  // one way only: each map names what bears on it).
   const pairs = new Map<string, [string, string]>();
   const touches = new Map<string, Set<string>>(order.map(({ l }) => [l.id, new Set<string>()]));
   for (const [id, by] of Object.entries(net.links))
@@ -54,7 +67,6 @@ export function web(opts: { layers: WebLayer[]; net: WebNet; onPick: (id: string
       const key = [id, other].sort().join('|');
       if (!pairs.has(key)) pairs.set(key, [id, other]);
       touches.get(id)!.add(other);
-      touches.get(other)!.add(id);
     }
 
   const lines = [...pairs.values()]
@@ -76,6 +88,7 @@ export function web(opts: { layers: WebLayer[]; net: WebNet; onPick: (id: string
       const name = net.names[l.id] ?? l.name;
       return (
         `<g class="web-node" data-id="${esc(l.id)}" tabindex="0" role="button" aria-label="${esc(name)}: ${touches.get(l.id)!.size} connections">` +
+        `<path class="web-hit" d="${wedge(deg, R + 70)}" fill="${colourOf.get(l.id)}" />` +
         `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3.6" fill="${colourOf.get(l.id)}" />` +
         `<text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" transform="rotate(${rot.toFixed(1)} ${tx.toFixed(1)} ${ty.toFixed(1)})" text-anchor="${left ? 'end' : 'start'}" dominant-baseline="middle">${esc(name)}</text>` +
         `</g>`
@@ -100,11 +113,20 @@ export function web(opts: { layers: WebLayer[]; net: WebNet; onPick: (id: string
   el.innerHTML =
     `<svg viewBox="${-VIEW} ${-VIEW} ${2 * VIEW} ${2 * VIEW}" role="group" aria-label="Every map and its connections">` +
     `<g class="web-lines">${lines}</g>${arcs}<g class="web-nodes">${nodes}</g>` +
-    `<text class="web-mid" x="0" y="0" text-anchor="middle" dominant-baseline="middle"></text>` +
+    // The map pointed at, named in a pill in the middle, over the lines.
+    `<g class="web-mid" visibility="hidden"><rect />` +
+    `<text class="web-mid-name" x="0" y="-5" text-anchor="middle" dominant-baseline="middle"></text>` +
+    `<text class="web-mid-count" x="0" y="11" text-anchor="middle" dominant-baseline="middle"></text></g>` +
     `</svg>`;
   const svg = el.querySelector('svg')!;
-  const mid = el.querySelector<SVGTextElement>('.web-mid')!;
+  const mid = el.querySelector<SVGGElement>('.web-mid')!;
+  const midName = mid.querySelector<SVGTextElement>('.web-mid-name')!;
+  const midCount = mid.querySelector<SVGTextElement>('.web-mid-count')!;
+  const midBox = mid.querySelector('rect')!;
 
+  /** The map picked, kept lit when the pointer moves off (the web over the
+   *  map, where the pick is what is showing). */
+  let picked: string | null = null;
   /** One map lit: its lines, and the maps at their ends; the rest dimmed. */
   const light = (id: string | null) => {
     svg.classList.toggle('lit', !!id);
@@ -112,22 +134,35 @@ export function web(opts: { layers: WebLayer[]; net: WebNet; onPick: (id: string
     el.querySelectorAll<SVGElement>('.web-node').forEach((g) => {
       const me = g.dataset.id!;
       g.classList.toggle('on', me === id);
+      g.classList.toggle('picked', me === picked);
       g.classList.toggle('near', near.has(me));
     });
     el.querySelectorAll<SVGElement>('.web-line').forEach((p) => {
-      const on = !!id && (p.dataset.a === id || p.dataset.b === id);
+      const on = !!id && (p.dataset.a === id || p.dataset.b === id) && near.has(p.dataset.a === id ? p.dataset.b! : p.dataset.a!);
       p.classList.toggle('on', on);
       // As a style: the sheet's own stroke would outrank an attribute.
       p.style.stroke = on ? colourOf.get(id!)! : '';
     });
-    mid.textContent = id ? `${near.size} connections` : '';
+    mid.setAttribute('visibility', id ? 'visible' : 'hidden');
+    if (id) {
+      midName.textContent = net.names[id] ?? byId.get(id)?.name ?? id;
+      midCount.textContent = `${near.size} connection${near.size === 1 ? '' : 's'}`;
+      // The pill round the wider of the two lines.
+      const w = Math.max(midName.getComputedTextLength(), midCount.getComputedTextLength()) + 30;
+      midBox.setAttribute('x', String(-w / 2));
+      midBox.setAttribute('y', '-20');
+      midBox.setAttribute('width', String(w));
+      midBox.setAttribute('height', '42');
+      midBox.setAttribute('rx', '21');
+      midBox.style.stroke = colourOf.get(id) ?? '';
+    }
   };
   const nodeOf = (e: Event) => (e.target as Element).closest<SVGElement>('.web-node');
   svg.addEventListener('pointerover', (e) => {
     const g = nodeOf(e);
     if (g) light(g.dataset.id!);
   });
-  svg.addEventListener('pointerleave', () => light(null));
+  svg.addEventListener('pointerleave', () => light(picked));
   svg.addEventListener('focusin', (e) => {
     const g = nodeOf(e);
     if (g) light(g.dataset.id!);
@@ -143,5 +178,44 @@ export function web(opts: { layers: WebLayer[]; net: WebNet; onPick: (id: string
       opts.onPick(g.dataset.id!);
     }
   });
-  return el;
+  return Object.assign(el, {
+    /** The drawing sized to its longest name, so it fills a round frame
+     *  edge to edge: the names reach out along their radius, and the box
+     *  round the farthest end is the circle the frame is. Needs the web on
+     *  screen, where a name has a length. */
+    fit(pad = 3) {
+      let ext = R;
+      el.querySelectorAll<SVGGElement>('.web-node').forEach((g) => {
+        // Each map's slice out past the end of its own name: measured plain,
+        // a tenth more for when it is lit (bold), and a margin beyond.
+        const end = R + 9 + g.querySelector('text')!.getComputedTextLength() * 1.1 + 8;
+        ext = Math.max(ext, end);
+        g.querySelector('.web-hit')!.setAttribute('d', wedge(angle.get(g.dataset.id!)!, end));
+      });
+      if (ext === R) return;
+      const e = ext + pad;
+      svg.setAttribute('viewBox', `${-e} ${-e} ${2 * e} ${2 * e}`);
+    },
+    /** The pair on the map now -- the network's focus and the map laid over
+     *  it -- marked out: their line in front, in its own colour, glowing,
+     *  and the laid-over map's name lit. Null for none. */
+    current(a: string | null, b: string | null) {
+      el.querySelectorAll('.web-line.cur').forEach((l) => l.classList.remove('cur'));
+      el.querySelectorAll('.web-node.cur').forEach((n) => n.classList.remove('cur'));
+      if (!a || !b) return;
+      const line = [...el.querySelectorAll<SVGPathElement>('.web-line')].find(
+        (l) => (l.dataset.a === a && l.dataset.b === b) || (l.dataset.a === b && l.dataset.b === a),
+      );
+      if (!line) return;
+      line.classList.add('cur');
+      // Last in its group, so drawn over the rest.
+      line.parentElement!.append(line);
+      el.querySelector(`.web-node[data-id="${CSS.escape(b)}"]`)?.classList.add('cur');
+    },
+    /** Keep this map lit (null: none). */
+    pick(id: string | null) {
+      picked = id;
+      light(id);
+    },
+  });
 }

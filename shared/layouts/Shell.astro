@@ -6,8 +6,12 @@ interface Props {
   description?: string;
   /** Kept out of search engines: a page that is up but not yet linked. */
   noindex?: boolean;
+  /** Behind the password (the demo's map, goals and Data Sandbox): a lock
+   *  against the passer-by, not a secure one -- it all still ships to the
+   *  browser, and the map files on R2 are public. */
+  gate?: boolean;
 }
-const { title, description = 'Scan the post. See the place, then see it change.', noindex = false } = Astro.props;
+const { title, description = 'Scan the post. See the place, then see it change.', noindex = false, gate = false } = Astro.props;
 ---
 <!doctype html>
 <html lang="en">
@@ -23,8 +27,100 @@ const { title, description = 'Scan the post. See the place, then see it change.'
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="EcoScapes" />
+    {gate && (
+      <>
+        <!-- The gate, decided before anything draws: let in before on this
+             browser (the password's hash kept), the page as it is; else
+             hidden under the password until it is given. window.__gate is
+             settled once in, for anything that should wait (the map's ask
+             for where you are). The hash is of "ecoscapes:" and the
+             password, so the password itself is nowhere in the site. -->
+        <script is:inline>
+          (() => {
+            const HASH = '4430357ee1e7bc5032d0c2809661c6f1a6bff7d3648ba6dbca03bba6ed985cfe';
+            let ok = false;
+            try { ok = localStorage.getItem('ecoscapes-gate') === HASH; } catch {}
+            let open;
+            window.__gate = new Promise((r) => (open = r));
+            window.__gateHash = HASH;
+            window.__gateOpen = open;
+            if (ok) open();
+            else document.documentElement.classList.add('gated');
+          })();
+        </script>
+        <style is:inline>
+          html.gated body > *:not(.site-gate) { visibility: hidden !important; }
+          .site-gate { display: none; }
+          html.gated .site-gate {
+            position: fixed; inset: 0; z-index: 2147483647;
+            display: grid; place-items: center; padding: 1.5rem;
+            background: #0d1210; color: #eef2ef;
+            font: 16px/1.5 ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+          }
+          .site-gate form { width: min(22rem, 100%); display: grid; gap: 0.8rem; }
+          .site-gate h1 { margin: 0; font-size: 1.6rem; font-weight: 600; letter-spacing: -0.01em; }
+          .site-gate p { margin: 0; color: rgba(238, 242, 239, 0.65); font-size: 0.95rem; }
+          .site-gate input {
+            font: inherit; padding: 0.75rem 1rem; border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.22); background: rgba(255, 255, 255, 0.06); color: inherit; outline: none;
+          }
+          .site-gate input:focus { border-color: #7fd6a8; }
+          .site-gate button {
+            font: inherit; font-weight: 600; padding: 0.7rem 1rem; border: 0; border-radius: 999px;
+            background: #7fd6a8; color: #0d1210; cursor: pointer;
+          }
+          .site-gate .gate-no { color: #f0a58a; min-height: 1.4em; font-size: 0.88rem; }
+          .site-gate form.shake { animation: gate-shake 0.3s; }
+          @keyframes gate-shake { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+        </style>
+      </>
+    )}
   </head>
   <body>
+    {gate && (
+      <div class="site-gate">
+        <form>
+          <h1>EcoScapes</h1>
+          <p>A work in progress, not yet public. Enter the password to go on.</p>
+          <input type="password" autocomplete="current-password" aria-label="Password" placeholder="Password" required />
+          <button type="submit">Enter</button>
+          <p class="gate-no" role="alert" aria-live="polite"></p>
+        </form>
+        <script is:inline>
+          (() => {
+            const root = document.currentScript.parentElement;
+            const form = root.querySelector('form');
+            const input = root.querySelector('input');
+            const no = root.querySelector('.gate-no');
+            if (!document.documentElement.classList.contains('gated')) return;
+            // After the page's own scripts, which may take the keyboard.
+            addEventListener('load', () => input.focus());
+            input.focus();
+            const hash = async (s) => {
+              const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+              return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+            };
+            form.addEventListener('submit', async (e) => {
+              e.preventDefault();
+              let h = '';
+              try { h = await hash('ecoscapes:' + input.value); } catch { no.textContent = 'This browser can’t check the password here.'; return; }
+              if (h !== window.__gateHash) {
+                no.textContent = 'That’s not it.';
+                form.classList.remove('shake');
+                void form.offsetWidth;
+                form.classList.add('shake');
+                input.select();
+                return;
+              }
+              try { localStorage.setItem('ecoscapes-gate', h); } catch {}
+              document.documentElement.classList.remove('gated');
+              root.remove();
+              window.__gateOpen();
+            });
+          })();
+        </script>
+      </div>
+    )}
     <!-- Caught here, inline and early, because the browser offers this once and
          early: by the time a panel's own module script runs, the event has
          usually already been and gone. Holding onto it is what lets the last
