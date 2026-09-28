@@ -9,6 +9,7 @@ import { asset, tile } from '../shared/lib/paths';
 import portalLayers from './content/ecoscapes-layers.json';
 import portalThemes from './content/ecoscapes-themes.json';
 import connections from './content/connections.json';
+import searchWords from './content/search-words.json';
 import timeseries from './content/timeseries.json';
 
 /** The map: the Sea-to-Sky, where you are on it, every layer of the map
@@ -77,6 +78,7 @@ const lensGroups = [
     ...connections.starts,
     ...Object.entries(connections.links).flatMap(([id, by]) => [id, ...Object.values(by).flat()]),
   ];
+  named.push(...Object.keys(searchWords));
   const unknown = [...new Set(named.filter((id) => !ids.has(id)))];
   if (unknown.length) throw new Error(`connections.json: no such layer ${unknown.join(', ')}`);
 }
@@ -104,6 +106,7 @@ const config = {
   themes,
   lensGroups,
   network: connections,
+  searchWords,
   series,
   callouts: data.callouts.map((c) => ({ ...c, image: c.image ? asset(c.image) : undefined })),
   posts,
@@ -167,6 +170,10 @@ const config = {
     <!-- The network: a few maps to start from, then a circle round the one
          in focus holding what is linked to it (network.ts). -->
     <div class="net" id="net" hidden></div>
+
+    <!-- Opening fresh, with nothing on: the map dimmed under one question,
+         a search, and the two other ways in (explore.ts). -->
+    <div class="explore" id="explore" hidden></div>
 
     <!-- Appears once the map knows where you are and there is something close. -->
     <button class="chip nearby" id="nearby" type="button" hidden></button>
@@ -464,6 +471,121 @@ const config = {
   .lens-key :global(i) { flex: 1; }
   .lens-open .layers-pill, .lens-open #layers-btn { display: none; }
   #lens-btn[aria-pressed='true'] { color: var(--accent); border-color: var(--accent); }
+
+  /* ---- Where it starts ---------------------------------------------------
+     Opened fresh: the map dimmed, one question over it, a search and the
+     two other ways in. Filled by explore.ts. */
+  .explore {
+    position: absolute;
+    inset: 0;
+    z-index: 8;
+    display: grid;
+    /* One column, no wider than the screen allows: sized by the question it
+       would stretch past a phone's edge. */
+    grid-template-columns: minmax(0, 40rem);
+    justify-content: center;
+    align-content: start;
+    padding: calc(var(--safe-t) + min(24dvh, 12rem)) 1rem 1rem;
+    background: rgba(8, 12, 10, 0.62);
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+    animation: ex-in 0.35s ease-out;
+  }
+  .explore.leaving { opacity: 0; transition: opacity 0.22s ease; }
+  @keyframes ex-in { from { opacity: 0; } }
+  .explore :global(.ex-card) { width: 100%; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.1rem; }
+  .explore :global(h2) {
+    font-size: clamp(1.6rem, 5vw, 2.4rem);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    text-align: center;
+    text-wrap: balance;
+  }
+  .explore :global(.ex-row) { display: flex; align-items: center; gap: 0.6rem; }
+  .explore :global(.ex-box) {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    height: 56px;
+    padding: 0 1.1rem;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: rgba(13, 18, 16, 0.92);
+    box-shadow: 0 10px 34px rgba(0, 0, 0, 0.45);
+    transition: border-color 0.18s;
+  }
+  .explore :global(.ex-box:focus-within) { border-color: var(--accent); }
+  .explore :global(.ex-box > svg) { width: 20px; height: 20px; flex: none; color: var(--ink-dim); }
+  .explore :global(.ex-input) {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    border: 0;
+    background: none;
+    color: var(--ink);
+    font: inherit;
+    font-size: 1.05rem;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .explore :global(.ex-input::-webkit-search-cancel-button) { -webkit-appearance: none; }
+  /* The turning hint, in the box where a placeholder would be. */
+  .explore :global(.ex-hint) {
+    position: absolute;
+    left: calc(1.1rem + 20px + 0.6rem);
+    right: 1.1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--ink-dim);
+    font-size: 1.05rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    pointer-events: none;
+    opacity: 0;
+  }
+  .explore :global(.ex-hint.in) { animation: ex-hint 2.8s ease-in-out both; }
+  @keyframes ex-hint {
+    0% { opacity: 0; transform: translateY(calc(-50% + 6px)); }
+    12%, 85% { opacity: 1; transform: translateY(-50%); }
+    100% { opacity: 0; transform: translateY(calc(-50% - 6px)); }
+  }
+  .explore :global(.ex-mode) { width: 56px; height: 56px; background: rgba(13, 18, 16, 0.92); }
+  .explore :global(.ex-mode svg) { width: 22px; height: 22px; }
+  .explore :global(.ex-results) {
+    list-style: none;
+    margin: -0.4rem 0 0;
+    padding: 0.35rem;
+    max-height: min(50dvh, 22rem);
+    overflow-y: auto;
+    border-radius: 18px;
+    border: 1px solid var(--line);
+    background: rgba(13, 18, 16, 0.96);
+    box-shadow: 0 10px 34px rgba(0, 0, 0, 0.45);
+  }
+  .explore :global(.ex-results li[role='option']) {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.6rem 0.75rem;
+    border-radius: 12px;
+    cursor: pointer;
+  }
+  .explore :global(.ex-results li[role='option'] > i) { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .explore :global(.ex-results li[role='option'] > span) { display: grid; min-width: 0; }
+  .explore :global(.ex-results b) { font-weight: 600; }
+  .explore :global(.ex-why) { font-size: 0.78rem; color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .explore :global(.ex-results [aria-selected='true']), .explore :global(.ex-results li[role='option']:hover) { background: rgba(255, 255, 255, 0.07); }
+  .explore :global(.ex-near) { padding: 0.5rem 0.75rem 0.3rem; font-size: 0.8rem; color: var(--ink-dim); }
+  @media (max-width: 47.99rem) {
+    .explore :global(.ex-box), .explore :global(.ex-mode) { height: 50px; }
+    .explore :global(.ex-mode) { width: 50px; }
+    .explore :global(.ex-input), .explore :global(.ex-hint) { font-size: 1rem; }
+  }
 
   /* ---- The network --------------------------------------------------------
      A circle over the middle of the map, cut in three, the maps linked to
@@ -1434,6 +1556,7 @@ const config = {
   import { addRelief, addSky, tilting } from '../shared/lib/terrain';
   import { lens, whenDrawn, snapOpacity, fadeOpacity, FADE } from './lib/lens';
   import { network, type NetConfig } from './lib/network';
+  import { explore } from './lib/explore';
   import { confirmLeave } from '../shared/lib/leave';
   import { headingOf as compassHeading, requestCompass, hasCompassApi, needsTap, ORIENTATION_EVENTS } from '../shared/lib/compass';
 
@@ -1473,6 +1596,7 @@ const config = {
     themes: Theme[];
     lensGroups: { id: string; name: string; layers: string[] }[];
     network: NetConfig;
+    searchWords: Record<string, string[]>;
     series: Series[];
     callouts: Callout[];
     posts: Post[];
@@ -2234,6 +2358,30 @@ const config = {
   map.on('rotatestart', (e) => e.originalEvent && net.collapse());
   map.on('pitchstart', (e) => e.originalEvent && net.collapse());
   map.on('click', net.collapse);
+
+  // ---- Where it starts -------------------------------------------------------
+  // Opened fresh -- no ?layers, nothing on -- the map waits dimmed under the
+  // question "What do you want to explore?" (explore.ts). Arriving from the
+  // story with ?layers, it goes straight to the map.
+  const roleColour = new Map(
+    Object.values(config.network.roles).flatMap((r) => r.layers.map((id) => [id, r.colour] as const)),
+  );
+  const whereOf = (l: { theme: string; subtheme: string }) => {
+    const t = config.themes.find((t) => t.id === l.theme);
+    return [t?.name, t?.subthemes.find((s) => s.id === l.subtheme)?.name].filter(Boolean).join(' · ');
+  };
+  explore({
+    root: document.getElementById('explore')!,
+    layers: config.layers,
+    names: config.network.names,
+    searchWords: config.searchWords,
+    colourOf: (id) => roleColour.get(id) ?? 'var(--ink-dim)',
+    whereOf,
+    open: !layersAsked.size && ![...state.values()].some((s) => s.on),
+    onPick: (id) => setLayer(id, true),
+    onNetwork: () => document.getElementById('net-btn')!.click(),
+    onFilter: () => lensBtn.click(),
+  });
 
   const distanceLine = (lat: number, lng: number) =>
     here ? `<p class="dim">${formatKm(km(here, [lng, lat]))} from you</p>` : '';
