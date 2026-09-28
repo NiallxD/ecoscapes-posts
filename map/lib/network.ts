@@ -32,6 +32,14 @@ export type NetConfig = {
 /** At most this many maps in a third: more will not fit on a phone. */
 const PER = 4;
 
+/** A line on each of the three groups, for the card that explains the
+ *  network. By the role ids in connections.json. */
+const ROLE_LINES: Record<string, string> = {
+  life: 'the animals and the land that it exists alongside',
+  pressures: 'what pressures it, from roads and towns to wildfire',
+  protection: 'what protects it, from protected areas and corridors, to climate refugia',
+};
+
 /** How big the circle is when shrunk into the corner. */
 const MINI = 0.25;
 
@@ -48,6 +56,9 @@ export function network(opts: {
   show: (focus: string, overlay: string | undefined) => void;
   /** How clear the laid-over map is, 0 to 1. */
   opacity: (v: number) => void;
+  /** Told which view is up whenever it is drawn: the start card, the circle
+   *  or the circle shrunk. */
+  onView?: (view: 'start' | 'ring' | 'mini') => void;
   /** Told when the network is switched on or off. */
   onToggle: (on: boolean) => void;
 }) {
@@ -79,8 +90,21 @@ export function network(opts: {
 
   // Laid out once; the parts filled in as they change.
   root.innerHTML =
-    `<div class="net-start" role="group" aria-labelledby="net-start-title">` +
-    `<p class="eyebrow" id="net-start-title">Start with a map</p><div class="net-starts"></div></div>` +
+    // First, how it works, in a few lines, and the maps to start from at the
+    // foot of the card.
+    `<div class="net-start" role="dialog" aria-labelledby="net-start-title">` +
+    `<button class="net-start-close" type="button" aria-label="Close">` +
+    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg></button>` +
+    `<p class="eyebrow">Explore by connections</p>` +
+    `<h2 id="net-start-title">Start from one map and follow what it touches</h2>` +
+    `<p>The map you pick here becomes the Focus Map. Surrounding it are three segments, each with maps which are connected to the Focus Map in one of three ways:</p>` +
+    `<ul class="net-roles">` +
+    roles
+      .map((r) => `<li><i style="background:${net.roles[r].colour}"></i><b>${esc(net.roles[r].name)}</b> ${esc(ROLE_LINES[r] ?? '')}</li>`)
+      .join('') +
+    `</ul>` +
+    `<p>Choose one of the entry points below to get started. When looking at a connected map, you can tap the 'Focus' button to make it the new Focus Map and reveal it's unique connections. Step back through the network anytime with the breadcrumbs.</p>` +
+    `<p class="eyebrow net-start-pick">Start with</p><div class="net-starts"></div></div>` +
     `<div class="net-ring">` +
     `<nav class="net-trail" aria-label="Maps focused so far"></nav>` +
     `<div class="net-disc">${disc()}${arc()}<div class="net-thirds"></div><button class="net-hub" type="button"></button></div>` +
@@ -92,6 +116,7 @@ export function network(opts: {
     `<input type="range" min="0.1" max="1" step="0.05" aria-label="How clear the map laid over the focus is" /></label>`;
   const startEl = root.querySelector<HTMLElement>('.net-start')!;
   const startsEl = root.querySelector<HTMLElement>('.net-starts')!;
+  root.querySelector('.net-start-close')!.addEventListener('click', () => toggle(false));
   const ringEl = root.querySelector<HTMLElement>('.net-ring')!;
   const trailEl = root.querySelector<HTMLElement>('.net-trail')!;
   const thirdsEl = root.querySelector<HTMLElement>('.net-thirds')!;
@@ -264,6 +289,7 @@ export function network(opts: {
   };
 
   function render(fresh = false) {
+    opts.onView?.(view);
     root.dataset.view = view;
     startEl.hidden = view !== 'start';
     ringEl.hidden = view === 'start';
@@ -514,5 +540,12 @@ export function network(opts: {
     render(true);
   };
 
-  return { collapse, focus, active: () => on, off: () => toggle(false) };
+  /** On, at the start card -- or back to it, if already on. */
+  const enter = () => {
+    if (!on) return toggle(true);
+    view = 'start';
+    render();
+  };
+
+  return { collapse, focus, enter, startCard: startEl, active: () => on, off: () => toggle(false) };
 }

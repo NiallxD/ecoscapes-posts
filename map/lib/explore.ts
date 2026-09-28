@@ -1,7 +1,7 @@
 /** Where the map starts when it opens with nothing on: the map dimmed, and
  *  over it one question -- "What do you want to explore?" -- with a search
  *  box whose hint turns through things to try, and beside it the two other
- *  ways in, the network and the filter (the lens).
+ *  ways in: the network, and the web of every map and how they connect.
  *
  *  The search is forgiving, so that almost anything typed finds something:
  *  a layer's name, its short name, its classes ("coniferous" is land cover),
@@ -108,8 +108,15 @@ export function explore(opts: {
   open: boolean;
   /** A result picked: put it on the map. */
   onPick: (id: string) => void;
+  /** A way in chosen: the page shows its card under the row (panel()), the
+   *  question and the row staying up to change one's mind. */
   onNetwork: () => void;
-  onFilter: () => void;
+  /** The web of every map and its connections: opened on its own, the
+   *  landing giving way to it. */
+  onWeb: () => void;
+  /** The card under the row given up: back to searching, or the landing
+   *  shut. */
+  onPanelGone?: () => void;
 }) {
   const { root } = opts;
   const index = opts.layers.map((l) => {
@@ -187,16 +194,23 @@ export function explore(opts: {
     `<input class="ex-input" type="search" autocomplete="off" spellcheck="false" aria-label="What do you want to explore?" aria-controls="ex-results" aria-autocomplete="list" />` +
     `<span class="ex-hint" aria-hidden="true"></span>` +
     `</div>` +
-    `<button class="step ex-mode" type="button" data-mode="network" aria-label="Network: start from one map and follow its links" title="Network">` +
-    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="3" /><circle cx="12" cy="3.8" r="2" /><circle cx="19.1" cy="16.1" r="2" /><circle cx="4.9" cy="16.1" r="2" /><path d="M12 9V5.8M14.6 13.5l2.8 1.6M9.4 13.5l-2.8 1.6" /></svg></button>` +
-    `<button class="step ex-mode" type="button" data-mode="filter" aria-label="Filter: look through one map to the others under it" title="Filter">` +
-    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="5" stroke-dasharray="2 2.2" /></svg></button>` +
+    // Each opens out, with its words, over the search's room as it is
+    // pointed at (see the row's data-wide, below).
+    `<button class="step ex-mode" type="button" data-mode="network" aria-label="Explore by connections">` +
+    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="3" /><circle cx="12" cy="3.8" r="2" /><circle cx="19.1" cy="16.1" r="2" /><circle cx="4.9" cy="16.1" r="2" /><path d="M12 9V5.8M14.6 13.5l2.8 1.6M9.4 13.5l-2.8 1.6" /></svg>` +
+    `<span class="ex-label" aria-hidden="true">Explore by connections</span></button>` +
+    `<button class="step ex-mode" type="button" data-mode="web" aria-label="See how every map connects">` +
+    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="8.5" /><path d="M12 3.5C11 9 7 13 4.6 16.3M19.4 16.3C16 14 10 13 4.6 16.3M12 3.5c1 5.5 4.5 9.5 7.4 12.8M3.6 11c5 .5 11.5.5 16.8 0" stroke-width="1.1" /></svg>` +
+    `<span class="ex-label" aria-hidden="true">See how every map connects</span></button>` +
     `</div>` +
     `<ul class="ex-results" id="ex-results" role="listbox" aria-label="Maps" hidden></ul>` +
+    // A mode's card, under the row (the network's start card, for now).
+    `<div class="ex-panel" hidden></div>` +
     `</div>`;
   const input = root.querySelector<HTMLInputElement>('.ex-input')!;
   const hint = root.querySelector<HTMLElement>('.ex-hint')!;
   const list = root.querySelector<HTMLElement>('.ex-results')!;
+  const panelEl = root.querySelector<HTMLElement>('.ex-panel')!;
 
   // ---- The hint: things to try, turning --------------------------------------
   let turn = 0;
@@ -275,12 +289,62 @@ export function explore(opts: {
     const li = (e.target as HTMLElement).closest<HTMLElement>('[data-id]');
     if (li) pick(li.dataset.id!);
   });
-  root.querySelectorAll<HTMLButtonElement>('.ex-mode').forEach((b) =>
-    b.addEventListener('click', () => {
-      close();
-      (b.dataset.mode === 'network' ? opts.onNetwork : opts.onFilter)();
-    }),
-  );
+  // Pointed at (or reached by the keyboard), a mode opens out to the
+  // search's width with its words, and the search draws in to a circle. It
+  // stays that way until another is pointed at -- the other mode, or the
+  // search's circle, which opens the search again -- rather than springing
+  // back as the pointer leaves: the row moves under the pointer as it
+  // changes, and a spring back had it flicking to and fro.
+  const row = root.querySelector<HTMLElement>('.ex-row')!;
+  const box = root.querySelector<HTMLElement>('.ex-box')!;
+  /** The mode chosen, its card up under the row: it holds its place until
+   *  the search is taken up again, or the card closed. */
+  let chosen: string | undefined;
+  const widen = (mode?: string) => {
+    if (chosen && mode !== chosen) return;
+    if ((row.dataset.wide ?? '') === (mode ?? '')) return;
+    if (mode) row.dataset.wide = mode;
+    else delete row.dataset.wide;
+    // Drawn in to a circle, the search lets go of the keyboard, and so of its
+    // lit edge.
+    if (mode && document.activeElement === input) input.blur();
+  };
+  root.querySelectorAll<HTMLButtonElement>('.ex-mode').forEach((b) => {
+    b.addEventListener('click', () => pickMode(b.dataset.mode!));
+    b.addEventListener('pointerenter', (e) => e.pointerType === 'mouse' && widen(b.dataset.mode));
+    b.addEventListener('focus', () => b.matches(':focus-visible') && widen(b.dataset.mode));
+  });
+  /** A way in chosen: its card under the row (the page gives it, panel()),
+   *  the row held on it until the search is taken up again or the card
+   *  closed. */
+  function pickMode(mode: string) {
+    // The web has no card here: it opens on its own, over the map.
+    if (mode === 'web') return opts.onWeb();
+    if (chosen === mode) return;
+    if (chosen) {
+      panel(null);
+      opts.onPanelGone?.();
+    }
+    chosen = undefined;
+    widen(mode);
+    chosen = mode;
+    (mode === 'network' ? opts.onNetwork : opts.onWeb)();
+  }
+  /** Back to searching: any mode's card let go. */
+  const searchAgain = () => {
+    if (chosen) {
+      chosen = undefined;
+      panel(null);
+      opts.onPanelGone?.();
+    }
+    widen();
+  };
+  box.addEventListener('pointerenter', (e) => e.pointerType === 'mouse' && widen());
+  box.addEventListener('click', () => {
+    searchAgain();
+    input.focus();
+  });
+  input.addEventListener('focus', searchAgain);
 
   // ---- Open and shut -----------------------------------------------------------
   // A tap on the dimmed map, or Escape, lets it go: the map is there to use.
@@ -298,8 +362,22 @@ export function explore(opts: {
   };
   addEventListener('keydown', onKey);
 
+  /** A card under the row, or none. The element is moved here, not copied:
+   *  the page takes it back when it is let go. */
+  function panel(el: HTMLElement | null) {
+    panelEl.hidden = !el;
+    if (el) panelEl.replaceChildren(el);
+    else panelEl.replaceChildren();
+    root.classList.toggle('has-panel', !!el);
+  }
+
   function close() {
     if (root.hidden) return;
+    if (chosen) {
+      chosen = undefined;
+      panel(null);
+      opts.onPanelGone?.();
+    }
     root.classList.add('leaving');
     turning(false);
     setTimeout(() => {
@@ -307,8 +385,13 @@ export function explore(opts: {
       root.classList.remove('leaving');
     }, 220);
   }
-  function open() {
+  /** Up over the map. `modes` false for the search alone -- opened from its
+   *  own button, when the network has a button of its own beside
+   *  it -- and the two ways in only when the map opens fresh. */
+  function open(modes = true) {
     root.hidden = false;
+    root.classList.toggle('search-only', !modes);
+    widen();
     input.value = '';
     syncHint();
     draw();
@@ -317,8 +400,20 @@ export function explore(opts: {
     // question before it has been read.
     if (matchMedia('(pointer: fine)').matches) input.focus({ preventScroll: true });
   }
-  if (opts.open) open();
+  if (opts.open) open(true);
   else root.hidden = true;
 
-  return { open, close, isOpen: () => !root.hidden };
+  return {
+    open,
+    close,
+    panel,
+    choose: pickMode,
+    isOpen: () => !root.hidden,
+    /** The card closed from within: back to the row, nothing chosen. */
+    unchoose: () => {
+      chosen = undefined;
+      panel(null);
+      widen();
+    },
+  };
 }

@@ -175,6 +175,9 @@ const config = {
          a search, and the two other ways in (explore.ts). -->
     <div class="explore" id="explore" hidden></div>
 
+    <!-- The web of every map, on its own over the dimmed map (web.ts). -->
+    <div class="web-view" id="web-view" hidden></div>
+
     <!-- Appears once the map knows where you are and there is something close. -->
     <button class="chip nearby" id="nearby" type="button" hidden></button>
 
@@ -182,20 +185,6 @@ const config = {
 
 
     <AnimalButton animal="bear" />
-
-    <!-- Wider screens: the layers as a search box in this corner, so typing
-         is the first thing to do -- the list drops down beneath it as soon as
-         it has focus, and the chevron folds it back up. A phone keeps the
-         button in the control column, and the search inside the sheet. -->
-    <div class="layers-pill" id="layers-pill">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true">
-        <path d="M12 3.5l8.5 4.5-8.5 4.5L3.5 8z" /><path d="M3.5 12l8.5 4.5 8.5-4.5" /><path d="M3.5 16l8.5 4.5 8.5-4.5" />
-      </svg>
-      <input id="layers-search" type="search" placeholder="Search layers" aria-label="Search layers" aria-controls="sheet" autocomplete="off" />
-      <button class="layers-toggle" id="layers-toggle" type="button" aria-label="Layers" aria-expanded="false" aria-controls="sheet">
-        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
-      </button>
-    </div>
 
     <!-- What the layers that are on mean, for as long as they are on. Folded
          to its title on a phone, where the map is short of room. -->
@@ -233,11 +222,12 @@ const config = {
           <path d="M12 21s6.5-5.2 6.5-10.5a6.5 6.5 0 10-13 0C5.5 15.8 12 21 12 21z" /><path d="M12 7.5v6M9 10.5h6" />
         </svg>
       </button>
-      <button class="step" id="layers-btn" type="button" aria-label="Layers" aria-expanded="false" aria-controls="sheet">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true">
-            <path d="M12 3.5l8.5 4.5-8.5 4.5L3.5 8z" /><path d="M3.5 12l8.5 4.5 8.5-4.5" /><path d="M3.5 16l8.5 4.5 8.5-4.5" />
-          </svg>
-        </button>
+      <!-- The search: "What do you want to explore?" over the dimmed map
+           (explore.ts), as the map opens fresh. -->
+      <button class="step search-btn" id="search-btn" type="button" aria-label="Search the maps">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4.5 4.5" /></svg>
+        <span aria-hidden="true">Search</span>
+      </button>
       <!-- Flat, or tilted over the ground's own shape. The tilt slides out of
            the button while 3D is on: a mouse's way to it (a right-drag also
            tilts). Not on a touch screen, where two fingers do it. -->
@@ -469,11 +459,10 @@ const config = {
   .lens-target-btn[aria-pressed='true'] { color: var(--bg); background: var(--accent); border-color: var(--accent); }
   .lens-key { display: flex; height: 5px; border-radius: 2px; overflow: hidden; }
   .lens-key :global(i) { flex: 1; }
-  .lens-open .layers-pill, .lens-open #layers-btn { display: none; }
   #lens-btn[aria-pressed='true'] { color: var(--accent); border-color: var(--accent); }
 
   /* ---- Where it starts ---------------------------------------------------
-     Opened fresh: the map dimmed, one question over it, a search and the
+     Opened fresh: the map dimmed (dimmed only -- no blur), one question over it, a search and the
      two other ways in. Filled by explore.ts. */
   .explore {
     position: absolute;
@@ -486,36 +475,38 @@ const config = {
     justify-content: center;
     align-content: start;
     padding: calc(var(--safe-t) + min(24dvh, 12rem)) 1rem 1rem;
-    background: rgba(8, 12, 10, 0.62);
-    backdrop-filter: blur(3px);
-    -webkit-backdrop-filter: blur(3px);
+    background: rgba(8, 12, 10, 0.66);
     animation: ex-in 0.35s ease-out;
   }
   .explore.leaving { opacity: 0; transition: opacity 0.22s ease; }
   @keyframes ex-in { from { opacity: 0; } }
   .explore :global(.ex-card) { width: 100%; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.1rem; }
-  .explore :global(h2) {
+  .explore :global(#ex-title) {
     font-size: clamp(1.6rem, 5vw, 2.4rem);
     font-weight: 600;
     letter-spacing: -0.02em;
     text-align: center;
     text-wrap: balance;
   }
-  .explore :global(.ex-row) { display: flex; align-items: center; gap: 0.6rem; }
+  .explore :global(.ex-row) { display: flex; align-items: center; gap: 0.6rem; --ease: 0.38s cubic-bezier(0.4, 0, 0.2, 1); --round: 56px; }
+  /* Every item starts from the circle's width and only the room it takes
+     beyond that changes -- so, between one state and the next, nothing is
+     ever narrower than a circle. */
   .explore :global(.ex-box) {
     position: relative;
-    flex: 1;
+    flex: 1 0 var(--round);
     min-width: 0;
+    overflow: hidden;
+    transition: flex-grow var(--ease), border-color 0.18s;
     display: flex;
     align-items: center;
     gap: 0.6rem;
-    height: 56px;
-    padding: 0 1.1rem;
+    height: var(--round);
+    padding: 0 calc(var(--round) / 2 - 10px);
     border-radius: 999px;
     border: 1px solid rgba(255, 255, 255, 0.22);
     background: rgba(13, 18, 16, 0.92);
     box-shadow: 0 10px 34px rgba(0, 0, 0, 0.45);
-    transition: border-color 0.18s;
   }
   .explore :global(.ex-box:focus-within) { border-color: var(--accent); }
   .explore :global(.ex-box > svg) { width: 20px; height: 20px; flex: none; color: var(--ink-dim); }
@@ -536,8 +527,8 @@ const config = {
   /* The turning hint, in the box where a placeholder would be. */
   .explore :global(.ex-hint) {
     position: absolute;
-    left: calc(1.1rem + 20px + 0.6rem);
-    right: 1.1rem;
+    left: calc(var(--round) / 2 + 10px + 0.6rem);
+    right: calc(var(--round) / 2 - 10px);
     top: 50%;
     transform: translateY(-50%);
     color: var(--ink-dim);
@@ -554,8 +545,81 @@ const config = {
     12%, 85% { opacity: 1; transform: translateY(-50%); }
     100% { opacity: 0; transform: translateY(calc(-50% - 6px)); }
   }
-  .explore :global(.ex-mode) { width: 56px; height: 56px; background: rgba(13, 18, 16, 0.92); }
-  .explore :global(.ex-mode svg) { width: 22px; height: 22px; }
+  .explore :global(.ex-mode) {
+    flex: 0 0 var(--round);
+    width: auto;
+    height: var(--round);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    min-width: 0;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(13, 18, 16, 0.92);
+    transition: flex-grow var(--ease), gap var(--ease), border-color 0.18s;
+  }
+  .explore :global(.ex-mode svg) { width: 22px; height: 22px; flex: none; }
+  .explore :global(.ex-label) {
+    max-width: 0;
+    opacity: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    font-size: 1.05rem;
+    font-weight: 500;
+    transition: max-width var(--ease), opacity 0.2s;
+  }
+  /* A mode pointed at: it takes the search's room, words and all, and the
+     search draws in to a circle round its glass. */
+  .explore :global(.ex-row[data-wide] .ex-box) { flex-grow: 0; border-color: rgba(255, 255, 255, 0.22); }
+  .explore :global(.ex-row[data-wide] .ex-box > :not(svg)) { opacity: 0; }
+  .explore :global(.ex-row[data-wide='network'] [data-mode='network']),
+  .explore :global(.ex-row[data-wide='web'] [data-mode='web']) { flex-grow: 1; gap: 0.7rem; border-color: var(--accent); color: var(--accent); }
+  .explore :global(.ex-row[data-wide='network'] [data-mode='network'] .ex-label),
+  .explore :global(.ex-row[data-wide='web'] [data-mode='web'] .ex-label) { max-width: 20rem; opacity: 1; transition-delay: 0s, 0.12s; }
+  .explore :global(.ex-card:has(.ex-row[data-wide]) .ex-results) { visibility: hidden; }
+  /* A mode's card under the row (the network's start card): full width of
+     the row, the question and the row not moving for it; the landing scrolls
+     if it is taller than the screen. */
+  .explore { overflow-y: auto; }
+  .explore :global(.ex-panel .net-start) { width: 100%; max-height: none; background: rgba(13, 18, 16, 0.94); }
+  /* The web on its own: the map dimmed, the card in the middle, the circle
+     as big as the screen allows. */
+  .web-view {
+    position: absolute;
+    inset: 0;
+    z-index: 8;
+    display: grid;
+    place-items: center;
+    padding: calc(var(--safe-t) + 1rem) 1rem 1rem;
+    overflow-y: auto;
+    background: rgba(8, 12, 10, 0.66);
+    animation: ex-in 0.3s ease-out;
+  }
+  .web-view :global(.web-card) { width: min(52rem, 100%); max-height: none; background: rgba(13, 18, 16, 0.94); }
+  .web-view :global(.web svg) { width: min(100%, calc(100dvh - 12rem)); margin: 0 auto; }
+
+  /* The web: every map round a circle, lines between the linked. */
+  :global(.web svg) { display: block; width: 100%; height: auto; margin-top: 0.2rem; overflow: visible; }
+  :global(.web-line) { fill: none; stroke: rgba(255, 255, 255, 0.13); stroke-width: 0.7; transition: stroke-opacity 0.18s, opacity 0.18s; }
+  :global(.web-arc) { fill: none; stroke-width: 2.2; stroke-linecap: round; opacity: 0.8; }
+  :global(.web-node) { cursor: pointer; outline: none; }
+  :global(.web-node text) { font-size: 9px; fill: var(--ink-dim); transition: fill 0.18s, opacity 0.18s; }
+  :global(.web-node circle) { transition: r 0.18s, opacity 0.18s; }
+  :global(.web-mid) { font-size: 11px; fill: var(--ink-dim); letter-spacing: 0.08em; text-transform: uppercase; }
+  /* One lit: its lines in its colour, the maps they reach named bright, the
+     rest faded back. */
+  :global(.web svg.lit .web-line) { opacity: 0.25; }
+  :global(.web svg.lit .web-line.on) { opacity: 1; stroke-width: 1.3; }
+  :global(.web svg.lit .web-node) { opacity: 0.35; }
+  :global(.web svg.lit .web-node.on), :global(.web svg.lit .web-node.near) { opacity: 1; }
+  :global(.web-node.on text) { fill: var(--ink); font-weight: 700; }
+  :global(.web-node.near text) { fill: var(--ink); }
+  :global(.web-node.on circle) { r: 5.5; }
+  :global(.web-node:focus-visible text) { fill: var(--accent); }
+
+  /* Opened from the Search button: the search alone. */
+  .explore.search-only :global(.ex-mode) { display: none; }
   .explore :global(.ex-results) {
     list-style: none;
     margin: -0.4rem 0 0;
@@ -582,8 +646,8 @@ const config = {
   .explore :global(.ex-results [aria-selected='true']), .explore :global(.ex-results li[role='option']:hover) { background: rgba(255, 255, 255, 0.07); }
   .explore :global(.ex-near) { padding: 0.5rem 0.75rem 0.3rem; font-size: 0.8rem; color: var(--ink-dim); }
   @media (max-width: 47.99rem) {
-    .explore :global(.ex-box), .explore :global(.ex-mode) { height: 50px; }
-    .explore :global(.ex-mode) { width: 50px; }
+    .explore :global(.ex-row) { --round: 50px; }
+    .explore :global(.ex-label) { font-size: 0.95rem; }
     .explore :global(.ex-input), .explore :global(.ex-hint) { font-size: 1rem; }
   }
 
@@ -597,13 +661,19 @@ const config = {
   .net-on .nearby { display: none; }
   #net-btn[aria-pressed='true'] { color: var(--accent); border-color: var(--accent); }
   .net :global(.net-start), .net :global(.net-ring) { pointer-events: auto; }
+  /* The start card and its chips are styled wherever they sit: in the
+     network's layer, or under the landing's search row (explore.ts). */
 
-  .net :global(.net-start) {
+  /* How the network works, a few lines of it, and the maps to start from
+     along the foot. */
+  :global(.net-start) {
+    position: relative;
     display: grid;
-    gap: 0.7rem;
-    justify-items: center;
-    padding: 1.1rem 1.2rem 1.2rem;
-    max-width: calc(100% - 2rem);
+    gap: 0.6rem;
+    width: min(28rem, calc(100vw - 2rem));
+    max-height: calc(100dvh - var(--safe-t) - 2rem);
+    overflow-y: auto;
+    padding: 1.3rem 1.3rem 1.3rem;
     border-radius: 20px;
     border: 1px solid var(--line);
     background: rgba(13, 18, 16, 0.88);
@@ -611,10 +681,35 @@ const config = {
     -webkit-backdrop-filter: blur(12px);
     animation: net-in 0.22s ease-out;
   }
-  .net :global(.net-starts) { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5rem; max-width: 26rem; }
+  :global(.net-start h2) { font-size: 1.25rem; line-height: 1.25; padding-right: 2rem; }
+  :global(.net-start p:not(.eyebrow)) { margin: 0; font-size: 0.9rem; line-height: 1.5; color: var(--ink-dim); }
+  :global(.net-roles) { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; font-size: 0.88rem; line-height: 1.4; color: var(--ink-dim); }
+  :global(.net-roles li) { display: flex; align-items: baseline; gap: 0.5rem; }
+  :global(.net-roles i) { width: 9px; height: 9px; border-radius: 50%; flex: none; transform: translateY(-1px); }
+  :global(.net-roles b) { color: var(--ink); font-weight: 600; flex: none; }
+  :global(.net-start-pick) { margin-top: 0.5rem; padding-top: 0.8rem; border-top: 1px solid var(--line); }
+  :global(.net-starts) { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  :global(.net-start-close) {
+    appearance: none;
+    position: absolute;
+    top: 0.9rem;
+    right: 0.9rem;
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+    background: none;
+    color: var(--ink-dim);
+    cursor: pointer;
+  }
+  :global(.net-start-close svg) { width: 14px; height: 14px; }
+  :global(.net-start-close:hover) { color: var(--ink); }
 
   /* A map's chip: its colour, its name. The one on the map lit. */
-  .net :global(.net-chip) {
+  :global(.net-chip) {
     appearance: none;
     -webkit-appearance: none;
     display: inline-flex;
@@ -633,9 +728,9 @@ const config = {
     -webkit-tap-highlight-color: transparent;
     transition: border-color 0.18s, background 0.18s;
   }
-  .net :global(.net-chip i) { width: 9px; height: 9px; border-radius: 50%; flex: none; }
-  .net :global(.net-chip:hover) { border-color: var(--ink-dim); }
-  .net :global(.net-chip[aria-pressed='true']) { border-color: var(--c, var(--accent)); background: rgba(13, 18, 16, 0.96); box-shadow: 0 0 0 1px var(--c, var(--accent)); }
+  :global(.net-chip i) { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  :global(.net-chip:hover) { border-color: var(--ink-dim); }
+  :global(.net-chip[aria-pressed='true']) { border-color: var(--c, var(--accent)); background: rgba(13, 18, 16, 0.96); box-shadow: 0 0 0 1px var(--c, var(--accent)); }
   .net :global(button:focus) { outline: none; }
   .net :global(button:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
 
@@ -970,6 +1065,25 @@ const config = {
   .legend-body :global(.lg-one i) { width: 12px; height: 12px; border-radius: 3px; flex: none; }
   /* A layer with years: its name and, beside it, the switch to them. */
   .legend-body :global(.lg-name) { display: flex; align-items: center; gap: 0.5rem; }
+  .legend-body :global(.lg-name b) { flex: 1; min-width: 0; }
+  .legend-body :global(.lg-off) {
+    appearance: none;
+    flex: none;
+    width: 24px;
+    height: 24px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+    background: none;
+    color: var(--ink-dim);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .legend-body :global(.lg-off svg) { width: 12px; height: 12px; }
+  .legend-body :global(.lg-off:hover) { color: var(--ink); border-color: var(--ink-dim); }
+  .legend-body :global(.lg-off:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
   /* A layer that is only in the lens. */
   .legend-body :global(.lg-where) { display: block; margin-bottom: 0.1rem; font-size: 0.6rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); }
   .legend-body :global(.lg-time) {
@@ -1048,7 +1162,17 @@ const config = {
   .place-me { border-style: dashed; }
   .place-me[aria-pressed='true'] { color: var(--bg); background: var(--accent); border-color: var(--accent); }
   .placing :global(.maplibregl-canvas) { cursor: crosshair; }
-  #layers-btn[aria-expanded='true'] { color: var(--accent); border-color: var(--accent); }
+  /* The search: a word under the glass, so it reads as the way in. */
+  .search-btn { height: auto; padding: 0.8rem 0 0.95rem; border-radius: 23px; gap: 0.5rem; align-content: start; }
+  /* Up the pill, bottom to top, as the Bear's reads. */
+  .search-btn span {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    font-size: 0.74rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
 
   /* Under the top edge, centred: the one thing that is news. */
   .nearby {
@@ -1187,7 +1311,6 @@ const config = {
   }
   /* The layers are a list of switches: narrower than a story's panel. */
   @media (min-width: 48rem) {
-    .sheet.sheet-narrow { width: 19rem; }
   }
 
   /* The Bear: as its page is on the story -- the animal full bleed, a dark
@@ -1255,86 +1378,6 @@ const config = {
   /* For a screen reader only: the layers' heading, where the pill says it. */
   .sheet :global(.sr) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
   /* The layer search: pinned under the heading while the list scrolls. */
-  .sheet :global(.layer-search) {
-    position: sticky;
-    top: 0;
-    z-index: 1;
-    display: block;
-    width: 100%;
-    margin: 0 0 0.6rem;
-    padding: 0.55rem 0.9rem;
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    background: var(--bg-lift);
-    color: var(--ink);
-    font: inherit;
-    font-size: 0.9rem;
-  }
-  .sheet :global(.layer-search::placeholder) { color: var(--ink-dim); }
-  .sheet :global(.layer-search:focus) { outline: none; border-color: var(--accent); }
-  .sheet :global(.layer-name mark) { background: none; color: var(--accent); }
-  .sheet :global(.theme-group) { border-top: 1px solid var(--line); padding: 0.2rem 0; }
-  .sheet :global(.theme-group:first-of-type) { border-top: 0; }
-  .sheet :global(.theme-group summary) {
-    padding: 0.65rem 0;
-    font-size: 0.95rem;
-    font-weight: 600;
-    cursor: pointer;
-    list-style: none;
-  }
-  .sheet :global(.theme-group summary::-webkit-details-marker) { display: none; }
-  .sheet :global(.theme-group summary::before) {
-    content: '▸';
-    display: inline-block;
-    margin-right: 0.5rem;
-    color: var(--ink-dim);
-    transition: transform 0.15s;
-  }
-  .sheet :global(.theme-group[open] summary::before) { transform: rotate(90deg); }
-  .sheet :global(.subtheme) { margin: 0 0 0.6rem; }
-  .sheet :global(.subtheme h3) {
-    font-size: 0.7rem;
-    font-weight: 600;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--ink-dim);
-    margin: 0 0 0.3rem;
-  }
-  .sheet :global(.layer) { padding: 0.7rem 0; border-top: 1px solid var(--line); }
-  .sheet :global(.subtheme .layer:first-of-type) { border-top: 0; }
-  .sheet :global(.layer-head) { display: flex; align-items: center; gap: 0.8rem; cursor: pointer; }
-  .sheet :global(.layer-name) { flex: 1; min-width: 0; }
-  .sheet :global(.layer-name b) { display: block; font-weight: 600; font-size: 0.95rem; }
-  .sheet :global(.layer input[type='checkbox']) {
-    appearance: none;
-    -webkit-appearance: none;
-    flex: none;
-    width: 42px;
-    height: 24px;
-    margin: 0;
-    border-radius: 12px;
-    background: var(--line);
-    position: relative;
-    cursor: pointer;
-    transition: background 0.18s;
-  }
-  .sheet :global(.layer input[type='checkbox'])::after {
-    content: '';
-    position: absolute;
-    top: 3px;
-    left: 3px;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: var(--ink);
-    transition: transform 0.18s;
-  }
-  .sheet :global(.layer input[type='checkbox']:checked) { background: var(--accent); }
-  .sheet :global(.layer input[type='checkbox']:checked)::after { transform: translateX(18px); background: var(--bg); }
-  .sheet :global(.layer input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .sheet :global(.layer-more) { display: none; margin-top: 0.7rem; }
-  .sheet :global(.layer.on .layer-more) { display: block; }
-  .sheet :global(.layer input[type='range']) { width: 100%; accent-color: var(--accent); margin: 0 0 0.5rem; }
   .sheet :global(.legend) { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.3rem; font-size: 0.8rem; }
   .sheet :global(.legend i) {
     display: inline-block;
@@ -1530,20 +1573,7 @@ const config = {
   .map :global(.maplibregl-ctrl-attrib a) { color: var(--ink-dim); }
   .map :global(.maplibregl-ctrl-attrib-button) { filter: invert(1); background-color: transparent; }
   .map :global(.maplibregl-ctrl-top-right) { top: var(--safe-t); }
-  /* Wider screens: the layers drop down from their pill in the top left, the
-     legend below the pill (and below the list, while it is open), and the
-     column keeps only what the pill does not do. */
-  @media (min-width: 48rem) {
-    #layers-btn { display: none; }
-    .legend { top: calc(var(--safe-t) + 1rem + 46px + 0.6rem); }
-    .sheet.sheet-narrow {
-      top: calc(var(--safe-t) + 1rem + 46px + 0.5rem);
-      max-height: calc(100dvh - var(--safe-t) - 2rem - 46px - 0.5rem);
-      animation-name: drop-down;
-    }
-    .sheet.sheet-narrow .sheet-close { display: none; }
-    @keyframes drop-down { from { transform: translateY(-8px); opacity: 0; } }
-  }
+  @keyframes drop-down { from { transform: translateY(-8px); opacity: 0; } }
 </style>
 
 <script>
@@ -1557,6 +1587,7 @@ const config = {
   import { lens, whenDrawn, snapOpacity, fadeOpacity, FADE } from './lib/lens';
   import { network, type NetConfig } from './lib/network';
   import { explore } from './lib/explore';
+  import { web } from './lib/web';
   import { confirmLeave } from '../shared/lib/leave';
   import { headingOf as compassHeading, requestCompass, hasCompassApi, needsTap, ORIENTATION_EVENTS } from '../shared/lib/compass';
 
@@ -1659,7 +1690,9 @@ const config = {
   // ---- Layers --------------------------------------------------------------
   /** A layer's colour in one dot: the strongest end of a ramp, the first of
    *  a list of categories. */
-  /** The map the network has laid over its focus, if any (see the network). */
+  /** The map in the network's middle, and the one it has laid over it, if
+   *  any (see the network). Here, as the legend reads them. */
+  let netFocus: string | undefined;
   let netOverlay: string | undefined;
   const swatch = (l: Layer) => (l.kind === 'categories' ? l.legend[0] : l.legend.at(-1))?.colour ?? 'var(--ink)';
   // ?layers=a,b opens the map with those layers on -- how a post's "Explore
@@ -1738,7 +1771,6 @@ const config = {
     // lens has its own way through the layers, and the two clash.
     onToggle: (on) => {
       main.classList.toggle('lens-open', on);
-      if (on && sheetFor === 'layers') closeSheet();
       renderLegend();
       hereAgain();
     },
@@ -2092,6 +2124,8 @@ const config = {
     },
   });
   legendBody.addEventListener('click', (e) => {
+    const off = (e.target as HTMLElement).closest<HTMLElement>('[data-off]');
+    if (off) return setLayer(off.dataset.off!, false);
     const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-series]');
     if (!btn) return;
     years.toggle(btn.dataset.series!);
@@ -2124,9 +2158,19 @@ const config = {
         // those are for the map.
         const lensOnly = l.id === lensId && !state.get(l.id)!.on;
         const s = !lensOnly && years.of(l.id);
-        const name = s
-          ? `<div class="lg-name"><b>${esc(l.name)}</b><button class="lg-time" type="button" data-series="${esc(l.id)}" aria-pressed="${now?.series === s}">Through time</button></div>`
-          : `<b>${esc(l.name)}</b>`;
+        // Off from here: the one place a layer is switched off, now the search
+        // only puts them on. Not in the lens, nor with the network out, which
+        // choose their own.
+        const off =
+          lensOnly || netFocus || netOverlay
+            ? ''
+            : `<button class="lg-off" type="button" data-off="${esc(l.id)}" aria-label="Turn off ${esc(l.name)}" title="Turn off">` +
+              `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17" /></svg></button>`;
+        const name =
+          `<div class="lg-name"><b>${esc(l.name)}</b>` +
+          (s ? `<button class="lg-time" type="button" data-series="${esc(l.id)}" aria-pressed="${now?.series === s}">Through time</button>` : '') +
+          off +
+          `</div>`;
         return `<div>${lensOnly ? '<span class="lg-where">In the lens</span>' : ''}${name}` + (l.about ? `<p>${esc(l.about)}</p>` : '') + body + `</div>`;
       })
       .join('');
@@ -2171,10 +2215,6 @@ const config = {
   const main = el.parentElement!;
   const sheet = document.getElementById('sheet')!;
   const body = document.getElementById('sheet-body')!;
-  const layersBtn = document.getElementById('layers-btn');
-  const layersPill = document.getElementById('layers-pill');
-  const layersToggle = document.getElementById('layers-toggle');
-  const layersSearch = document.getElementById('layers-search') as HTMLInputElement | null;
   let sheetFor: string | null = null;
   let activePin: HTMLElement | null = null;
 
@@ -2187,13 +2227,9 @@ const config = {
     sheet.scrollTop = 0;
     // The Bear's is a picture with its words laid over, not a card.
     sheet.classList.toggle('sheet-hero', key === 'bear');
-    sheet.classList.toggle('sheet-narrow', key === 'layers');
     // Once it has its size.
     requestAnimationFrame(placeLegend);
     main.classList.add('sheet-open');
-    layersBtn?.setAttribute('aria-expanded', String(key === 'layers'));
-    layersPill?.classList.toggle('open', key === 'layers');
-    layersToggle?.setAttribute('aria-expanded', String(key === 'layers'));
   };
   const closeSheet = () => {
     sheet.hidden = true;
@@ -2201,9 +2237,6 @@ const config = {
     sheetFor = null;
     activePin?.classList.remove('on');
     activePin = null;
-    layersBtn?.setAttribute('aria-expanded', 'false');
-    layersPill?.classList.remove('open');
-    layersToggle?.setAttribute('aria-expanded', 'false');
     placeLegend();
     // Following you: with the sheet gone, back to the middle of the screen.
     if (following) recentre();
@@ -2273,7 +2306,6 @@ const config = {
   // search stay, and a map switched on there becomes the one in the middle.
   // The map in the middle, and the one laid over it; the slider's opacity
   // for that one, and each overlay's own, to go back to once it is taken off.
-  let netFocus: string | undefined;
   let netFade = 0.7;
   const netKept = new Map<string, number>();
   const netOwnOpacity = (id: string) => {
@@ -2290,8 +2322,21 @@ const config = {
   // through to others, rather than the layers from before coming back.
   let netKeep = false;
   const lensBtn = document.getElementById('lens-btn')!;
+  // Which view the network is on; its start card, when the landing has it
+  // under its search row, taken home again when that ends.
+  let netView: 'start' | 'ring' | 'mini' = 'start';
+  const netRoot = document.getElementById('net')!;
+  const cardHome = () => {
+    if (net.startCard.parentElement !== netRoot) netRoot.prepend(net.startCard);
+  };
   const net = network({
-    root: document.getElementById('net')!,
+    root: netRoot,
+    // A map picked from the card on the landing: the landing gives way to
+    // the circle.
+    onView: (v) => {
+      netView = v;
+      if (v !== 'start' && net.startCard.parentElement !== netRoot) search.close();
+    },
     button: document.getElementById('net-btn')!,
     layers: config.layers,
     net: config.network,
@@ -2327,6 +2372,13 @@ const config = {
         years.close();
         netSaved = config.layers.filter((l) => state.get(l.id)!.on).map((l) => l.id);
         for (const id of netSaved) setLayer(id, false);
+      } else if (net.startCard.parentElement !== netRoot) {
+        // Closed from its card on the landing: back to the landing's row.
+        cardHome();
+        search.unchoose();
+        for (const id of [netFocus, netOverlay]) if (id) netOff(id);
+        netFocus = netOverlay = undefined;
+        for (const id of netSaved) setLayer(id, true);
       } else if (netKeep) {
         if (netOverlay) netOff(netOverlay);
         if (netFocus) netOwnOpacity(netFocus);
@@ -2370,7 +2422,52 @@ const config = {
     const t = config.themes.find((t) => t.id === l.theme);
     return [t?.name, t?.subthemes.find((s) => s.id === l.subtheme)?.name].filter(Boolean).join(' · ');
   };
-  explore({
+  // The web's card: every map round a circle, lines between those linked
+  // (web.ts). A map picked there starts the network from it.
+  const webCard = document.createElement('div');
+  webCard.className = 'net-start web-card';
+  webCard.setAttribute('role', 'dialog');
+  webCard.setAttribute('aria-labelledby', 'web-title');
+  webCard.innerHTML =
+    `<button class="net-start-close" type="button" aria-label="Close">` +
+    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg></button>` +
+    `<p class="eyebrow">How every map connects</p>` +
+    `<h2 id="web-title">One landscape, woven together</h2>` +
+    `<p>Every map, round one circle, with a line to each map it connects to. Point at one to see what it touches; pick one to start exploring from it.</p>`;
+  webCard.append(
+    web({
+      layers: config.layers,
+      net: config.network,
+      onPick: (id) => {
+        closeWeb();
+        net.enter();
+        net.focus(id);
+      },
+    }),
+  );
+  const webView = document.getElementById('web-view')!;
+  webView.append(webCard);
+  const openWeb = () => {
+    search.close();
+    webView.hidden = false;
+  };
+  /** Shut; `back` to the landing it was opened from. */
+  const closeWeb = (back = false) => {
+    if (webView.hidden) return;
+    webView.hidden = true;
+    if (back) search.open(true);
+  };
+  webCard.querySelector('.net-start-close')!.addEventListener('click', () => closeWeb(true));
+  // A tap on the dimmed map round it, or Escape: back to the landing.
+  webView.addEventListener('click', (e) => e.target === webView && closeWeb(true));
+  addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || webView.hidden) return;
+    // Handled: not on to the landing's own Escape, which would shut it again.
+    e.stopImmediatePropagation();
+    closeWeb(true);
+  });
+
+  const search = explore({
     root: document.getElementById('explore')!,
     layers: config.layers,
     names: config.network.names,
@@ -2378,9 +2475,49 @@ const config = {
     colourOf: (id) => roleColour.get(id) ?? 'var(--ink-dim)',
     whereOf,
     open: !layersAsked.size && ![...state.values()].some((s) => s.on),
-    onPick: (id) => setLayer(id, true),
-    onNetwork: () => document.getElementById('net-btn')!.click(),
-    onFilter: () => lensBtn.click(),
+    // With the network out, a map picked goes in the middle of its circle.
+    onPick: (id) => (net.active() ? net.focus(id) : setLayer(id, true)),
+    // The network's start card under the search row, the question and the
+    // row staying up so the other ways in are still there.
+    onNetwork: () => {
+      net.enter();
+      search.panel(net.startCard);
+    },
+    onWeb: () => openWeb(),
+    // The card let go -- back to the search, or the landing shut: the card
+    // home to the network's own layer, and the network off unless a map was
+    // picked from it (then it is in its circle, and stays).
+    onPanelGone: () => {
+      cardHome();
+      if (netView === 'start') net.off();
+    },
+  });
+  // The network's own button, with the network off: the same landing, the
+  // network chosen and its card under the row -- one place to start from,
+  // whichever button. Caught on the way down, before the network's own
+  // handler; with the network on, that handler turns it off as before.
+  document.querySelector('.map-side')!.addEventListener(
+    'click',
+    (e) => {
+      if (!(e.target as Element).closest('#net-btn') || net.active()) return;
+      e.stopPropagation();
+      if (!sheet.hidden) closeSheet();
+      search.open(true);
+      search.choose('network');
+    },
+    true,
+  );
+  document.getElementById('search-btn')!.addEventListener('click', () => {
+    if (!sheet.hidden) closeSheet();
+    net.collapse();
+    search.open(false);
+  });
+  // "/" to search, as on most sites with a search box.
+  document.addEventListener('keydown', (e) => {
+    const t = e.target as HTMLElement;
+    if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey || search.isOpen() || t.closest('input, textarea, [contenteditable]')) return;
+    e.preventDefault();
+    search.open(false);
   });
 
   const distanceLine = (lat: number, lng: number) =>
@@ -2453,217 +2590,8 @@ const config = {
     );
   });
 
-  // The pill is the same button, where a wider screen has it.
-  // Where there is room, the pill is the search: focus drops the list open,
-  // typing narrows it, Escape clears it and then folds the list away. The
-  // chevron opens and closes the list as the old pill did. (Handlers below.)
   // Home loses where you were on the map: asked first.
   confirmLeave(document.querySelector<HTMLAnchorElement>('#home'));
-  // ---- Layer search ----------------------------------------------------------
-  // Typing turns the grouped list into a ranked one: best match first, where
-  // a match in a layer's own name counts most, then its legend's classes
-  // ("hemlock" finds the BEC zones), its description, then its source. The
-  // headings it sits under are not searched: a word naming a whole group would
-  // bring in every layer under it and bury the ones that name it themselves.
-  const WEIGHTS = { name: 10, legend: 4, about: 3, source: 2 } as const;
-  type Field = keyof typeof WEIGHTS;
-  // Words, lower-cased and without accents.
-  const words = (s: string) =>
-    s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
-  // Letters to change to turn a into b, giving up past `max`.
-  function edits(a: string, b: string, max: number) {
-    if (Math.abs(a.length - b.length) > max) return max + 1;
-    let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
-    for (let i = 1; i <= a.length; i++) {
-      const row = [i];
-      for (let j = 1; j <= b.length; j++)
-        row[j] = Math.min(prev[j] + 1, row[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
-      prev = row;
-    }
-    return prev[b.length];
-  }
-  // How well a typed word matches one of a layer's: the whole word, the start
-  // of it, inside it, or -- where `slips` -- a slip of the finger (one letter
-  // off; two in a word of nine or more), whole or as the start. 0 is no match. Slips are
-  // only forgiven on words of five letters or more: shorter, and "frog" is one
-  // letter from "from".
-  function wordMatch(q: string, w: string, slips: boolean) {
-    if (w === q) return 1;
-    if (w.startsWith(q)) return 0.9;
-    if (q.length >= 3 && w.includes(q)) return 0.7;
-    if (slips && q.length >= 5) {
-      const max = q.length >= 9 ? 2 : 1;
-      if (Math.min(edits(q, w, max), edits(q, w.slice(0, q.length), max)) <= max) return 0.5;
-    }
-    return 0;
-  }
-  const searchIndex = config.layers.map((l) => {
-    const t = config.themes.find((t) => t.id === l.theme);
-    const s = t?.subthemes.find((s) => s.id === l.subtheme);
-    const where = [t?.name, s?.name].filter(Boolean).join(' · ');
-    const fields: Record<Field, string[]> = {
-      name: words(l.name),
-      legend: words(l.legend.map((k) => k.label).join(' ')),
-      about: words(l.about ?? ''),
-      source: words(l.source ?? ''),
-    };
-    return { l, where, fields };
-  });
-  // A layer's score for the typed words, or null if any word matches nothing.
-  function scoreLayer(entry: (typeof searchIndex)[number], qs: string[], phrase: string) {
-    let total = 0;
-    for (const q of qs) {
-      let best = 0;
-      for (const f of Object.keys(WEIGHTS) as Field[])
-        // Slips forgiven in names and classes only: across the descriptions'
-        // everyday words they find too much.
-        for (const w of entry.fields[f]) best = Math.max(best, wordMatch(q, w, f === 'name' || f === 'legend') * WEIGHTS[f]);
-      if (best === 0) return null;
-      total += best;
-    }
-    // The whole phrase at the start of the name beats the same words scattered.
-    if (words(entry.l.name).join(' ').startsWith(phrase)) total += 5;
-    return total;
-  }
-  // The typed words marked in a layer's name, where they appear in it as typed.
-  function markName(name: string, qs: string[]) {
-    const lower = name.toLowerCase();
-    const on = new Array<boolean>(name.length).fill(false);
-    for (const q of qs) for (let i = lower.indexOf(q); i >= 0; i = lower.indexOf(q, i + 1)) on.fill(true, i, i + q.length);
-    let html = '';
-    for (let i = 0; i < name.length; ) {
-      let j = i;
-      while (j < name.length && on[j] === on[i]) j++;
-      html += on[i] ? `<mark>${esc(name.slice(i, j))}</mark>` : esc(name.slice(i, j));
-      i = j;
-    }
-    return html;
-  }
-
-  // One row: the layer's name, a dim line under it (its source; in search
-  // results, where it sits), and its switch.
-  const layerRow = (l: Layer, found?: { where: string; qs: string[] }) => {
-    const s = state.get(l.id)!;
-    const under = found ? found.where : l.source;
-    return (
-      `<div class="layer${s.on ? ' on' : ''}" data-layer="${esc(l.id)}">` +
-      `<label class="layer-head"><span class="layer-name"><b>${found ? markName(l.name, found.qs) : esc(l.name)}</b>` +
-      (under ? `<span class="dim">${esc(under)}</span>` : '') +
-      `</span><input type="checkbox"${s.on ? ' checked' : ''} aria-label="Show ${esc(l.name)}"></label>` +
-      // Its key is in the legend on the map while it is on.
-      `<div class="layer-more"><input type="range" min="0.1" max="1" step="0.05" value="${s.opacity}" aria-label="${esc(l.name)} opacity"></div>` +
-      `</div>`
-    );
-  };
-  // Grouped by theme, then subtheme, in the order map/content/ecoscapes-themes.json
-  // lists them; a theme or subtheme with nothing on this map is left out.
-  const layersHtml = () =>
-    config.themes
-      .map((t) => ({
-        t,
-        subthemes: t.subthemes
-          .map((s) => ({ s, layers: config.layers.filter((l) => l.theme === t.id && l.subtheme === s.id) }))
-          .filter((g) => g.layers.length > 0),
-      }))
-      .filter((g) => g.subthemes.length > 0)
-      .map(
-        (g) =>
-          `<details class="theme-group" open><summary>${esc(g.t.name)}</summary>` +
-          g.subthemes
-            .map((sg) => `<div class="subtheme"><h3>${esc(sg.s.name)}</h3>${sg.layers.map((l) => layerRow(l)).join('')}</div>`)
-            .join('') +
-          `</details>`,
-      )
-      .join('');
-  // The ranked list for a search, best first; empty when nothing matches.
-  function resultsHtml(query: string) {
-    const qs = words(query);
-    const phrase = qs.join(' ');
-    const hits = searchIndex
-      .map((entry) => ({ entry, score: scoreLayer(entry, qs, phrase) }))
-      .filter((h): h is { entry: (typeof searchIndex)[number]; score: number } => h.score !== null)
-      .sort((a, b) => b.score - a.score || a.entry.l.name.localeCompare(b.entry.l.name));
-    if (!hits.length) return '';
-    return `<div class="subtheme">${hits.map((h) => layerRow(h.entry.l, { where: h.entry.where, qs })).join('')}</div>`;
-  }
-
-  // The pill's search is showing on a wider screen; a phone's is in the sheet.
-  const pillSearching = () => !!layersPill && getComputedStyle(layersPill).display !== 'none';
-  const openLayers = () => {
-    activePin?.classList.remove('on');
-    activePin = null;
-    const inSheet = !pillSearching();
-    openSheet(
-      'layers',
-      `<h2 id="sheet-title"${inSheet ? '' : ' class="sr"'}>Layers</h2>` +
-        (inSheet
-          ? `<input class="layer-search" type="search" placeholder="Search layers" aria-label="Search layers" value="${esc(layerQuery)}">`
-          : '') +
-        `<div class="layer-list"></div>` +
-        `<p class="dim layer-none" hidden>No layers match.</p>`,
-    );
-    renderLayerList();
-  };
-  layersBtn?.addEventListener('click', () => (sheetFor === 'layers' ? closeSheet() : openLayers()));
-  layersToggle?.addEventListener('click', () => (sheetFor === 'layers' ? closeSheet() : openLayers()));
-  layersSearch?.addEventListener('focus', () => sheetFor !== 'layers' && openLayers());
-  layersSearch?.addEventListener('input', () => {
-    layerQuery = layersSearch.value;
-    if (sheetFor !== 'layers') openLayers();
-    else renderLayerList();
-  });
-  layersSearch?.addEventListener('keydown', (e) => {
-    if (e.key !== 'Escape') return;
-    // The page's own Escape closes any sheet; this one takes it first.
-    e.preventDefault();
-    e.stopPropagation();
-    if (layersSearch.value) {
-      layersSearch.value = layerQuery = '';
-      if (sheetFor === 'layers') renderLayerList();
-    } else {
-      if (sheetFor === 'layers') closeSheet();
-      layersSearch.blur();
-    }
-  });
-  // "/" to search, as on most sites with a search box.
-  document.addEventListener('keydown', (e) => {
-    const t = e.target as HTMLElement;
-    if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey || !pillSearching() || t.closest('input, textarea, [contenteditable]')) return;
-    e.preventDefault();
-    layersSearch?.focus();
-  });
-  // Kept between openings of the sheet, so a search survives a look at the map.
-  let layerQuery = '';
-  // Written afresh from each layer's state, so a switch flipped in the results
-  // is already flipped when the search is cleared.
-  function renderLayerList() {
-    const list = body.querySelector<HTMLElement>('.layer-list');
-    const none = body.querySelector<HTMLElement>('.layer-none');
-    if (!list || !none) return;
-    const searching = words(layerQuery).length > 0;
-    list.innerHTML = searching ? resultsHtml(layerQuery) : layersHtml();
-    none.hidden = !searching || list.innerHTML !== '';
-  }
-  body.addEventListener('change', (e) => {
-    const input = e.target as HTMLInputElement;
-    const row = input.closest<HTMLElement>('[data-layer]');
-    if (!row || input.type !== 'checkbox') return;
-    // With the network out, a map switched on is the one it shows, in the
-    // middle of its circle (swap ticks the rows).
-    if (input.checked && net.active()) return net.focus(row.dataset.layer!);
-    row.classList.toggle('on', input.checked);
-    setLayer(row.dataset.layer!, input.checked);
-  });
-  body.addEventListener('input', (e) => {
-    const input = e.target as HTMLInputElement;
-    if (input.classList.contains('layer-search')) {
-      layerQuery = input.value;
-      return renderLayerList();
-    }
-    const row = input.closest<HTMLElement>('[data-layer]');
-    if (row && input.type === 'range') setOpacity(row.dataset.layer!, Number(input.value));
-  });
-
   // ---- Pins ----------------------------------------------------------------
   const pin = (label: string, kind: 'post' | 'callout') => {
     const b = document.createElement('button');

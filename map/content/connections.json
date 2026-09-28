@@ -1,17 +1,17 @@
 {
   "roles": {
     "life": {
-      "name": "Life",
+      "name": "Fellow Life",
       "colour": "#9fd36b",
       "layers": ["landcover-2022", "bec-zones", "habitat-suitability-2022", "ecosystem-services", "biodiversity-index", "biodiversity-categories", "occurrences-mammals", "occurrences-herptiles", "occurrences-vascular-plants", "habitat-grizzly-bear", "habitat-wolverine", "habitat-canada-lynx", "habitat-pacific-fisher", "habitat-black-bear-fall", "habitat-black-bear-summer", "habitat-hoary-marmot", "habitat-black-tailed-deer-a", "habitat-black-tailed-deer-b", "habitat-coyote", "habitat-douglas-squirrel", "habitat-yellow-pine-chipmunk", "habitat-beaver", "habitat-mink", "habitat-northern-red-legged-frog", "habitat-western-toad", "habitat-pacific-tree-frog", "habitat-ensatina-salamander", "habitat-northwestern-salamander", "habitat-long-toed-salamander", "habitat-northern-alligator-lizard", "habitat-garter-snake"]
     },
     "pressures": {
-      "name": "Pressures",
+      "name": "Pressured By",
       "colour": "#f0a060",
       "layers": ["human-footprint-40yr", "cumulative-impacts", "forest-change-40yr", "wildfire-hazards-current", "invasive-species", "riparian-area-change-40yr", "mesic-vegetation-change-40yr", "xeric-vegetation-change-40yr", "cdc-ecosystem-vulnerability"]
     },
     "protection": {
-      "name": "Protection",
+      "name": "Protected By",
       "colour": "#7ab8f0",
       "layers": ["connectivity-linkages", "habitat-cores", "habitat-permeability-2022", "protected-areas-cpcad", "protected-areas-iucn", "climate-refugia", "conservation-priorities", "ecosystem-resilience"]
     }
