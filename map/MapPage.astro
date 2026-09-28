@@ -647,7 +647,8 @@ const config = {
     display: flex;
     align-items: center;
     gap: 0.6rem;
-    max-width: calc(100vw - 2rem);
+    /* Clear of the control columns at either side. */
+    max-width: calc(100vw - 2 * (0.9rem + 46px + 0.5rem));
     padding: 0.35rem 0.4rem 0.35rem 0.9rem;
     border-radius: 999px;
     border: 1px solid var(--line);
@@ -673,6 +674,28 @@ const config = {
     cursor: pointer;
   }
   .net :global(.net-hide svg) { width: 16px; height: 16px; }
+
+  /* How clear the map laid over the focus is: placed by the script (under
+     the bar, or under the shrunk circle in the corner), gliding between. */
+  .net :global(.net-fade) {
+    position: absolute;
+    left: 0;
+    top: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.4rem 0.75rem;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: rgba(13, 18, 16, 0.88);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    pointer-events: auto;
+    transition: transform 0.65s cubic-bezier(0.4, 0, 0.2, 1), width 0.65s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .net :global(.net-fade .net-which) { flex: none; }
+  .net :global(.net-fade input) { flex: 1; min-width: 0; margin: 0; accent-color: var(--accent); }
+  .net[data-view='mini'] :global(.net-fade .net-which) { display: none; }
 
   /* Put away: the circle itself, shrunk into the top right corner, its
      words gone and only its colours left; tapped, it comes back. */
@@ -1511,6 +1534,8 @@ const config = {
   // ---- Layers --------------------------------------------------------------
   /** A layer's colour in one dot: the strongest end of a ramp, the first of
    *  a list of categories. */
+  /** The map the network has laid over its focus, if any (see the network). */
+  let netOverlay: string | undefined;
   const swatch = (l: Layer) => (l.kind === 'categories' ? l.legend[0] : l.legend.at(-1))?.colour ?? 'var(--ink)';
   // ?layers=a,b opens the map with those layers on -- how a post's "Explore
   // the map" lands on the corridors -- while plain /map/ opens with none but
@@ -1955,8 +1980,9 @@ const config = {
       .filter((l) => (state.get(l.id)?.on || l.id === lensId) && l.legend.length)
       .map((l) => (now?.series.layer === l.id ? { ...l, name: `${l.name}, ${now.year}`, about: now.series.about.replace('{year}', String(now.year)), legend: now.series.legend } : l))
       .reverse()
-      // The lens's layer first: it is drawn over everything, where it is.
-      .sort((a, b) => Number(b.id === lensId) - Number(a.id === lensId));
+      // The lens's layer first: it is drawn over everything, where it is; then
+      // a network overlay, moved to the top of the map's stack.
+      .sort((a, b) => Number(b.id === lensId) - Number(a.id === lensId) || Number(b.id === netOverlay) - Number(a.id === netOverlay));
     legendEl.hidden = on.length === 0;
     legendDots.innerHTML = on.map((l) => `<i style="background:${esc(swatch(l))}"></i>`).join('');
     legendBody.innerHTML = on
@@ -2120,7 +2146,20 @@ const config = {
   // Whatever was on is put away while it is out and back after. The lens
   // goes, having its own way through the layers; the layers list and its
   // search stay, and a map switched on there becomes the one in the middle.
-  let netShown: string | undefined;
+  // The map in the middle, and the one laid over it; the slider's opacity
+  // for that one, and each overlay's own, to go back to once it is taken off.
+  let netFocus: string | undefined;
+  let netFade = 0.7;
+  const netKept = new Map<string, number>();
+  const netOwnOpacity = (id: string) => {
+    if (!netKept.has(id)) return;
+    setOpacity(id, netKept.get(id)!);
+    netKept.delete(id);
+  };
+  const netOff = (id: string) => {
+    setLayer(id, false);
+    netOwnOpacity(id);
+  };
   let netSaved: string[] = [];
   const lensBtn = document.getElementById('lens-btn')!;
   const net = network({
@@ -2128,10 +2167,28 @@ const config = {
     button: document.getElementById('net-btn')!,
     layers: config.layers,
     net: config.network,
-    show: (id) => {
-      if (id === netShown) return;
-      swap(netShown, id);
-      netShown = id;
+    // The focus on, at its own opacity, and the overlay put on over it --
+    // moved to the top of the stack whatever its place in the list -- at the
+    // slider's. Whatever was on and is not now, off.
+    show: (focus, overlay) => {
+      const was = [netFocus, netOverlay];
+      netFocus = focus;
+      netOverlay = overlay;
+      for (const id of was) if (id && id !== focus && id !== overlay) netOff(id);
+      netOwnOpacity(focus);
+      if (!state.get(focus)!.on) setLayer(focus, true);
+      if (overlay) {
+        if (!netKept.has(overlay)) netKept.set(overlay, state.get(overlay)!.opacity);
+        setOpacity(overlay, netFade);
+        if (!state.get(overlay)!.on) setLayer(overlay, true);
+        if (map.getLayer(overlay)) map.moveLayer(overlay, firstRoad);
+      }
+      renderLegend();
+      hereAgain();
+    },
+    opacity: (v) => {
+      netFade = v;
+      if (netOverlay) setOpacity(netOverlay, v);
     },
     onToggle: (on) => {
       main.classList.toggle('net-on', on);
@@ -2143,8 +2200,8 @@ const config = {
         netSaved = config.layers.filter((l) => state.get(l.id)!.on).map((l) => l.id);
         for (const id of netSaved) setLayer(id, false);
       } else {
-        if (netShown) setLayer(netShown, false);
-        netShown = undefined;
+        for (const id of [netFocus, netOverlay]) if (id) netOff(id);
+        netFocus = netOverlay = undefined;
         for (const id of netSaved) setLayer(id, true);
       }
     },
@@ -2848,7 +2905,7 @@ const config = {
         .filter((l) => (state.get(l.id)!.on || l.id === lensId) && l.legend.length)
         .map((l) => (through?.series.layer === l.id ? { ...l, legend: through.series.legend } : l))
         .reverse()
-        .sort((a, b) => Number(b.id === lensId) - Number(a.id === lensId));
+        .sort((a, b) => Number(b.id === lensId) - Number(a.id === lensId) || Number(b.id === netOverlay) - Number(a.id === netOverlay));
       if (on.length) {
         const reads = await Promise.all(on.map((l) => pixel(l, at).catch(() => undefined)));
         on.forEach((l, i) => {
