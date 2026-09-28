@@ -470,8 +470,9 @@ const config = {
      the one in focus in each third; put away, small in the top corner. */
   .net { position: absolute; inset: 0; z-index: 3; pointer-events: none; display: grid; place-items: center; -webkit-user-select: none; user-select: none; }
   /* The layers list and its search stay: a map picked there goes in the
-     middle of the circle. The lens goes, having its own way through. */
-  .net-on #lens-btn, .net-on .nearby { display: none; }
+     middle of the circle. The lens stays too: it takes you out of the
+     network, the focus left on under it (see the network's wiring). */
+  .net-on .nearby { display: none; }
   #net-btn[aria-pressed='true'] { color: var(--accent); border-color: var(--accent); }
   .net :global(.net-start), .net :global(.net-ring) { pointer-events: auto; }
 
@@ -2161,6 +2162,9 @@ const config = {
     netOwnOpacity(id);
   };
   let netSaved: string[] = [];
+  // Out of the network by the lens: the focus stays on as the map, to look
+  // through to others, rather than the layers from before coming back.
+  let netKeep = false;
   const lensBtn = document.getElementById('lens-btn')!;
   const net = network({
     root: document.getElementById('net')!,
@@ -2199,6 +2203,12 @@ const config = {
         years.close();
         netSaved = config.layers.filter((l) => state.get(l.id)!.on).map((l) => l.id);
         for (const id of netSaved) setLayer(id, false);
+      } else if (netKeep) {
+        if (netOverlay) netOff(netOverlay);
+        if (netFocus) netOwnOpacity(netFocus);
+        netFocus = netOverlay = undefined;
+        netKeep = false;
+        renderLegend();
       } else {
         for (const id of [netFocus, netOverlay]) if (id) netOff(id);
         netFocus = netOverlay = undefined;
@@ -2206,6 +2216,18 @@ const config = {
       }
     },
   });
+  // The lens, pressed while the network is out: out of the network first,
+  // the focus kept -- on the capture phase, before the lens's own click opens
+  // it over that map.
+  lensBtn.addEventListener(
+    'click',
+    () => {
+      if (!net.active()) return;
+      netKeep = true;
+      net.off();
+    },
+    true,
+  );
   // A hand on the map puts the circle away, to see the map it is about.
   map.on('dragstart', net.collapse);
   map.on('zoomstart', (e) => e.originalEvent && net.collapse());
