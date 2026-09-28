@@ -9,6 +9,7 @@ import { asset, tile } from '../shared/lib/paths';
 import portalLayers from './content/ecoscapes-layers.json';
 import portalThemes from './content/ecoscapes-themes.json';
 import connections from './content/connections.json';
+import timeseries from './content/timeseries.json';
 
 /** The map: the Sea-to-Sky, where you are on it, every layer of the map
  *  portal over it, and pins for the posts and the things worth noticing. The
@@ -80,6 +81,16 @@ const lensGroups = [
   if (unknown.length) throw new Error(`connections.json: no such layer ${unknown.join(', ')}`);
 }
 
+// The layers that have a year-by-year counterpart (timeseries.json): every
+// year from the first to the last, each its own file.
+const series = timeseries.map((t) => {
+  if (!layers.some((l) => l.id === t.layer)) throw new Error(`timeseries.json: no such layer ${t.layer}`);
+  const [first, last] = t.years;
+  // Without a legend of its own, the years are keyed as the layer is.
+  const legend = 'legend' in t ? t.legend : layers.find((l) => l.id === t.layer)!.legend;
+  return { ...t, legend, resampling: t.resampling as 'nearest' | 'linear', src: tile(t.src), years: Array.from({ length: last - first + 1 }, (_, i) => first + i) };
+});
+
 // Everything the script needs, with every path already through asset() so the
 // map works under a GitHub Pages project path as well as at a root.
 const config = {
@@ -93,6 +104,7 @@ const config = {
   themes,
   lensGroups,
   network: connections,
+  series,
   callouts: data.callouts.map((c) => ({ ...c, image: c.image ? asset(c.image) : undefined })),
   posts,
   // Opened in the sheet, like a story, rather than as a full-screen animal
@@ -187,6 +199,22 @@ const config = {
       </button>
       <div class="legend-body" id="legend-body"></div>
     </aside>
+
+    <!-- A layer through time: the years of the one switched to them from its
+         legend entry, to move through or play. -->
+    <div class="ts-bar" id="ts-bar" hidden>
+      <button class="ts-play" type="button" aria-pressed="false" aria-label="Play the years">
+        <svg class="ts-go" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z" /></svg>
+        <svg class="ts-wait" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5.5h3.5v13H7zM13.5 5.5H17v13h-3.5z" /></svg>
+      </button>
+      <div class="ts-mid">
+        <div class="ts-head"><span class="ts-name"></span><b class="ts-year"></b></div>
+        <input class="ts-slider" type="range" min="0" max="0" step="1" value="0" aria-label="Year" />
+      </div>
+      <button class="ts-close" type="button" aria-label="Back to the one map">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+      </button>
+    </div>
 
     <!-- The page's controls, in a column in the far corner as on the story
          pages. -->
@@ -441,7 +469,9 @@ const config = {
      A circle over the middle of the map, cut in three, the maps linked to
      the one in focus in each third; put away, small in the top corner. */
   .net { position: absolute; inset: 0; z-index: 3; pointer-events: none; display: grid; place-items: center; -webkit-user-select: none; user-select: none; }
-  .net-on .layers-pill, .net-on #layers-btn, .net-on #lens-btn, .net-on .nearby { display: none; }
+  /* The layers list and its search stay: a map picked there goes in the
+     middle of the circle. The lens goes, having its own way through. */
+  .net-on #lens-btn, .net-on .nearby { display: none; }
   #net-btn[aria-pressed='true'] { color: var(--accent); border-color: var(--accent); }
   .net :global(.net-start), .net :global(.net-ring) { pointer-events: auto; }
 
@@ -532,8 +562,8 @@ const config = {
     stroke-linejoin: round;
     paint-order: stroke;
   }
-  .net :global(.net-arc [data-step]) { pointer-events: auto; cursor: pointer; }
-  .net :global(.net-arc [data-step]:hover) { fill: var(--ink); }
+  /* Taps on it are found by the script (network.ts, stepAt), not the browser. */
+  .net :global(.net-arc .lit) { fill: var(--ink); }
   .net :global(.net-arc .here) { fill: var(--ink); font-weight: 700; cursor: default; }
 
   /* Room above for the trail round its rim. */
@@ -792,6 +822,73 @@ const config = {
   .legend-body :global(.lg-cats) { display: grid; gap: 0.35rem; margin-top: 0.15rem; }
   .legend-body :global(.lg-one) { display: flex; align-items: center; gap: 0.45rem; font-size: 0.74rem; }
   .legend-body :global(.lg-one i) { width: 12px; height: 12px; border-radius: 3px; flex: none; }
+  /* A layer with years: its name and, beside it, the switch to them. */
+  .legend-body :global(.lg-name) { display: flex; align-items: center; gap: 0.5rem; }
+  /* A layer that is only in the lens. */
+  .legend-body :global(.lg-where) { display: block; margin-bottom: 0.1rem; font-size: 0.6rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); }
+  .legend-body :global(.lg-time) {
+    appearance: none;
+    -webkit-appearance: none;
+    margin-left: auto;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: none;
+    color: var(--ink-dim);
+    font: inherit;
+    font-size: 0.68rem;
+    cursor: pointer;
+  }
+  .legend-body :global(.lg-time[aria-pressed='true']) { border-color: var(--accent); color: var(--accent); }
+
+  /* The years: along the foot of the map, clear of the columns either side. */
+  .ts-bar {
+    position: absolute;
+    z-index: 4;
+    left: 50%;
+    bottom: calc(1rem + var(--foot));
+    transform: translateX(-50%);
+    width: min(30rem, calc(100% - 2 * (0.9rem + 46px + 0.6rem)));
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.45rem 0.5rem;
+    border-radius: 16px;
+    border: 1px solid var(--line);
+    background: rgba(13, 18, 16, 0.9);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+  .ts-bar[hidden] { display: none; }
+  .ts-mid { flex: 1; min-width: 0; }
+  .ts-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; font-size: 0.74rem; color: var(--ink-dim); }
+  .ts-year { font-size: 1rem; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; transition: opacity 0.12s; }
+  /* The thumb gone on ahead of the map: the year dimmed until it lands. */
+  .ts-pending .ts-year { opacity: 0.45; }
+  .ts-slider { width: 100%; margin: 0.2rem 0 0; accent-color: var(--accent); }
+  .ts-play,
+  .ts-close {
+    appearance: none;
+    -webkit-appearance: none;
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+    background: none;
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .ts-close { width: 30px; height: 30px; border: 0; color: var(--ink-dim); }
+  .ts-play svg { width: 18px; height: 18px; }
+  .ts-close svg { width: 16px; height: 16px; }
+  .ts-play[aria-pressed='true'] { border-color: var(--accent); color: var(--accent); }
+  .ts-play .ts-wait,
+  .ts-play[aria-pressed='true'] .ts-go { display: none; }
+  .ts-play[aria-pressed='true'] .ts-wait { display: block; }
+
   /* One icon a mode. Lit while following; the icon alone stays lit when a
      drag has paused it, so the mode it will resume is still shown. */
   #locate svg { display: none; }
@@ -1352,6 +1449,7 @@ const config = {
     themes: Theme[];
     lensGroups: { id: string; name: string; layers: string[] }[];
     network: NetConfig;
+    series: Series[];
     callouts: Callout[];
     posts: Post[];
     bear: { title: string; body: string; image?: string };
@@ -1491,6 +1589,14 @@ const config = {
     onToggle: (on) => {
       main.classList.toggle('lens-open', on);
       if (on && sheetFor === 'layers') closeSheet();
+      renderLegend();
+      hereAgain();
+    },
+    // What is in the lens is being looked at too: in the legend, and named
+    // by where-you-are.
+    onShown: () => {
+      renderLegend();
+      hereAgain();
     },
     mainTop: () => stack.find((l) => state.get(l.id)!.on)?.id,
     mainSwap: (off, on) => swap(off, on),
@@ -1543,6 +1649,256 @@ const config = {
     hereAgain();
   };
 
+  // ---- Through time --------------------------------------------------------
+  /** A layer's years: the same map made once a year, one file each
+   *  (map/tools/build-series.py). `src` has `{year}` where the year goes. */
+  type Series = {
+    /** The layer on the map it is the counterpart of. */
+    layer: string;
+    name: string;
+    src: string;
+    years: number[];
+    resampling: 'nearest' | 'linear';
+    legend: { colour: string; label: string }[];
+    /** The legend's line for a year, `{year}` where the year goes. */
+    about: string;
+  };
+
+  /** How long the year slider must rest before the map follows it to a year
+   *  whose tiles are not in yet: dragged fast, the years between are not
+   *  fetched one by one. A year already loaded is shown at once. */
+  const YEAR_REST = 160;
+  /** How long one year takes to fade into the next, in ms: short, so the
+   *  picture keeps up with the slider rather than trailing it. */
+  const YEAR_FADE = 120;
+  /** Playing: the least time a year stays up, in ms. A year whose tiles are
+   *  slow to come stays up longer -- the next one is only faded in once drawn. */
+  const YEAR_STEP = 900;
+
+  /** A layer seen through time: switched on from its legend entry, its one map
+   *  swapped for a year of its series, and a bar along the foot of the map to
+   *  move through the years, or play them.
+   *
+   *  Like the lens it holds three years at most: the one showing and the one
+   *  either side, those two drawn clear so their tiles are already in when the
+   *  slider moves on to them. A new year comes in over the old once its tiles
+   *  are drawn -- at once for those, a quick fade -- and the old goes under
+   *  it: never a blank. The year's name, legend and where-you-are change with
+   *  the picture, not before it; the slider's thumb follows the finger, the
+   *  year dimmed until the map has caught up.
+   *
+   *  The years sit in the stack where the layer's own map does, under it, and
+   *  that map is hidden while they show. The page tells it when layers change
+   *  (`sync`) and when a layer's opacity does (`opacity`). */
+  function timeSeries(
+    map: maplibregl.Map,
+    opts: {
+      root: HTMLElement;
+      series: Series[];
+      abs: (p: string) => string;
+      /** The layer's own opacity, which its years follow. */
+      opacityOf: (layer: string) => number;
+      /** Told when a series starts or stops, and each time the year moves;
+       *  when it stops, whether it was closed by hand or its layer went. */
+      onChange: (ended?: 'closed' | 'dropped') => void;
+    },
+  ) {
+    const { root, series, abs, opacityOf, onChange } = opts;
+    const slider = root.querySelector<HTMLInputElement>('.ts-slider')!;
+    const yearEl = root.querySelector<HTMLElement>('.ts-year')!;
+    const nameEl = root.querySelector<HTMLElement>('.ts-name')!;
+    const play = root.querySelector<HTMLButtonElement>('.ts-play')!;
+    const close = root.querySelector<HTMLButtonElement>('.ts-close')!;
+
+    let active: Series | null = null;
+    let index = 0;
+    let shown: number | undefined;
+    /** Years fading out under the one that replaced them, kept until gone. */
+    const leaving = new Set<number>();
+    let playing = false;
+    let playTimer = 0;
+    let restTimer = 0;
+
+    const idOf = (s: Series, year: number) => `${s.layer}@${year}`;
+    const year = () => active!.years[index];
+    const fade = (id: string, opacity: number) => {
+      map.setPaintProperty(id, 'raster-opacity-transition', { duration: YEAR_FADE, delay: 0 });
+      map.setPaintProperty(id, 'raster-opacity', opacity);
+    };
+    /** A year's tiles all in for the view: it can be shown now. */
+    const ready = (id: string) => !!map.getLayer(id) && map.isSourceLoaded(id);
+
+    /** The three it should hold, the rest let go; then the year showing faded
+     *  in, if it is not already. */
+    const load = (done?: () => void) => {
+      const s = active;
+      if (!s || !map.getLayer(s.layer)) return;
+      const want = s.years[index];
+      const keep = new Set([index - 1, index, index + 1].filter((i) => i >= 0 && i < s.years.length).map((i) => s.years[i]));
+      if (shown !== undefined) keep.add(shown);
+      for (const y of leaving) keep.add(y);
+      for (const y of s.years) {
+        const id = idOf(s, y);
+        const there = !!map.getLayer(id);
+        if (keep.has(y) && !there) {
+          map.addSource(id, { type: 'raster', url: `pmtiles://${abs(s.src.replace('{year}', String(y)))}`, tileSize: 256 });
+          map.addLayer(
+            { id, type: 'raster', source: id, paint: { 'raster-opacity': 0, 'raster-resampling': s.resampling, 'raster-fade-duration': 0 } },
+            s.layer,
+          );
+        } else if (!keep.has(y) && there) {
+          map.removeLayer(id);
+          map.removeSource(id);
+        }
+      }
+      if (want === shown) return done?.();
+      const on = idOf(s, want);
+      const land = () => {
+        // Moved on again, or put away, before its tiles were in.
+        if (active !== s || s.years[index] !== want) return;
+        fade(on, opacityOf(s.layer));
+        if (shown !== undefined) {
+          // Taken down only once the new one is over it, so nothing shows
+          // through between them.
+          const old = shown;
+          leaving.add(old);
+          setTimeout(() => {
+            leaving.delete(old);
+            if (active !== s || old === shown) return;
+            if (map.getLayer(idOf(s, old))) snapOpacity(map, idOf(s, old), 0);
+            load();
+          }, YEAR_FADE);
+        } else {
+          // The first year: the layer's own map faded out under it.
+          fadeOpacity(map, s.layer, 0);
+        }
+        shown = want;
+        landed();
+        load();
+        done?.();
+      };
+      if (ready(on)) land();
+      else whenDrawn(map, land);
+    };
+
+    /** The thumb where the year is going, the year dimmed till it is there. */
+    const aim = () => {
+      slider.value = String(index);
+      slider.setAttribute('aria-valuetext', String(year()));
+      root.classList.toggle('ts-pending', year() !== shown);
+    };
+    /** ...and the year's words, once the map shows it. */
+    const landed = () => {
+      yearEl.textContent = String(shown);
+      root.classList.toggle('ts-pending', year() !== shown);
+      onChange();
+    };
+
+    const stopPlaying = () => {
+      playing = false;
+      clearTimeout(playTimer);
+      play.setAttribute('aria-pressed', 'false');
+      play.setAttribute('aria-label', 'Play the years');
+    };
+    const tick = () => {
+      if (!playing || !active) return;
+      const started = performance.now();
+      index = index + 1 >= active.years.length ? 0 : index + 1;
+      aim();
+      load(() => {
+        playTimer = window.setTimeout(tick, Math.max(0, YEAR_STEP - (performance.now() - started)));
+      });
+    };
+
+    const start = (s: Series) => {
+      if (active) stop('closed');
+      active = s;
+      index = s.years.length - 1;
+      shown = undefined;
+      slider.min = '0';
+      slider.max = String(s.years.length - 1);
+      root.hidden = false;
+      nameEl.textContent = s.name;
+      yearEl.textContent = String(year());
+      aim();
+      onChange();
+      load();
+    };
+
+    function stop(why: 'closed' | 'dropped') {
+      const s = active;
+      if (!s) return;
+      stopPlaying();
+      clearTimeout(restTimer);
+      active = null;
+      shown = undefined;
+      leaving.clear();
+      root.hidden = true;
+      // The layer's own map back first, the years taken away under it after.
+      if (map.getLayer(s.layer)) fadeOpacity(map, s.layer, opacityOf(s.layer));
+      setTimeout(() => {
+        for (const y of s.years) {
+          const id = idOf(s, y);
+          if (active === s) return;
+          if (map.getLayer(id)) {
+            map.removeLayer(id);
+            map.removeSource(id);
+          }
+        }
+      }, FADE);
+      onChange(why);
+    }
+
+    slider.addEventListener('input', () => {
+      if (!active) return;
+      stopPlaying();
+      index = Number(slider.value);
+      aim();
+      clearTimeout(restTimer);
+      // A year already in (the one either side, usually) straight away.
+      if (ready(idOf(active, year()))) load();
+      else restTimer = window.setTimeout(() => load(), YEAR_REST);
+    });
+    play.addEventListener('click', () => {
+      if (!active) return;
+      if (playing) return stopPlaying();
+      playing = true;
+      play.setAttribute('aria-pressed', 'true');
+      play.setAttribute('aria-label', 'Pause');
+      // From the start again if it was left on the last year.
+      if (index === active.years.length - 1) index = -1;
+      tick();
+    });
+    close.addEventListener('click', () => stop('closed'));
+
+    return {
+      /** The series for a layer, if it has one. */
+      of: (layer: string) => series.find((s) => s.layer === layer),
+      /** Put away, as by its close button. */
+      close: () => active && stop('closed'),
+      /** The series showing, and the year the map shows (the one it is going
+       *  to, before the first has landed). */
+      active: () => (active ? { series: active, year: shown ?? year() } : null),
+      toggle(layer: string) {
+        if (active?.layer === layer) return stop('closed');
+        const s = series.find((x) => x.layer === layer);
+        if (s) start(s);
+      },
+      /** Called when the page's layers change: a series whose layer has been
+       *  switched off goes with it. */
+      sync(isOn: (layer: string) => boolean) {
+        if (active && !isOn(active.layer)) stop('dropped');
+      },
+      /** The layer's opacity changed: its year follows, and its own map stays
+       *  hidden under it. */
+      opacity(layer: string) {
+        if (active?.layer !== layer) return;
+        if (map.getLayer(layer)) snapOpacity(map, layer, 0);
+        if (shown !== undefined && map.getLayer(idOf(active, shown))) snapOpacity(map, idOf(active, shown), opacityOf(layer));
+      },
+    };
+  }
+
   // ---- The legend ----------------------------------------------------------
   // Every layer that is on, top of the stack first: its name, a line saying
   // what it is, and its key -- a ramp, lowest class first, for classes or a
@@ -1552,8 +1908,55 @@ const config = {
   const legendBody = document.getElementById('legend-body')!;
   const legendToggle = document.getElementById('legend-toggle')!;
   const legendDots = document.getElementById('legend-dots')!;
+  // A layer with years: switched to them from its legend entry, and its
+  // entry then names the year and keys the years' classes.
+  // Looked at through time, a layer is looked at alone: the others that were
+  // on are put away while its years show, and back when the bar is closed --
+  // those still off by then, not ones switched off or on in the meantime.
+  // When the layer itself is taken off some other way (the network moving
+  // on, the lens's rim, the list), what replaced it stays as it is.
+  let alone: string | null = null;
+  let putAway: string[] = [];
+  const tickRow = (id: string, on: boolean) => {
+    const row = document.querySelector<HTMLElement>(`#sheet-body [data-layer="${id}"]`);
+    if (!row) return;
+    row.classList.toggle('on', on);
+    row.querySelector<HTMLInputElement>('input[type="checkbox"]')!.checked = on;
+  };
+  const years = timeSeries(map, {
+    root: document.getElementById('ts-bar')!,
+    series: config.series,
+    abs,
+    opacityOf: (id) => state.get(id)!.opacity,
+    onChange: (ended) => {
+      const now = years.active()?.series.layer ?? null;
+      if (now !== alone) {
+        const back = ended === 'dropped' ? [] : putAway.filter((id) => !state.get(id)!.on);
+        alone = now;
+        putAway = now ? config.layers.filter((l) => l.id !== now && state.get(l.id)!.on).map((l) => l.id) : [];
+        for (const id of putAway) (setLayer(id, false), tickRow(id, false));
+        if (!now) for (const id of back) (setLayer(id, true), tickRow(id, true));
+      }
+      renderLegend();
+      hereAgain();
+    },
+  });
+  legendBody.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-series]');
+    if (!btn) return;
+    years.toggle(btn.dataset.series!);
+    legendBody.querySelector<HTMLElement>(`[data-series="${btn.dataset.series}"]`)?.focus();
+  });
   function renderLegend() {
-    const on = config.layers.filter((l) => state.get(l.id)?.on && l.legend.length).reverse();
+    years.sync((id) => state.get(id)?.on === true);
+    const now = years.active();
+    const lensId = lensUi?.showing();
+    const on = config.layers
+      .filter((l) => (state.get(l.id)?.on || l.id === lensId) && l.legend.length)
+      .map((l) => (now?.series.layer === l.id ? { ...l, name: `${l.name}, ${now.year}`, about: now.series.about.replace('{year}', String(now.year)), legend: now.series.legend } : l))
+      .reverse()
+      // The lens's layer first: it is drawn over everything, where it is.
+      .sort((a, b) => Number(b.id === lensId) - Number(a.id === lensId));
     legendEl.hidden = on.length === 0;
     legendDots.innerHTML = on.map((l) => `<i style="background:${esc(swatch(l))}"></i>`).join('');
     legendBody.innerHTML = on
@@ -1566,7 +1969,14 @@ const config = {
               ? `<div class="lg-ramp">${key.map((k) => `<i style="background:${esc(k.colour)}" title="${esc(k.label)}"></i>`).join('')}</div>` +
                 `<div class="lg-ends"><span>${esc(key[0].label)}</span><span>${esc(key.at(-1)!.label)}</span></div>`
               : `<div class="lg-one"><i style="background:${esc(key[0].colour)}"></i>${esc(key[0].label)}</div>`;
-        return `<div><b>${esc(l.name)}</b>` + (l.about ? `<p>${esc(l.about)}</p>` : '') + body + `</div>`;
+        // Only in the lens, not on the map: said so, and no years for it --
+        // those are for the map.
+        const lensOnly = l.id === lensId && !state.get(l.id)!.on;
+        const s = !lensOnly && years.of(l.id);
+        const name = s
+          ? `<div class="lg-name"><b>${esc(l.name)}</b><button class="lg-time" type="button" data-series="${esc(l.id)}" aria-pressed="${now?.series === s}">Through time</button></div>`
+          : `<b>${esc(l.name)}</b>`;
+        return `<div>${lensOnly ? '<span class="lg-where">In the lens</span>' : ''}${name}` + (l.about ? `<p>${esc(l.about)}</p>` : '') + body + `</div>`;
       })
       .join('');
   }
@@ -1603,6 +2013,7 @@ const config = {
   const setOpacity = (id: string, opacity: number) => {
     state.get(id)!.opacity = opacity;
     if (map.getLayer(id)) map.setPaintProperty(id, 'raster-opacity', opacity);
+    years.opacity(id);
   };
 
   // ---- The sheet -----------------------------------------------------------
@@ -1706,8 +2117,9 @@ const config = {
 
   // ---- The network ---------------------------------------------------------
   // One map at a time, from a circle of what is linked to it (network.ts).
-  // Whatever was on is put away while it is out and back after; the lens and
-  // the layers list go too, each having its own way through the layers.
+  // Whatever was on is put away while it is out and back after. The lens
+  // goes, having its own way through the layers; the layers list and its
+  // search stay, and a map switched on there becomes the one in the middle.
   let netShown: string | undefined;
   let netSaved: string[] = [];
   const lensBtn = document.getElementById('lens-btn')!;
@@ -1726,6 +2138,8 @@ const config = {
       if (on) {
         if (lensBtn.getAttribute('aria-pressed') === 'true') lensBtn.click();
         if (!sheet.hidden) closeSheet();
+        // Through time closed first, so what it put away is back to be saved.
+        years.close();
         netSaved = config.layers.filter((l) => state.get(l.id)!.on).map((l) => l.id);
         for (const id of netSaved) setLayer(id, false);
       } else {
@@ -2007,6 +2421,9 @@ const config = {
     const input = e.target as HTMLInputElement;
     const row = input.closest<HTMLElement>('[data-layer]');
     if (!row || input.type !== 'checkbox') return;
+    // With the network out, a map switched on is the one it shows, in the
+    // middle of its circle (swap ticks the rows).
+    if (input.checked && net.active()) return net.focus(row.dataset.layer!);
     row.classList.toggle('on', input.checked);
     setLayer(row.dataset.layer!, input.checked);
   });
@@ -2345,7 +2762,16 @@ const config = {
   /** The layer's pixel at this point, [r, g, b, a], or null where it has
    *  nothing painted. */
   const pixel = async (layer: Layer, [lng, lat]: LngLat) => {
-    const pm = archives.get(layer.id)!;
+    // A layer being looked at through time reads the year showing.
+    const now = years.active();
+    const year = now?.series.layer === layer.id ? now.year : undefined;
+    const id = year ? `${layer.id}@${year}` : layer.id;
+    let pm = archives.get(id);
+    if (!pm) {
+      pm = new PMTiles(abs(now!.series.src.replace('{year}', String(year))));
+      protocol.add(pm);
+      archives.set(id, pm);
+    }
     const h = await pm.getHeader();
     if (lng < h.minLon || lng > h.maxLon || lat < h.minLat || lat > h.maxLat) return null;
     const z = h.maxZoom;
@@ -2355,13 +2781,13 @@ const config = {
     const x = Math.floor(fx);
     const y = Math.floor(fy);
     const key = `${z}/${x}/${y}`;
-    let tile = decoded.get(layer.id);
+    let tile = decoded.get(id);
     if (tile?.key !== key) {
       const res = await pm.getZxy(z, x, y);
       // No tile at all: nothing of the layer anywhere in that square.
       const mime = tileMime[h.tileType] ?? 'image/png';
       tile = res ? { key, ...(await decode(res.data, mime)) } : { key, pixels: new Uint8ClampedArray(), size: 0 };
-      decoded.set(layer.id, tile);
+      decoded.set(id, tile);
     }
     if (!tile.size) return null;
     const px = Math.min(tile.size - 1, Math.floor((fx - x) * tile.size));
@@ -2401,6 +2827,9 @@ const config = {
   let tag: maplibregl.Marker | null = null;
   let tagShown = false;
   let pendingKey: string | null = null;
+  // Set when what is being looked at changes -- a layer, the lens, the year --
+  // for the next reading: that is no walk across an edge, so taken at once.
+  let lookChanged = false;
   const keyOf = (hs: Here[]) => hs.map((h) => `${h.layer.id}=${h.value ?? ''}`).join();
 
   async function updateHere() {
@@ -2410,14 +2839,24 @@ const config = {
     if (at && inside(at)) {
       // Top of the stack first: the layer drawn over the others is the one
       // named first.
-      const on = config.layers.filter((l) => state.get(l.id)!.on && l.legend.length).reverse();
+      // Through time, a layer's classes are its years' (timeseries.json).
+      // And the lens's layer, while it is out: looked through, it is being
+      // looked at -- named first, as the legend puts it first.
+      const through = years.active();
+      const lensId = lensUi.showing();
+      const on = config.layers
+        .filter((l) => (state.get(l.id)!.on || l.id === lensId) && l.legend.length)
+        .map((l) => (through?.series.layer === l.id ? { ...l, legend: through.series.legend } : l))
+        .reverse()
+        .sort((a, b) => Number(b.id === lensId) - Number(a.id === lensId));
       if (on.length) {
         const reads = await Promise.all(on.map((l) => pixel(l, at).catch(() => undefined)));
         on.forEach((l, i) => {
           const px = reads[i];
-          // A read that failed keeps the answer it had.
+          // A read that failed keeps the answer it had -- unless what is
+          // looked at has just changed, when that answer may be another year's.
           if (px === undefined) {
-            const had = inLayers.find((h) => h.layer === l);
+            const had = !lookChanged && inLayers.find((h) => h.layer.id === l.id);
             if (had) now.push(had);
             return;
           }
@@ -2434,11 +2873,12 @@ const config = {
     // Walking along an edge, fixes a few metres apart land either side of it.
     // A change is only taken once two readings in a row agree -- except the
     // first answer, and a placed (?at) position, which only reads once.
-    if (changed && tagShown && !spoofing && pendingKey !== key) {
+    if (changed && tagShown && !spoofing && !lookChanged && pendingKey !== key) {
       pendingKey = key;
       return;
     }
     pendingKey = null;
+    lookChanged = false;
     inLayers = now;
 
     if (!at || !inLayers.length) {
@@ -2482,7 +2922,10 @@ const config = {
   }
   /** Asked again when the layers that are on change. After the script has
    *  run, so everything updateHere reads is set up. */
-  const hereAgain = () => queueMicrotask(() => here && updateHere());
+  const hereAgain = () => {
+    lookChanged = true;
+    queueMicrotask(() => here && updateHere());
+  };
 
   /** The card: what is under you. For a layer that is on, its class here and
    *  its key with that class marked, and the layer's own words if it has

@@ -347,9 +347,38 @@ export function network(opts: {
     const b = (e.target as HTMLElement).closest<HTMLElement>('button[data-step]');
     if (b) step(Number(b.dataset.step));
   });
-  arcEl.addEventListener('click', (e) => {
-    const t = (e.target as Element).closest('[data-step]');
-    if (t && view === 'ring') step(Number(t.getAttribute('data-step')));
+  /** The step of the trail under a point on the screen, if any. Worked out
+   *  from the letter there rather than left to the browser: Safari does not
+   *  hit-test text laid along a path, so a tap on it lands on what is under. */
+  const stepAt = (x: number, y: number) => {
+    const text = arcEl.querySelector<SVGTextElement>('text')!;
+    const m = text.getScreenCTM();
+    if (!m) return null;
+    const pt = new DOMPoint(x, y).matrixTransform(m.inverse());
+    const at = text.getCharNumAtPosition(pt as unknown as DOMPointInit & SVGPoint);
+    if (at < 0) return null;
+    let n = 0;
+    for (const t of arcText.querySelectorAll('tspan')) {
+      n += t.textContent!.length;
+      if (at < n) return t.hasAttribute('data-step') ? t : null;
+    }
+    return null;
+  };
+  ringEl.addEventListener('click', (e) => {
+    if (view !== 'ring') return;
+    const t = stepAt(e.clientX, e.clientY);
+    if (t) step(Number(t.getAttribute('data-step')));
+  });
+  // The hand, and the step lit, over a step that can be taken.
+  let lit: Element | null = null;
+  ringEl.addEventListener('pointermove', (e) => {
+    const t = view === 'ring' && e.pointerType === 'mouse' ? stepAt(e.clientX, e.clientY) : null;
+    const can = t && !t.classList.contains('here') ? t : null;
+    if (can === lit) return;
+    lit?.classList.remove('lit');
+    can?.classList.add('lit');
+    lit = can;
+    ringEl.style.cursor = can ? 'pointer' : '';
   });
   addEventListener('resize', () => {
     sizeArc();
@@ -420,5 +449,16 @@ export function network(opts: {
     else if (view === 'start' && trail.length) reopen();
   });
 
-  return { collapse, active: () => on, off: () => toggle(false) };
+  /** A map picked some other way -- the layers list or its search -- while
+   *  the network is out: put on as the one it shows and the circle redrawn
+   *  round it, left shrunk if it was. */
+  const focus = (id: string) => {
+    if (!on || !byId.has(id)) return;
+    trail = [...trail.filter((t) => t !== id), id];
+    showMap(id);
+    if (view !== 'mini') view = 'ring';
+    render(true);
+  };
+
+  return { collapse, focus, active: () => on, off: () => toggle(false) };
 }

@@ -85,6 +85,9 @@ export function lens(
     mainTop: () => string | undefined;
     /** Told when the lens is opened or closed. */
     onToggle: (open: boolean) => void;
+    /** Told when the layer showing in it changes, so the page's legend and
+     *  where-you-are can say what is being looked at. */
+    onShown: () => void;
     mainSwap: (off: string | undefined, on: string) => void;
   },
 ) {
@@ -160,6 +163,7 @@ export function lens(
       fadeOpacity(m, cur.id, cur.opacity);
       const old = shown;
       shown = cur.id;
+      opts.onShown();
       if (old && m.getLayer(old)) fadeOpacity(m, old, 0);
       // The old one let go once it has faded, if it is not a neighbour.
       setTimeout(load, FADE + 50);
@@ -495,5 +499,9 @@ export function lens(
     e.preventDefault();
   });
 
-  return { refresh: () => open && label() };
+  return {
+    refresh: () => open && label(),
+    /** The layer the lens is showing, while it is out. */
+    showing: () => (open && !tilted ? shown : undefined),
+  };
 }

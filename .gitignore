@@ -40,3 +40,6 @@ archive/
 # Murray's working sheet of links between the layers (a copy): read by
 # map/tools/scm-links.py, not published.
 map/tools/scm/*.xlsx
+
+# Python bytecode
+__pycache__/
