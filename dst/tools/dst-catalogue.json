@@ -87,15 +87,15 @@
   "labels": [
    {
     "value": 1,
-    "label": "Unlabelled (class 1)"
-   },
-   {
-    "value": 2,
     "label": "Water"
    },
    {
-    "value": 3,
+    "value": 2,
     "label": "Snow & ice"
+   },
+   {
+    "value": 3,
+    "label": "Barren"
    },
    {
     "value": 4,

@@ -186,6 +186,14 @@
         "label": "Water"
       },
       {
+        "colour": "#e6eef2",
+        "label": "Snow & Ice"
+      },
+      {
+        "colour": "#a89f8f",
+        "label": "Barren"
+      },
+      {
         "colour": "#72b5df",
         "label": "Freshwater Emergent Wetland"
       },
