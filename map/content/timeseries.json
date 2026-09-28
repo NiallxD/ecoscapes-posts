@@ -291,5 +291,186 @@
         "label": "Loss after fire"
       }
     ]
+  },
+  {
+    "layer": "riparian-area-change-40yr",
+    "name": "Freshwater wetland",
+    "about": "How likely the ground was to be freshwater wetland in {year}.",
+    "src": "/tiles/ecoscapes/freshwater-wetland/{year}.pmtiles",
+    "years": [
+      1984,
+      2024
+    ],
+    "resampling": "nearest",
+    "legend": [
+      {
+        "colour": "#ffffcc",
+        "label": "Less likely"
+      },
+      {
+        "colour": "#ffeda0",
+        "label": ""
+      },
+      {
+        "colour": "#fed976",
+        "label": ""
+      },
+      {
+        "colour": "#feb24c",
+        "label": ""
+      },
+      {
+        "colour": "#fd8d3c",
+        "label": ""
+      },
+      {
+        "colour": "#fc4e2a",
+        "label": ""
+      },
+      {
+        "colour": "#e31a1c",
+        "label": ""
+      },
+      {
+        "colour": "#bd0026",
+        "label": ""
+      },
+      {
+        "colour": "#800026",
+        "label": "More likely"
+      }
+    ]
+  },
+  {
+    "layer": "mesic-vegetation-change-40yr",
+    "name": "Mesic shrub",
+    "about": "How likely the ground was to be moist shrubland in {year}.",
+    "src": "/tiles/ecoscapes/mesic-shrub/{year}.pmtiles",
+    "years": [
+      1984,
+      2024
+    ],
+    "resampling": "nearest",
+    "legend": [
+      {
+        "colour": "#ffffcc",
+        "label": "Less likely"
+      },
+      {
+        "colour": "#ffeda0",
+        "label": ""
+      },
+      {
+        "colour": "#fed976",
+        "label": ""
+      },
+      {
+        "colour": "#feb24c",
+        "label": ""
+      },
+      {
+        "colour": "#fd8d3c",
+        "label": ""
+      },
+      {
+        "colour": "#fc4e2a",
+        "label": ""
+      },
+      {
+        "colour": "#e31a1c",
+        "label": ""
+      },
+      {
+        "colour": "#bd0026",
+        "label": ""
+      },
+      {
+        "colour": "#800026",
+        "label": "More likely"
+      }
+    ]
+  },
+  {
+    "layer": "xeric-vegetation-change-40yr",
+    "name": "Xeric shrub",
+    "about": "How likely the ground was to be dry shrubland in {year}.",
+    "src": "/tiles/ecoscapes/xeric-shrub/{year}.pmtiles",
+    "years": [
+      1984,
+      2024
+    ],
+    "resampling": "nearest",
+    "legend": [
+      {
+        "colour": "#ffffcc",
+        "label": "Less likely"
+      },
+      {
+        "colour": "#ffeda0",
+        "label": ""
+      },
+      {
+        "colour": "#fed976",
+        "label": ""
+      },
+      {
+        "colour": "#feb24c",
+        "label": ""
+      },
+      {
+        "colour": "#fd8d3c",
+        "label": ""
+      },
+      {
+        "colour": "#fc4e2a",
+        "label": ""
+      },
+      {
+        "colour": "#e31a1c",
+        "label": ""
+      },
+      {
+        "colour": "#bd0026",
+        "label": ""
+      },
+      {
+        "colour": "#800026",
+        "label": "More likely"
+      }
+    ]
+  },
+  {
+    "layer": "developed-land",
+    "name": "Developed land",
+    "about": "How likely the ground was to be built on or paved in {year}.",
+    "src": "/tiles/ecoscapes/developed/{year}.pmtiles",
+    "years": [
+      1984,
+      2024
+    ],
+    "resampling": "nearest"
+  },
+  {
+    "layer": "ecosystem-change",
+    "name": "Ecosystem change",
+    "about": "How much the land's ecosystems had changed by {year}.",
+    "src": "/tiles/ecoscapes/ecosystem-change/{year}.pmtiles",
+    "years": [
+      1995,
+      2022
+    ],
+    "resampling": "nearest"
+  },
+  {
+    "layer": "mean-annual-temperature",
+    "name": "Mean annual temperature",
+    "about": "The average temperature over a year, as a thirty-year norm, for {year}. Years still to come are projections.",
+    "src": "/tiles/ecoscapes/mean-annual-temperature/{year}.pmtiles",
+    "years": [
+      1990,
+      2100
+    ],
+    "step": 10,
+    "resampling": "nearest"
   }
 ]

@@ -84,6 +84,66 @@ layers:
     legend:
       - colour: '#70a800'
         label: Habitat core or patch
+  # TerrAdapt series with no map of the portal's own: each shows its latest
+  # year, and its years through Through time (timeseries.json).
+  - id: developed-land
+    name: Developed land
+    src: /tiles/ecoscapes/developed/2024.pmtiles
+    source: TerrAdapt-Cascadia
+    opacity: 0.8
+    kind: continuous
+    theme: 02-ecosystem-integrity
+    subtheme: 02-02-habitat-threats
+    about: How likely the ground is to be built on or paved, in 2024.
+    legend:
+      - { colour: '#ffffcc', label: Less likely }
+      - { colour: '#ffeda0', label: '' }
+      - { colour: '#fed976', label: '' }
+      - { colour: '#feb24c', label: '' }
+      - { colour: '#fd8d3c', label: '' }
+      - { colour: '#fc4e2a', label: '' }
+      - { colour: '#e31a1c', label: '' }
+      - { colour: '#bd0026', label: '' }
+      - { colour: '#800026', label: More likely }
+  # Draft: which end is loss is not confirmed -- for Murray to check.
+  - id: ecosystem-change
+    name: Ecosystem change
+    src: /tiles/ecoscapes/ecosystem-change/2022.pmtiles
+    source: TerrAdapt-Cascadia
+    opacity: 0.8
+    kind: continuous
+    theme: 01-biodiversity-conservation
+    subtheme: 01-02-ecosystem-risk
+    about: How much the land's ecosystems had changed by 2022.
+    legend:
+      - { colour: '#7f3b08', label: Decline }
+      - { colour: '#b35806', label: '' }
+      - { colour: '#e08214', label: '' }
+      - { colour: '#fdb863', label: '' }
+      - { colour: '#fee0b6', label: '' }
+      - { colour: '#f7f7f7', label: Little change }
+      - { colour: '#d8daeb', label: '' }
+      - { colour: '#b2abd2', label: '' }
+      - { colour: '#8073ac', label: '' }
+      - { colour: '#542788', label: '' }
+      - { colour: '#2d004b', label: Gain }
+  - id: mean-annual-temperature
+    name: Mean annual temperature
+    src: /tiles/ecoscapes/mean-annual-temperature/2020.pmtiles
+    source: TerrAdapt-Cascadia
+    opacity: 0.8
+    kind: continuous
+    theme: 04-climate-change-refugia
+    subtheme: 04-01-climate-refugia
+    about: The average temperature over a year, as a thirty-year norm, for 2020.
+    legend:
+      - { colour: '#042333', label: 0.6 °C }
+      - { colour: '#2c3395', label: '' }
+      - { colour: '#744992', label: '' }
+      - { colour: '#b15f82', label: '' }
+      - { colour: '#eb7958', label: '' }
+      - { colour: '#fbb43d', label: '' }
+      - { colour: '#e8fa5b', label: 11.6 °C }
 # Headings the layer list needs that the portal's own list does not have.
 subthemes:
   - theme: 05-connectivity-network

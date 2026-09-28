@@ -405,6 +405,9 @@ export function network(opts: {
     if (view !== 'ring') return;
     const t = stepAt(e.clientX, e.clientY);
     if (t) step(Number(t.getAttribute('data-step')));
+    // The ring's own empty room round the circle and its bar is the map, as
+    // far as a tap goes: put the circle away, as a tap on the map does.
+    else if (e.target === ringEl) collapse();
   });
   // The hand, and the step lit, over a step that can be taken.
   let lit: Element | null = null;
@@ -459,7 +462,9 @@ export function network(opts: {
     const host = root.getBoundingClientRect();
     const left = ring.left + discEl.offsetLeft;
     const top = ring.top + discEl.offsetTop;
-    discEl.style.setProperty('--mx', `${host.right - 12 - (left + discEl.offsetWidth)}px`);
+    // Clear of the control column where it runs to the top (a phone on its side).
+    const right = parseFloat(getComputedStyle(root).getPropertyValue('--mini-right')) || 12;
+    discEl.style.setProperty('--mx', `${host.right - right - (left + discEl.offsetWidth)}px`);
     discEl.style.setProperty('--my', `${host.top + 40 - top}px`);
     discEl.style.setProperty('--s', String(MINI));
   };

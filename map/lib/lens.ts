@@ -278,7 +278,7 @@ export function lens(
       if (!r) {
         const { clientWidth: w, clientHeight: h } = main.getContainer();
         // Roomier to begin with on a wider screen, where there is space for it.
-        const most = matchMedia('(min-width: 48rem)').matches ? 230 : 160;
+        const most = matchMedia('(min-width: 48rem) and (min-height: 30.01rem)').matches ? 230 : 160;
         r = Math.round(Math.min(most, Math.max(90, 0.3 * Math.min(w, h))));
         x = w / 2;
         y = h / 2;

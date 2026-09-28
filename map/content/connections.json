@@ -8,7 +8,7 @@
     "pressures": {
       "name": "Pressured By",
       "colour": "#f0a060",
-      "layers": ["human-footprint-40yr", "cumulative-impacts", "forest-change-40yr", "wildfire-hazards-current", "invasive-species", "riparian-area-change-40yr", "mesic-vegetation-change-40yr", "xeric-vegetation-change-40yr", "cdc-ecosystem-vulnerability"]
+      "layers": ["human-footprint-40yr", "cumulative-impacts", "forest-change-40yr", "wildfire-hazards-current", "invasive-species", "riparian-area-change-40yr", "mesic-vegetation-change-40yr", "xeric-vegetation-change-40yr", "cdc-ecosystem-vulnerability", "developed-land", "ecosystem-change", "mean-annual-temperature"]
     },
     "protection": {
       "name": "Protected By",
@@ -307,6 +307,21 @@
       "life": ["bec-zones", "biodiversity-categories", "occurrences-mammals", "occurrences-herptiles"],
       "pressures": [],
       "protection": ["habitat-permeability-2022", "habitat-cores", "protected-areas-iucn", "climate-refugia"]
+    },
+    "developed-land": {
+      "life": ["landcover-2022", "habitat-beaver"],
+      "pressures": ["human-footprint-40yr", "cumulative-impacts", "riparian-area-change-40yr"],
+      "protection": ["connectivity-linkages", "habitat-permeability-2022"]
+    },
+    "ecosystem-change": {
+      "life": ["landcover-2022", "biodiversity-index"],
+      "pressures": ["cumulative-impacts", "forest-change-40yr", "mean-annual-temperature"],
+      "protection": ["ecosystem-resilience"]
+    },
+    "mean-annual-temperature": {
+      "life": ["bec-zones"],
+      "pressures": ["wildfire-hazards-current", "xeric-vegetation-change-40yr"],
+      "protection": ["climate-refugia"]
     }
   }
 }

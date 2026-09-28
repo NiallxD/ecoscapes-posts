@@ -101,6 +101,8 @@ type Field = keyof typeof WEIGHT;
 
 export function explore(opts: {
   root: HTMLElement;
+  /** The EcoScapes logo, over the question. */
+  logo: string;
   layers: ExploreLayer[];
   /** Short names (connections.json) and everyday words (search-words.json). */
   names: Record<string, string>;
@@ -201,6 +203,7 @@ export function explore(opts: {
 
   root.innerHTML =
     `<div class="ex-card" role="dialog" aria-modal="true" aria-labelledby="ex-title">` +
+    `<img class="ex-logo" src="${esc(opts.logo)}" alt="EcoScapes" width="800" height="184" />` +
     // Read as the one question; seen, its first word turns (ASKS).
     `<h2 id="ex-title"><span class="ex-sr">What do you want to explore?</span>` +
     // The word's slot as wide as the widest of them (each laid in it unseen),
@@ -217,15 +220,15 @@ export function explore(opts: {
     `</div>` +
     // Each opens out, with its words, over the search's room as it is
     // pointed at (see the row's data-wide, below).
-    `<button class="step ex-mode" type="button" data-mode="network" aria-label="Explore by connections">` +
+    `<button class="step ex-mode" type="button" data-mode="network" aria-label="Map Network">` +
     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="3" /><circle cx="12" cy="3.8" r="2" /><circle cx="19.1" cy="16.1" r="2" /><circle cx="4.9" cy="16.1" r="2" /><path d="M12 9V5.8M14.6 13.5l2.8 1.6M9.4 13.5l-2.8 1.6" /></svg>` +
-    `<span class="ex-label" aria-hidden="true">Explore by connections</span></button>` +
-    `<button class="step ex-mode" type="button" data-mode="time" aria-label="Explore through time">` +
+    `<span class="ex-label" aria-hidden="true">Map Network</span></button>` +
+    `<button class="step ex-mode" type="button" data-mode="time" aria-label="Through Time">` +
     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13.5" r="7.5" /><path d="M12 13.5V9.5M10 2.5h4M12 2.5v3.5M18.2 6.8l1.3-1.3" /></svg>` +
-    `<span class="ex-label" aria-hidden="true">Explore through time</span></button>` +
-    `<button class="step ex-mode" type="button" data-mode="web" aria-label="See how every map connects">` +
+    `<span class="ex-label" aria-hidden="true">Through Time</span></button>` +
+    `<button class="step ex-mode" type="button" data-mode="web" aria-label="The Web">` +
     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="8.5" /><path d="M12 3.5C11 9 7 13 4.6 16.3M19.4 16.3C16 14 10 13 4.6 16.3M12 3.5c1 5.5 4.5 9.5 7.4 12.8M3.6 11c5 .5 11.5.5 16.8 0" stroke-width="1.1" /></svg>` +
-    `<span class="ex-label" aria-hidden="true">See how every map connects</span></button>` +
+    `<span class="ex-label" aria-hidden="true">The Web</span></button>` +
     `</div>` +
     `<ul class="ex-results" id="ex-results" role="listbox" aria-label="Maps" hidden></ul>` +
     // What has been put on so far, to keep adding to, and Go to see it.

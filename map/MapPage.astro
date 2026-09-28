@@ -88,9 +88,10 @@ const lensGroups = [
 const series = timeseries.map((t) => {
   if (!layers.some((l) => l.id === t.layer)) throw new Error(`timeseries.json: no such layer ${t.layer}`);
   const [first, last] = t.years;
+  const step = 'step' in t ? t.step : 1;
   // Without a legend of its own, the years are keyed as the layer is.
   const legend = 'legend' in t ? t.legend : layers.find((l) => l.id === t.layer)!.legend;
-  return { ...t, legend, resampling: t.resampling as 'nearest' | 'linear', src: tile(t.src), years: Array.from({ length: last - first + 1 }, (_, i) => first + i) };
+  return { ...t, legend, resampling: t.resampling as 'nearest' | 'linear', src: tile(t.src), years: Array.from({ length: Math.floor((last - first) / step) + 1 }, (_, i) => first + i * step) };
 });
 
 // Everything the script needs, with every path already through asset() so the
@@ -103,6 +104,7 @@ const config = {
   terrain: tile('/tiles/terrain.pmtiles'),
   // The Earth at night, for Through time (map/tools/night-globe.py).
   globe: asset('/img/night-globe.webp'),
+  logo: asset('/img/ecoscapes-logo-white.png'),
   glyphs: asset('/tiles/fonts/{fontstack}/{range}.pbf'),
   layers,
   themes,
@@ -276,7 +278,7 @@ const config = {
 
     <!-- The page's controls, in a column in the far corner as on the story
          pages. -->
-    <div class="map-side">
+    <div class="map-side" id="map-side">
       <!-- Only with ?at in the address: arm it, then tap the map to be put
            there. For trying the map anywhere without going there. -->
       <button class="step place-me" id="place-me" type="button" aria-label="Put me here: tap, then tap the map" aria-pressed="false" hidden>
@@ -297,6 +299,13 @@ const config = {
       <!-- Flat, or tilted over the ground's own shape. The tilt slides out of
            the button while 3D is on: a mouse's way to it (a right-drag also
            tilts). Not on a touch screen, where two fingers do it. -->
+      <!-- A phone on its side has no room for all three down the column:
+           one button, opening them out in a row to its left. -->
+      <div class="way-modes" id="way-modes">
+      <button class="step way-modes-btn" id="modes-btn" type="button" aria-expanded="false" aria-controls="way-modes-row" aria-label="Ways to explore" title="Ways to explore">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5" /><path d="M15.2 8.8l-1.9 4.5-4.5 1.9 1.9-4.5z" /></svg>
+      </button>
+      <div class="way-modes-row" id="way-modes-row">
       <button class="step way" id="net-btn" type="button" aria-pressed="false" aria-label="Network" title="Network: the maps linked to one map">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
           <circle cx="12" cy="12" r="3" /><circle cx="12" cy="3.8" r="2" /><circle cx="19.1" cy="16.1" r="2" /><circle cx="4.9" cy="16.1" r="2" />
@@ -312,6 +321,8 @@ const config = {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="8.5" /><path d="M12 3.5C11 9 7 13 4.6 16.3M19.4 16.3C16 14 10 13 4.6 16.3M12 3.5c1 5.5 4.5 9.5 7.4 12.8M3.6 11c5 .5 11.5.5 16.8 0" stroke-width="1.1" /></svg>
         <span class="way-label" aria-hidden="true">Web</span>
       </button>
+      </div>
+      </div>
       </div>
       <!-- The lens that turned through every layer: put by for now (lens.ts
            is still wired, just not offered). Its circle lives on as the
@@ -350,10 +361,27 @@ const config = {
         </svg>
         <span class="way-label" aria-hidden="true">Locate</span>
       </button>
+      <!-- Saving the map as a picture, as the Data Sandbox does: the whole
+           area with its key, or the view. Not on a phone. -->
+      <div class="pop-wrap save-wrap" id="save-wrap">
+        <div class="pop-menu" id="save-menu" hidden>
+          <button type="button" data-save="full">Full map<small>The whole area, with its key</small></button>
+          <button type="button" data-save="view">This view<small>The map as it is on screen</small></button>
+        </div>
+        <button class="step way" id="save-btn" type="button" aria-expanded="false" aria-controls="save-menu" aria-label="Save the map" title="Save the map as a picture">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M5 19.5h14" /></svg>
+          <span class="way-label" aria-hidden="true">Save</span>
+        </button>
+      </div>
       <a class="step way" id="home" href={asset('/')} aria-label="All the posts">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5L12 4l8 6.5V19a1 1 0 01-1 1h-4.5v-5.5h-5V20H5a1 1 0 01-1-1z" /></svg>
         <span class="way-label" aria-hidden="true">Home</span>
       </a>
+      <!-- A phone's, in Home's place: folds the column away but for the
+           search, and back. -->
+      <button class="step side-fold" id="side-fold" type="button" aria-expanded="true" aria-controls="map-side" aria-label="Hide the controls" title="Hide the controls">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9.5l6 6 6-6" /></svg>
+      </button>
     </div>
 
     <!-- One sheet for everything that opens over the map: a pin, the layers,
@@ -593,6 +621,15 @@ const config = {
   /* Centred: the turning first word's slot is always as wide as the widest
      (see .ex-ask), so the line is one width whatever the word, and "do you
      want to explore?" stays put. */
+  .explore :global(.ex-logo) { justify-self: center; width: clamp(9rem, 24vw, 13rem); height: auto; }
+  /* A phone on its side: the logo, the question and the row closer
+     together and higher, so what a search finds has room under them. */
+  @media (max-height: 30rem) {
+    .explore { padding-top: calc(var(--safe-t) + 1rem); }
+    .explore :global(.ex-card) { gap: 0.7rem; }
+    .explore :global(.ex-logo) { width: 7.5rem; }
+    .explore :global(.ex-card #ex-title) { font-size: 1.6rem; }
+  }
   .explore :global(#ex-title) {
     font-size: clamp(1.8rem, 5.6vw, 2.8rem);
     font-weight: 600;
@@ -802,7 +839,9 @@ const config = {
     text-align: center;
     text-shadow: 0 1px 8px rgba(0, 0, 0, 0.7);
   }
-  .web-view :global(.web-card > p), .web-view :global(.web-card > h2) { max-width: 36rem; padding-right: 0; }
+  .web-view :global(.web-card > p) { max-width: 36rem; padding-right: 0; }
+  /* Clear of the × either side, as Through time's. */
+  .web-view :global(.web-card > h2) { max-width: 36rem; padding-inline: 2.4rem; }
   .web-view :global(.web-card .web) { justify-self: stretch; }
   .web-view :global(.web svg) { width: min(100%, calc(100dvh - 12rem)); margin: 0 auto; }
 
@@ -883,8 +922,8 @@ const config = {
   .explore :global(.ex-why) { font-size: 0.78rem; color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .explore :global(.ex-results [aria-selected='true']), .explore :global(.ex-results li[role='option']:hover) { background: rgba(255, 255, 255, 0.07); }
   .explore :global(.ex-near) { padding: 0.5rem 0.75rem 0.3rem; font-size: 0.8rem; color: var(--ink-dim); }
-  @media (max-width: 47.99rem) {
-    .explore :global(.ex-row) { --round: 50px; }
+  @media (max-width: 47.99rem), (max-height: 30rem) {
+    .explore :global(.ex-row) { --round: 50px; gap: 0.45rem; }
     .explore :global(.ex-label) { font-size: 0.95rem; }
     .explore :global(.ex-input), .explore :global(.ex-hint) { font-size: 1rem; }
   }
@@ -1138,10 +1177,21 @@ const config = {
   .cmp-bend:hover { border-color: var(--ink-dim); }
   .cmp-bend[aria-pressed='true'] { background: var(--accent); border-color: var(--accent); color: var(--bg); }
   .cmp-bend[hidden], .cmp-hint[hidden] { display: none; }
-  .cmp-hint { flex: 1; min-width: 0; font-size: 0.72rem; line-height: 1.3; color: var(--ink-dim); }
-  /* A phone: the legend has the foot, so the bar sits over it. */
-  @media (max-width: 47.99rem) {
-    .cmp-bar { bottom: calc(1rem + var(--foot) + 3.6rem); width: calc(100% - 1.5rem); }
+  /* Two lines' room whichever shows, so the bar keeps its height. */
+  .cmp-hint { flex: 1; min-width: 0; min-height: calc(2 * 1.3 * 0.72rem); display: flex; align-items: center; font-size: 0.72rem; line-height: 1.3; color: var(--ink-dim); }
+  .cmp-opacity { height: calc(2 * 1.3 * 0.72rem); }
+  /* A phone: between the Legend and Bear pills and the control column, as
+     the years bar is; too narrow for the modes and the slider side by side,
+     so the slider goes under them. */
+  @media (max-width: 30rem) {
+    .cmp-row { flex-wrap: wrap; justify-content: center; row-gap: 0.45rem; gap: 0.45rem; }
+    /* Slim enough for Swipe's bend button to sit beside them. */
+    .cmp-modes button { padding: 0.35rem 0.55rem; }
+    .cmp-opacity, .cmp-hint { flex-basis: 100%; }
+  }
+  @media (max-width: 22.5rem) {
+    .cmp-bar { padding-inline: 0.4rem; }
+    .cmp-modes button { padding: 0.35rem 0.45rem; font-size: 0.74rem; }
   }
 
   /* ---- The web over the map ------------------------------------------------
@@ -1149,7 +1199,7 @@ const config = {
      it showing under it, and put away -- by a hand on the map, or its own
      button -- shrunk into the corner, where resting on it or a tap opens it. */
   .webmap { position: absolute; inset: 0; z-index: 3; pointer-events: none; display: grid; place-items: center; -webkit-user-select: none; user-select: none; }
-  @media (min-width: 48rem) {
+  @media (min-width: 48rem) and (min-height: 30.01rem) {
     /* Clear of the control column down the right. */
     .webmap { place-items: start end; padding: calc(var(--safe-t) + 40px) calc(0.9rem + 46px + 0.8rem) 0 0; }
   }
@@ -1242,7 +1292,8 @@ const config = {
     text-align: center;
     text-shadow: 0 1px 8px rgba(0, 0, 0, 0.7);
   }
-  .time-view :global(.tv-head h2) { margin: 0; font-size: clamp(1.4rem, 3.6vw, 1.9rem); font-weight: 600; letter-spacing: -0.01em; }
+  /* Clear of the × either side, so a phone's narrow line doesn't run under it. */
+  .time-view :global(.tv-head h2) { margin: 0; padding-inline: 2.4rem; font-size: clamp(1.4rem, 3.6vw, 1.9rem); font-weight: 600; letter-spacing: -0.01em; }
   .time-view :global(.tv-head p:not(.eyebrow)) { margin: 0; color: var(--ink-dim); font-size: 0.95rem; line-height: 1.5; }
   /* Space: black behind the globe and its stars. */
   .time-view { background: radial-gradient(ellipse 90% 70% at 50% 110%, rgba(14, 20, 34, 0.9), rgba(2, 3, 5, 0.94) 70%); }
@@ -1305,6 +1356,11 @@ const config = {
   .time-view :global(.tv-all:hover) { border-color: var(--accent); color: var(--accent); }
   .time-view :global(.tv-list) { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5rem; animation: net-in 0.22s ease-out; }
   .time-view :global(.tv-list[hidden]) { display: none; }
+  /* On a phone the whole list is taller than the room under the words:
+     it scrolls there rather than running up over them. */
+  @media (max-width: 47.99rem), (max-height: 30rem) {
+    .time-view :global(.tv-list) { max-height: calc(100dvh - var(--safe-t) - 21rem); overflow-y: auto; overscroll-behavior: contain; }
+  }
   .time-view :global(.tv-chip) { background: rgba(13, 18, 16, 0.94); }
   .time-view :global(.tv-chip em) { font-style: normal; font-size: 0.72rem; color: var(--ink-dim); }
   .time-view :global(.tv-orb) { transition: filter 0.25s; }
@@ -1356,7 +1412,7 @@ const config = {
   #net.intro :global(.net-disc) { margin-top: 0; }
   .net :global(.net-intro), .net :global(.net-intro-starts), .net :global(.net-intro-close) { display: none; }
   #net.intro :global(.net-intro) { position: relative; display: grid; gap: 0.5rem; width: min(52rem, calc(100vw - 2rem)); text-align: center; text-shadow: 0 1px 8px rgba(0, 0, 0, 0.7); pointer-events: auto; }
-  #net.intro :global(.net-intro h2) { margin: 0; font-size: clamp(1.4rem, 3.6vw, 1.9rem); font-weight: 600; letter-spacing: -0.01em; }
+  #net.intro :global(.net-intro h2) { margin: 0; padding-inline: 2.4rem; font-size: clamp(1.4rem, 3.6vw, 1.9rem); font-weight: 600; letter-spacing: -0.01em; }
   #net.intro :global(.net-intro p:not(.eyebrow)) { margin: 0; color: var(--ink-dim); font-size: 0.95rem; line-height: 1.5; }
   #net.intro :global(.net-intro-starts) { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 0.5rem; max-width: 40rem; pointer-events: auto; }
   #net.intro :global(.net-intro-starts .eyebrow) { flex-basis: 100%; text-align: center; margin: 0; }
@@ -1367,11 +1423,37 @@ const config = {
      A circle over the middle of the map, cut in three, the maps linked to
      the one in focus in each third; put away, small in the top corner. */
   .net { position: absolute; inset: 0; z-index: 3; pointer-events: none; display: grid; place-items: center; -webkit-user-select: none; user-select: none; }
+  /* A phone: at the top, clear of the legend and the bars at the foot. */
+  @media (max-width: 47.99rem), (max-height: 30rem) {
+    #net:not(.intro) { place-items: start center; padding-top: calc(var(--safe-t) + 3.2rem); }
+  }
+  /* A phone on its side: too short for the circle sized for the height
+     less the rest; the trail over it and the map's name under it take
+     less room here. */
+  @media (max-height: 30rem) {
+    #net:not(.intro) :global(.net-ring) {
+      --d: min(34rem, calc(100vw - 1.25rem), calc(100dvh - var(--safe-t) - 3.2rem));
+      grid-template-columns: auto auto;
+      align-items: center;
+      column-gap: 1rem;
+    }
+    #net:not(.intro) { place-items: center start; padding: 0 0 0 calc(0.9rem + 46px + 1rem); }
+    /* What is on the map, at the top beside the circle, out of the map's way. */
+    #net:not(.intro) :global(.net-ring:not(.mini) .net-bar) { align-self: start; margin-top: 0.4rem; }
+    /* The wheel open, it and what is on the map beside it, and nothing
+       more: the compare bar (which "On the map" already names) and the
+       tag over your dot wait till it is tucked away. */
+    .map-page:has(#net:not([hidden]) .net-ring:not(.mini)) :is(.cmp-bar, .cmp),
+    .map-page:has(#net:not([hidden]) .net-ring:not(.mini)) :global(.here-tag) { display: none; }
+    /* The intro's example wheel has no room: its words and start maps do. */
+    #net.intro :global(.net-ring) { display: none; }
+    #net:not(.intro) :global(.net-set .net-chip) { font-size: 0.7rem; padding: 0.22rem 0.5rem; }
+  }
   /* Out, the circle sits in the top right, under the attribution button,
      where it shrinks to when put away -- so it goes in place, not across
      the map. The start card stays in the middle. On a phone the circle is
      the width of the screen, and centred is the same place. */
-  @media (min-width: 48rem) {
+  @media (min-width: 48rem) and (min-height: 30.01rem) {
     .net:not([data-view='start']) { place-items: start end; padding: calc(var(--safe-t) + 40px - 0.8rem) calc(0.9rem + 46px + 0.8rem) 0 0; }
     /* Room at the side for the trail's words round the rim. */
     .net:not([data-view='start']) :global(.net-ring) { margin-right: calc(var(--d) * 0.05); }
@@ -1629,12 +1711,107 @@ const config = {
     gap: 0.6rem;
   }
   .map-page :global(.animal-btn) { bottom: calc(1rem + var(--foot)); }
+  .side-fold { display: none; }
+  /* Where a shrunk wheel (the network's, the web's) sits from the right:
+     here, clear of the control column that runs to the top. */
+  @media (max-height: 30rem) { :global(:root) { --mini-right: 76px; } }
+  /* Elsewhere the three ways sit in the column as they are. */
+  .way-modes, .way-modes-row { display: contents; }
+  .way-modes-btn { display: none; }
+  /* A phone on its side: the column is taller than the screen, so it goes
+     into a second column, and every way stays a circle. */
+  @media (max-height: 30rem) {
+    .map-side {
+      display: flex;
+      flex-flow: column wrap-reverse;
+      align-content: flex-start;
+      max-height: calc(100dvh - var(--safe-t) - 2rem - var(--foot));
+      column-gap: 0.6rem;
+    }
+    .ways { display: contents; }
+    .map-side .way.wide .way-label { max-height: 0; opacity: 0; }
+    /* One column still: a little smaller and closer. */
+    .map-side { row-gap: 0.4rem; }
+    .map-side .step { width: 44px; height: 44px; }
+    .map-side .way { min-height: 44px; padding: 11px 0; }
+    /* The network, through time and the web behind one button, opening
+       out in a row to its left. */
+    .way-modes { position: relative; display: block; }
+    .way-modes-btn { display: grid; }
+    .way-modes-row {
+      position: absolute;
+      top: 0;
+      right: calc(100% + 0.5rem);
+      display: none;
+      flex-direction: row-reverse;
+      gap: 0.5rem;
+    }
+    .way-modes.open .way-modes-row { display: flex; animation: modes-out 0.2s ease-out; }
+    .way-modes.open .way-modes-btn, .way-modes-btn.on { border-color: var(--accent); color: var(--accent); }
+  }
+  @keyframes modes-out { from { opacity: 0; transform: translateX(8px); } }
+  .side-fold svg { transition: transform 0.25s ease; }
+  .side-fold[aria-expanded='false'] svg { transform: rotate(180deg); }
+  @media (max-width: 47.99rem), (max-height: 30rem) {
+    #home { display: none; }
+    .side-fold { display: grid; }
+    /* Folded: the search and the chevron only. */
+    .map-side.folded > :not(.ways, .side-fold), .map-side.folded .ways > :not(#search-btn) { display: none; }
+    .map-side:not(.folded) > *, .map-side:not(.folded) .ways > * { animation: side-in 0.2s ease-out; }
+  }
+  @keyframes side-in { from { opacity: 0; transform: translateY(6px); } }
   /* A phone's sheet covers the foot of the screen, controls and all: they go
      rather than show through it. */
-  @media (max-width: 47.99rem) {
+  @media (max-width: 47.99rem), (max-height: 30rem) {
     .map-side, .map-page :global(.animal-btn), .legend { transition: opacity 0.18s; }
     .sheet-open .map-side, .sheet-open :global(.animal-btn), .sheet-open .legend { opacity: 0; pointer-events: none; }
+    /* Nor through the landing's dim, where they ran into its own row. */
+    .map-page:has(.land-dim[data-level]) .map-side { opacity: 0; pointer-events: none; }
+    /* Nor over the network's or the web's wheel, which is the screen's
+       width here: a hand on the map tucks it into the corner, and they are
+       back. */
+    .map-page:has(#net:not([hidden]) .net-ring:not(.mini)) .map-side,
+    .map-page.wm-on:has(.wm-ring:not(.mini)) .map-side { opacity: 0; pointer-events: none; }
   }
+
+  /* Saving the map: its menu out to the left of the button. A computer's
+     only -- a phone has its own screenshot. */
+  .pop-wrap { position: relative; }
+  .pop-menu {
+    position: absolute;
+    z-index: 5;
+    right: calc(100% + 0.6rem);
+    bottom: 0;
+    width: 12.5rem;
+    display: grid;
+    gap: 0.15rem;
+    padding: 0.4rem;
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    background: rgba(13, 18, 16, 0.94);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+  .pop-menu[hidden] { display: none; }
+  .pop-menu > button {
+    appearance: none;
+    display: grid;
+    gap: 0.1rem;
+    padding: 0.45rem 0.6rem;
+    border-radius: 9px;
+    border: 0;
+    background: none;
+    color: var(--ink);
+    font: inherit;
+    font-size: 0.78rem;
+    text-align: left;
+    cursor: pointer;
+  }
+  .pop-menu > button small { color: var(--ink-dim); font-size: 0.68rem; }
+  .pop-menu > button:hover:not(:disabled) { background: var(--bg-lift); }
+  .pop-menu > button:disabled { opacity: 0.5; cursor: progress; }
+  #save-btn[aria-expanded='true'] { border-color: var(--accent); color: var(--accent); }
+  @media (max-width: 47.99rem), (max-height: 30rem), (hover: none) { .save-wrap { display: none; } }
 
   /* The legend: at the foot, between the Bear's pill and the controls. */
   .legend {
@@ -1652,7 +1829,7 @@ const config = {
   /* On a wider screen, top left, as wide as the layers panel, and moved down
      out from under whatever opens in that corner -- or faded out, when there
      is no room below it. */
-  @media (min-width: 48rem) {
+  @media (min-width: 48rem) and (min-height: 30.01rem) {
     .legend {
       left: 1rem;
       top: calc(var(--safe-t) + 1rem);
@@ -1666,7 +1843,7 @@ const config = {
   /* On a phone: a pill of its own, stood on the Bear's -- the same shape, its
      name up the side and the colours of what is on under it -- and opened,
      the key slides out to the right of it, clear of the controls. */
-  @media (max-width: 47.99rem) {
+  @media (max-width: 47.99rem), (max-height: 30rem) {
     .legend {
       left: 0.9rem;
       /* The Bear's pill is measured by the script into --pill-h. */
@@ -1709,9 +1886,28 @@ const config = {
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
       animation: legend-out 0.22s ease-out;
+      /* No taller than the room above the foot of the pill: a long key
+         scrolls in it. */
+      max-height: calc(100dvh - var(--safe-t) - 2.6rem - var(--foot) - var(--pill-h, 112px));
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+  }
+  /* A phone on its side: down to the foot, beside the Bear's pill too, for
+     the most room. */
+  @media (max-height: 30rem) {
+    .legend .legend-body {
+      bottom: calc(-1 * (var(--pill-h, 112px) + 0.6rem));
+      max-height: calc(100dvh - var(--safe-t) - 2rem - var(--foot));
     }
   }
   @keyframes legend-out { from { opacity: 0; transform: translateX(-12px); } }
+  /* A phone, the key open: it has each layer's opacity, so the bars at the
+     foot and the tag over your dot step aside for it till it is closed. */
+  @media (max-width: 47.99rem), (max-height: 30rem) {
+    .map-page:has(#legend-toggle[aria-expanded='true']) :is(.cmp-bar, .ts-bar),
+    .map-page:has(#legend-toggle[aria-expanded='true']) :global(.here-tag) { visibility: hidden; }
+  }
   .legend-head {
     appearance: none;
     -webkit-appearance: none;
@@ -1978,7 +2174,7 @@ const config = {
   @keyframes sheet-up { from { transform: translateY(24px); opacity: 0; } }
   /* A wider screen: a panel down the left quarter, clear of the controls, and
      the map still to be seen beside it. */
-  @media (min-width: 48rem) {
+  @media (min-width: 48rem) and (min-height: 30.01rem) {
     .sheet {
       left: 1rem;
       right: auto;
@@ -2023,7 +2219,7 @@ const config = {
     background: var(--bg-lift);
   }
   /* The layers are a list of switches: narrower than a story's panel. */
-  @media (min-width: 48rem) {
+  @media (min-width: 48rem) and (min-height: 30.01rem) {
   }
 
   /* The Bear: as its page is on the story -- the animal full bleed, a dark
@@ -2040,7 +2236,7 @@ const config = {
       radial-gradient(120% 70% at 50% 28%, rgba(127, 209, 166, 0.16), rgba(127, 209, 166, 0) 70%),
       var(--bg);
   }
-  @media (min-width: 48rem) {
+  @media (min-width: 48rem) and (min-height: 30.01rem) {
     .sheet.sheet-hero { height: auto; bottom: calc(1rem + var(--foot)); }
   }
   .sheet-hero .sheet-close {
@@ -2078,7 +2274,7 @@ const config = {
   }
   .sheet :global(.hero-copy h2) { font-size: clamp(1.9rem, 7vw, 2.4rem); line-height: 1.08; margin: 0.4rem 0 0.7rem; }
   .sheet :global(.hero-copy p:not(.eyebrow)) { margin: 0; font-size: 1rem; line-height: 1.55; }
-  @media (min-width: 48rem) {
+  @media (min-width: 48rem) and (min-height: 30.01rem) {
     .sheet :global(.hero-copy) { padding-bottom: 1.6rem; }
   }
   .sheet :global(.dim) { color: var(--ink-dim); font-size: 0.8rem; }
@@ -2338,6 +2534,7 @@ const config = {
     basemap: string;
     terrain: string;
     globe: string;
+    logo: string;
     glyphs: string;
     layers: Layer[];
     themes: Theme[];
@@ -2908,6 +3105,19 @@ const config = {
     const off = (e.target as HTMLElement).closest<HTMLElement>('[data-off]');
     if (off) return setLayer(off.dataset.off!, false);
   });
+  /** The layers the legend keys, top of the map first: a year's name, words
+   *  and key for a layer through time. */
+  function legendLayers() {
+    const now = years.active();
+    const lensId = lensUi?.showing();
+    return config.layers
+      .filter((l) => (state.get(l.id)?.on || l.id === lensId) && l.legend.length)
+      .map((l) => (now?.series.layer === l.id ? { ...l, name: `${l.name}, ${now.year}`, about: now.series.about.replace('{year}', String(now.year)), legend: now.series.legend } : l))
+      .reverse()
+      // The lens's layer first: it is drawn over everything, where it is; then
+      // a network overlay, moved to the top of the map's stack.
+      .sort((a, b) => Number(b.id === lensId) - Number(a.id === lensId) || Number(b.id === netOverlay) - Number(a.id === netOverlay));
+  }
   function renderLegend() {
     // Whenever what is on changes, so does whether there are two to compare.
     requestAnimationFrame(cmpUpdate);
@@ -2915,15 +3125,8 @@ const config = {
     // the finger mid-drag (a year landing redraws the legend).
     if (fadeHeld) return void (legendStale = true);
     years.sync((id) => state.get(id)?.on === true);
-    const now = years.active();
     const lensId = lensUi?.showing();
-    const on = config.layers
-      .filter((l) => (state.get(l.id)?.on || l.id === lensId) && l.legend.length)
-      .map((l) => (now?.series.layer === l.id ? { ...l, name: `${l.name}, ${now.year}`, about: now.series.about.replace('{year}', String(now.year)), legend: now.series.legend } : l))
-      .reverse()
-      // The lens's layer first: it is drawn over everything, where it is; then
-      // a network overlay, moved to the top of the map's stack.
-      .sort((a, b) => Number(b.id === lensId) - Number(a.id === lensId) || Number(b.id === netOverlay) - Number(a.id === netOverlay));
+    const on = legendLayers();
     legendEl.hidden = on.length === 0;
     legendDots.innerHTML = on.map((l) => `<i style="background:${esc(swatch(l))}"></i>`).join('');
     legendBody.innerHTML = on
@@ -2963,7 +3166,7 @@ const config = {
   /** On a wide screen the legend shares its corner with the sheet: moved to
    *  just below it while it is open, or faded out if it would not fit. */
   function placeLegend() {
-    const wide = matchMedia('(min-width: 48rem)').matches;
+    const wide = matchMedia('(min-width: 48rem) and (min-height: 30.01rem)').matches;
     if (!wide || sheet.hidden) {
       legendEl.style.removeProperty('--below');
       legendEl.classList.remove('tucked');
@@ -2983,7 +3186,7 @@ const config = {
   // Open on a wide screen; folded to its title on a phone.
   // Not placed yet: at this point the sheet is further down the script, and
   // shut in any case.
-  foldLegend(matchMedia('(min-width: 48rem)').matches, false);
+  foldLegend(matchMedia('(min-width: 48rem) and (min-height: 30.01rem)').matches, false);
   // On a phone the legend's pill stands on the Bear's, however tall that is.
   const bearPill = document.querySelector<HTMLElement>('.animal-btn');
   const measurePill = () => bearPill && legendEl.style.setProperty('--pill-h', `${bearPill.offsetHeight}px`);
@@ -3068,7 +3271,7 @@ const config = {
    *  the screen: above the sheet on a phone, right of the panel on a wide one. */
   const sheetOffset = (): [number, number] => {
     if (sheet.hidden) return [0, 0];
-    if (!matchMedia('(min-width: 48rem)').matches) return [0, -(el.clientHeight - sheet.offsetTop) / 2];
+    if (!matchMedia('(min-width: 48rem) and (min-height: 30.01rem)').matches) return [0, -(el.clientHeight - sheet.offsetTop) / 2];
     return [(sheet.offsetLeft + sheet.offsetWidth + 16) / 2, 0];
   };
   const recentre = (zoom?: number) => {
@@ -3506,7 +3709,8 @@ const config = {
     cmpBar.querySelector('[data-mode="swipe"]')!.textContent = cmpMulti ? 'Pizza' : 'Swipe';
     cmpRoot.classList.toggle('cmp-multi', !!cmpMulti);
     cmpBend.hidden = cmpMode !== 'swipe' || !!cmpMulti;
-    cmpHint.hidden = !(cmpMode === 'swipe' || (cmpMode === 'filter' && cmpMulti));
+    // A few words on how, or the slider: the bar the same height in each.
+    cmpHint.hidden = cmpMode === 'opacity';
     cmpBend.setAttribute('aria-pressed', String(!!swNodes));
     cmpBend.setAttribute('aria-label', swNodes ? 'Straighten the line again' : 'Bend the line');
     cmpBend.title = swNodes ? 'Reset: straighten the line again' : 'Bend the line: points to drag it by';
@@ -3515,7 +3719,9 @@ const config = {
       ? cmpMode === 'swipe'
         ? 'Drag the middle to size the slices'
         : 'Turn the rim for the next map'
-      : swNodes
+      : cmpMode === 'filter'
+        ? 'Drag the circle to move it · its handle to resize'
+        : swNodes
         ? 'Drag a point · tap the line to add one · double-click to remove'
         : 'Drag to slide · turn it from either end';
     const cut = (!!cmpPair || !!cmpMulti) && cmpMode !== 'opacity' && map.getPitch() === 0;
@@ -4227,7 +4433,8 @@ const config = {
   const wmCorner = () => {
     const ring = wmRing.getBoundingClientRect();
     const host = wmRoot.getBoundingClientRect();
-    wmDisc.style.setProperty('--mx', `${host.right - 12 - (ring.left + wmDisc.offsetLeft + wmDisc.offsetWidth)}px`);
+    const right = parseFloat(getComputedStyle(wmRoot).getPropertyValue('--mini-right')) || 12;
+    wmDisc.style.setProperty('--mx', `${host.right - right - (ring.left + wmDisc.offsetLeft + wmDisc.offsetWidth)}px`);
     wmDisc.style.setProperty('--my', `${host.top + 40 - (ring.top + wmDisc.offsetTop)}px`);
     wmDisc.style.setProperty('--s', '0.25');
   };
@@ -4298,7 +4505,12 @@ const config = {
     if (b?.id === 'three-d' && b.getAttribute('aria-pressed') === 'true') b = document.getElementById('search-btn');
     waysEl.querySelectorAll('.way').forEach((w) => w.classList.toggle('wide', w === b));
   };
-  waysEl.addEventListener('pointerover', (e) => (e as PointerEvent).pointerType === 'mouse' && widen((e.target as Element).closest('.way')));
+  // Over something in the column that isn't a way (the fold chevron, the
+  // tilt), search stays open.
+  waysEl.addEventListener(
+    'pointerover',
+    (e) => (e as PointerEvent).pointerType === 'mouse' && widen((e.target as Element).closest('.way') ?? document.getElementById('search-btn')),
+  );
   waysEl.addEventListener('pointerleave', () => widen(document.getElementById('search-btn')));
   waysEl.addEventListener('focusin', (e) => (e.target as Element).matches(':focus-visible') && widen(e.target as Element));
   waysEl.addEventListener('focusout', () => widen(document.getElementById('search-btn')));
@@ -4503,6 +4715,7 @@ const config = {
 
   const search = explore({
     root: document.getElementById('explore')!,
+    logo: config.logo,
     layers: config.layers,
     names: config.network.names,
     searchWords: config.searchWords,
@@ -4587,7 +4800,7 @@ const config = {
     // layout box, not its on-screen one, which is mid slide-in.
     requestAnimationFrame(() => {
       const z = zoom ?? map.getZoom();
-      if (!matchMedia('(min-width: 48rem)').matches) {
+      if (!matchMedia('(min-width: 48rem) and (min-height: 30.01rem)').matches) {
         const covered = el.clientHeight - sheet.offsetTop;
         map.easeTo({ center: at, zoom: z, offset: [0, -covered / 2], duration: 450 });
         return;
@@ -5387,4 +5600,330 @@ const config = {
     target = shown = null;
     me?.getElement().classList.remove('facing');
   }
+  // ---- Saving the map ---------------------------------------------------------
+  // As the Data Sandbox saves its: the whole area as a finished map with its
+  // key, or the view as it is. Pins, your dot and the panels are not in the
+  // picture: only what the map itself draws.
+  const saveWrap = document.getElementById('save-wrap')!;
+  const saveBtn = document.getElementById('save-btn')!;
+  const saveMenu = document.getElementById('save-menu')!;
+  const showSave = (open: boolean) => {
+    saveMenu.hidden = !open;
+    saveBtn.setAttribute('aria-expanded', String(open));
+  };
+  let saving = false;
+  saveBtn.addEventListener('click', () => showSave(saveMenu.hidden));
+  saveMenu.addEventListener('click', async (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-save]');
+    if (!b || saving) return;
+    const all = saveMenu.querySelectorAll('button');
+    saving = true;
+    for (const x of all) x.disabled = true;
+    try {
+      await (b.dataset.save === 'full' ? saveFull() : saveView());
+      showSave(false);
+    } finally {
+      saving = false;
+      for (const x of all) x.disabled = false;
+    }
+  });
+  document.addEventListener('click', (e) => {
+    if (!saveMenu.hidden && !saving && !saveWrap.contains(e.target as Node)) showSave(false);
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !saveMenu.hidden && !saving) showSave(false);
+  });
+
+  const download = (name: string, href: string) => {
+    const a = document.createElement('a');
+    a.href = href;
+    a.download = name;
+    a.click();
+  };
+  const stamp = () => new Date().toISOString().slice(0, 10);
+  const saveFont = `system-ui, -apple-system, 'Segoe UI', sans-serif`;
+  /** Who the layers are from, and the map under them. */
+  const credits = () => {
+    const from = [...new Set(legendLayers().map((l) => l.source).filter(Boolean))].join('; ');
+    return `${stamp()} · ${from ? `Layers: ${from} · ` : ''}Relief © Mapterhorn · Base map © OpenStreetMap, Protomaps`;
+  };
+
+  /** The canvas as it is drawn next: it is only readable during a render. */
+  const grab = () =>
+    new Promise<HTMLCanvasElement>((done) => {
+      map.once('render', () => {
+        const src = map.getCanvas();
+        const c = document.createElement('canvas');
+        c.width = src.width;
+        c.height = src.height;
+        c.getContext('2d')!.drawImage(src, 0, 0);
+        done(c);
+      });
+      map.triggerRepaint();
+    });
+
+  /** Everything in view drawn, or given up on after half a minute. */
+  const settled = () =>
+    new Promise<void>((done) => {
+      const until = Date.now() + 30000;
+      let calm = 0;
+      const check = () => {
+        calm = !map.isMoving() && map.areTilesLoaded() ? calm + 1 : 0;
+        if (calm >= 3 || Date.now() > until) return done();
+        map.triggerRepaint();
+        setTimeout(check, 150);
+      };
+      map.once('render', () => setTimeout(check, 150));
+      map.triggerRepaint();
+    });
+
+  /** The view as it is, with the layers' names and the credits under it. */
+  async function saveView() {
+    const src = await grab();
+    const dpr = src.width / el.clientWidth;
+    const names = legendLayers().map((l) => l.name);
+    const pad = 18 * dpr, line = 17 * dpr;
+    const out = document.createElement('canvas');
+    out.width = src.width;
+    out.height = src.height + pad * 2 + line * 2.2;
+    const ctx = out.getContext('2d')!;
+    ctx.fillStyle = '#0d1210';
+    ctx.fillRect(0, 0, out.width, out.height);
+    ctx.drawImage(src, 0, 0);
+    ctx.fillStyle = '#eef2ee';
+    ctx.font = `600 ${14 * dpr}px ${saveFont}`;
+    let y = src.height + pad + line * 0.8;
+    ctx.fillText(`EcoScapes Sea-to-Sky map${names.length ? `: ${names.join(', ')}` : ''}`, pad, y);
+    ctx.font = `${12 * dpr}px ${saveFont}`;
+    ctx.fillStyle = '#9aa79f';
+    ctx.fillText(credits(), pad, (y += line * 1.2));
+    download(`ecoscapes-map-${stamp()}.png`, out.toDataURL('image/png'));
+  }
+
+  const logo = new Image();
+  logo.src = config.logo;
+
+  /** The whole area, sharper than the screen, north up, with a north arrow,
+   *  a scale, and each layer's key and words under it. */
+  async function saveFull() {
+    say('Drawing the full map…');
+    const before = { center: map.getCenter(), zoom: map.getZoom(), pitch: map.getPitch(), bearing: map.getBearing() };
+    const ratio = map.getPixelRatio();
+    const [[bw, bs], [be, bn]] = config.limit;
+    let shot: HTMLCanvasElement, crop: { x: number; y: number; w: number; h: number }, zoom: number, lat: number;
+    try {
+      map.setMaxBounds(null);
+      map.jumpTo({ ...map.cameraForBounds(config.limit, { padding: 6 })!, pitch: 0, bearing: 0 });
+      // About 3200 pixels on the long side, within what the graphics card takes.
+      const nw = map.project([bw, bn]), se = map.project([be, bs]);
+      const long = Math.max(se.x - nw.x, se.y - nw.y);
+      const gl = map.getCanvas().getContext('webgl2');
+      const maxSide = Math.min(8192, gl ? (gl.getParameter(gl.MAX_RENDERBUFFER_SIZE) as number) : 4096);
+      map.setPixelRatio(Math.max(ratio, Math.min(4, 3200 / long, maxSide / Math.max(el.clientWidth, el.clientHeight))));
+      await settled();
+      shot = await grab();
+      const k = shot.width / el.clientWidth;
+      const x0 = Math.round((nw.x - 1) * k), y0 = Math.round((nw.y - 1) * k);
+      crop = { x: x0, y: y0, w: Math.round((se.x + 1) * k) - x0, h: Math.round((se.y + 1) * k) - y0 };
+      zoom = map.getZoom();
+      lat = map.getCenter().lat;
+    } finally {
+      map.setPixelRatio(ratio);
+      map.jumpTo(before);
+      map.setMaxBounds(panLimit);
+    }
+    if (!logo.complete) await new Promise((r) => (logo.onload = logo.onerror = r));
+
+    // Laid out in thousandths of the map's width.
+    const u = crop.w / 1000;
+    const M = 36 * u;
+    const out = document.createElement('canvas');
+    const ctx = out.getContext('2d')!;
+    const font = (size: number, weight = 400) => (ctx.font = `${weight} ${size * u}px ${saveFont}`);
+    const wrap = (text: string, w: number) => {
+      const rows: string[] = [];
+      let row = '';
+      for (const word of text.split(' ')) {
+        const next = row ? `${row} ${word}` : word;
+        if (row && ctx.measureText(next).width > w) {
+          rows.push(row);
+          row = word;
+        } else row = next;
+      }
+      return row ? [...rows, row] : rows;
+    };
+
+    // Each layer's key: its name, its words, and its ramp or its swatches, in
+    // two columns when there is more than one, each to the shorter column.
+    const shown = legendLayers();
+    const gap = 30 * u, lh = 15 * u;
+    const cols = shown.length > 1 ? 2 : 1;
+    const colW = (crop.w - gap * (cols - 1)) / cols;
+    const catW = 150 * u;
+    const blocks = shown.map((l) => {
+      font(10.5);
+      const about = l.about ? wrap(l.about, colW) : [];
+      const cats = l.kind === 'categories' || l.legend.length === 1;
+      const perRow = Math.max(1, Math.floor(colW / catW));
+      const cellW = colW / perRow;
+      const keyH = cats ? Math.ceil(l.legend.length / perRow) * 17 * u : 12 * u + 18 * u;
+      return { l, about, cats, perRow, cellW, h: 20 * u + about.length * lh + 8 * u + keyH + 22 * u };
+    });
+    const colH = Array(cols).fill(0) as number[];
+    const placed = blocks.map((b) => {
+      const c = colH.indexOf(Math.min(...colH));
+      const at = { ...b, col: c, y: colH[c] };
+      colH[c] += b.h;
+      return at;
+    });
+    font(10);
+    const sources = wrap(credits(), crop.w);
+    const headH = 50 * u;
+    const keysH = blocks.length ? 20 * u + Math.max(...colH) : 0;
+    const footH = 24 * u + headH + 20 * u + keysH + 10 * u + sources.length * lh + 6 * u;
+    out.width = Math.round(crop.w + M * 2);
+    out.height = Math.round(crop.h + M * 2 + footH);
+
+    ctx.fillStyle = '#0d1210';
+    ctx.fillRect(0, 0, out.width, out.height);
+    ctx.drawImage(shot, crop.x, crop.y, crop.w, crop.h, M, M, crop.w, crop.h);
+
+    // North, top right, inside the edge.
+    const ax = M + crop.w - 44 * u, ay = M + 44 * u;
+    ctx.fillStyle = 'rgba(13,18,16,0.75)';
+    ctx.beginPath();
+    ctx.arc(ax, ay, 28 * u, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#eef2ee';
+    ctx.beginPath();
+    ctx.moveTo(ax, ay - 2 * u);
+    ctx.lineTo(ax + 8 * u, ay + 21 * u);
+    ctx.lineTo(ax, ay + 16 * u);
+    ctx.lineTo(ax - 8 * u, ay + 21 * u);
+    ctx.closePath();
+    ctx.fill();
+    font(12, 700);
+    ctx.textAlign = 'center';
+    ctx.fillText('N', ax, ay - 8 * u);
+    ctx.textAlign = 'left';
+
+    // A scale, bottom left: a round distance near a fifth of the width.
+    const metresPerPx = (40075016.686 * Math.cos((lat * Math.PI) / 180)) / (512 * 2 ** zoom) / (shot.width / el.clientWidth);
+    const want = (crop.w / 5) * metresPerPx;
+    const step = 10 ** Math.floor(Math.log10(want));
+    const dist = [5, 2, 1].map((f) => f * step).find((d) => d <= want)!;
+    const barW = dist / metresPerPx, sx = M + 30 * u, sy = M + crop.h - 30 * u;
+    ctx.fillStyle = 'rgba(13,18,16,0.75)';
+    ctx.fillRect(sx - 12 * u, sy - 28 * u, barW + 24 * u, 44 * u);
+    ctx.fillStyle = '#eef2ee';
+    ctx.fillRect(sx, sy, barW / 2, 6 * u);
+    ctx.strokeStyle = '#eef2ee';
+    ctx.lineWidth = 1.5 * u;
+    ctx.strokeRect(sx, sy, barW, 6 * u);
+    font(12);
+    ctx.fillText('0', sx, sy - 8 * u);
+    ctx.textAlign = 'right';
+    ctx.fillText(`${dist >= 1000 ? dist / 1000 : dist} ${dist >= 1000 ? 'km' : 'm'}`, sx + barW, sy - 8 * u);
+    ctx.textAlign = 'left';
+
+    // The head: the logo, and the title with what is on the map.
+    let y = M + crop.h + 24 * u;
+    const lw = logo.naturalWidth ? (logo.naturalWidth / logo.naturalHeight) * headH : 0;
+    if (lw) ctx.drawImage(logo, M, y, lw, headH);
+    ctx.fillStyle = '#3a4843';
+    ctx.fillRect(M + lw + 20 * u, y + 4 * u, 1.5 * u, headH - 8 * u);
+    const tx = M + lw + 40 * u;
+    ctx.fillStyle = '#eef2ee';
+    font(23, 650);
+    ctx.fillText('Sea-to-Sky EcoScapes map', tx, y + 22 * u);
+    ctx.fillStyle = '#9aa79f';
+    font(13);
+    const sub = shown.length ? shown.map((l) => l.name).join(' · ') : 'The base map';
+    let fitted = sub;
+    while (ctx.measureText(fitted).width > M + crop.w - tx && fitted.length > 4) fitted = fitted.slice(0, -2);
+    ctx.fillText(fitted === sub ? sub : `${fitted}…`, tx, y + 44 * u);
+
+    // The keys.
+    y += headH + 20 * u;
+    if (blocks.length) {
+      ctx.fillStyle = '#2a3430';
+      ctx.fillRect(M, y, crop.w, 1.5 * u);
+      y += 20 * u;
+      for (const b of placed) {
+        const bx = M + b.col * (colW + gap);
+        let by = y + b.y;
+        ctx.fillStyle = '#eef2ee';
+        font(12, 650);
+        ctx.fillText(b.l.name, bx, (by += 12 * u));
+        font(10.5);
+        ctx.fillStyle = '#9aa79f';
+        by += 8 * u;
+        for (const row of b.about) ctx.fillText(row, bx, (by += lh));
+        by += 8 * u;
+        const key = b.l.legend;
+        if (b.cats) {
+          font(10.5);
+          key.forEach((c, i) => {
+            const cx = bx + (i % b.perRow) * b.cellW, cy = by + Math.floor(i / b.perRow) * 17 * u;
+            ctx.fillStyle = c.colour;
+            ctx.fillRect(cx, cy + 1 * u, 11 * u, 11 * u);
+            ctx.fillStyle = '#c9d2cc';
+            let t = c.label;
+            while (ctx.measureText(t).width > b.cellW - 22 * u && t.length > 4) t = t.slice(0, -2);
+            ctx.fillText(t === c.label ? t : `${t}…`, cx + 17 * u, cy + 10.5 * u);
+          });
+        } else {
+          const rw = Math.min(colW, 320 * u), cw = rw / key.length;
+          key.forEach((c, i) => {
+            ctx.fillStyle = c.colour;
+            ctx.fillRect(bx + i * cw, by, Math.ceil(cw), 12 * u);
+          });
+          font(10.5);
+          ctx.fillStyle = '#9aa79f';
+          ctx.fillText(key[0].label, bx, by + 12 * u + 15 * u);
+          ctx.textAlign = 'right';
+          ctx.fillText(key.at(-1)!.label, bx + rw, by + 12 * u + 15 * u);
+          ctx.textAlign = 'left';
+        }
+      }
+      y += Math.max(...colH);
+    }
+
+    ctx.fillStyle = '#2a3430';
+    ctx.fillRect(M, y, crop.w, 1.5 * u);
+    y += 10 * u;
+    font(10);
+    ctx.fillStyle = '#7d8a83';
+    for (const row of sources) ctx.fillText(row, M, (y += lh));
+    download(`ecoscapes-map-full-${stamp()}.png`, out.toDataURL('image/png'));
+  }
+
+  // ---- A phone's control column, folded away but for the search --------------
+  const mapSide = document.getElementById('map-side')!;
+  const sideFold = document.getElementById('side-fold')!;
+  sideFold.addEventListener('click', () => {
+    const folded = mapSide.classList.toggle('folded');
+    sideFold.setAttribute('aria-expanded', String(!folded));
+    const label = folded ? 'Show the controls' : 'Hide the controls';
+    sideFold.setAttribute('aria-label', label);
+    sideFold.title = label;
+  });
+
+  // ---- A phone on its side: the three ways behind one button ----------------
+  const wayModes = document.getElementById('way-modes')!;
+  const modesBtn = document.getElementById('modes-btn')!;
+  const showModes = (open: boolean) => {
+    wayModes.classList.toggle('open', open);
+    modesBtn.setAttribute('aria-expanded', String(open));
+  };
+  modesBtn.addEventListener('click', () => showModes(!wayModes.classList.contains('open')));
+  // Picked, or tapped away from: back to the one button.
+  document.getElementById('way-modes-row')!.addEventListener('click', () => showModes(false));
+  document.addEventListener('pointerdown', (e) => {
+    if (wayModes.classList.contains('open') && !wayModes.contains(e.target as Node)) showModes(false);
+  });
+  // Lit while one of them is on.
+  const syncModes = () =>
+    modesBtn.classList.toggle('on', ['net-btn', 'web-btn'].some((id) => document.getElementById(id)!.getAttribute('aria-pressed') === 'true'));
+  new MutationObserver(syncModes).observe(wayModes, { subtree: true, attributes: true, attributeFilter: ['aria-pressed'] });
 </script>

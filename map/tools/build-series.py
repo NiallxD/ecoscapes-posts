@@ -33,6 +33,10 @@ SERIES = {
     "forest-permeability": ("forest_ecosystem_permeability", None),
     "mean-annual-temperature": ("mat_30yr_normal", None),
     "forest-disturbance": ("disturbance_class", None),
+    "developed": ("developed_prob", None),
+    "freshwater-wetland": ("freshwater_emergent_wetland_prob", None),
+    "mesic-shrub": ("mesic_shrub_prob", None),
+    "xeric-shrub": ("xeric_shrub_prob", None),
 }
 # Series drawn only on land: TerrAdapt gives them values over the sea and
 # lakes too, where the map's own layer is clear. Water is taken from that

@@ -46,5 +46,8 @@
   "biodiversity-categories": ["diversity", "rarity", "rare"],
   "occurrences-mammals": ["sightings", "records", "species at risk", "endangered", "red list", "mammals"],
   "occurrences-herptiles": ["sightings", "records", "frogs", "reptiles", "amphibians", "species at risk"],
-  "occurrences-vascular-plants": ["plants", "flowers", "rare plants", "sightings", "species at risk"]
+  "occurrences-vascular-plants": ["plants", "flowers", "rare plants", "sightings", "species at risk"],
+  "developed-land": ["developed", "development", "urban", "buildings", "houses", "towns", "roads", "paved", "built"],
+  "ecosystem-change": ["change", "ecosystem", "shift", "decline"],
+  "mean-annual-temperature": ["temperature", "warming", "heat", "climate", "future"]
 }
