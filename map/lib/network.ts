@@ -151,7 +151,7 @@ export function network(opts: {
         (r, i) =>
           `<div class="net-set net-set-${i}" role="group" aria-label="${esc(net.roles[r].name)}" style="--c:${net.roles[r].colour}">` +
           `<span class="net-name">${esc(net.roles[r].name)}</span>` +
-          (links[r].length ? links[r].map((id) => chip(id)).join('') : `<span class="net-none">None linked yet</span>`) +
+          (links[r].length ? links[r].map((id) => chip(id)).join('') : `<span class="net-none">Nothing on the same ground</span>`) +
           `</div>`,
       )
       .join('');

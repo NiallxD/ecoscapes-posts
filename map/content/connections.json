@@ -68,30 +68,245 @@
   },
   "starts": ["habitat-grizzly-bear", "habitat-western-toad", "human-footprint-40yr", "landcover-2022", "connectivity-linkages"],
   "links": {
+    "landcover-2022": {
+      "life": ["biodiversity-categories", "habitat-suitability-2022", "occurrences-herptiles", "habitat-hoary-marmot"],
+      "pressures": ["human-footprint-40yr", "wildfire-hazards-current", "forest-change-40yr", "mesic-vegetation-change-40yr"],
+      "protection": ["habitat-permeability-2022", "habitat-cores", "connectivity-linkages", "ecosystem-resilience"]
+    },
+    "bec-zones": {
+      "life": ["biodiversity-categories", "habitat-suitability-2022", "occurrences-mammals", "occurrences-herptiles"],
+      "pressures": ["cumulative-impacts", "mesic-vegetation-change-40yr", "cdc-ecosystem-vulnerability", "human-footprint-40yr"],
+      "protection": ["ecosystem-resilience", "habitat-permeability-2022", "connectivity-linkages", "protected-areas-iucn"]
+    },
+    "habitat-suitability-2022": {
+      "life": ["landcover-2022", "bec-zones", "habitat-canada-lynx", "habitat-pacific-fisher"],
+      "pressures": [],
+      "protection": ["climate-refugia", "connectivity-linkages", "habitat-permeability-2022", "ecosystem-resilience"]
+    },
+    "ecosystem-services": {
+      "life": ["landcover-2022", "habitat-mink", "habitat-garter-snake", "habitat-coyote"],
+      "pressures": ["cumulative-impacts", "human-footprint-40yr", "mesic-vegetation-change-40yr", "riparian-area-change-40yr"],
+      "protection": ["climate-refugia"]
+    },
+    "biodiversity-index": {
+      "life": ["biodiversity-categories", "habitat-northern-red-legged-frog", "habitat-northern-alligator-lizard", "habitat-black-tailed-deer-b"],
+      "pressures": ["cdc-ecosystem-vulnerability", "human-footprint-40yr", "cumulative-impacts", "wildfire-hazards-current"],
+      "protection": []
+    },
+    "biodiversity-categories": {
+      "life": ["bec-zones", "landcover-2022", "occurrences-mammals", "habitat-ensatina-salamander"],
+      "pressures": ["cumulative-impacts", "cdc-ecosystem-vulnerability", "human-footprint-40yr"],
+      "protection": ["ecosystem-resilience", "climate-refugia", "connectivity-linkages", "protected-areas-iucn"]
+    },
+    "occurrences-mammals": {
+      "life": ["landcover-2022", "bec-zones", "biodiversity-categories", "occurrences-herptiles"],
+      "pressures": ["human-footprint-40yr", "cumulative-impacts", "cdc-ecosystem-vulnerability"],
+      "protection": ["climate-refugia", "ecosystem-resilience", "habitat-permeability-2022"]
+    },
+    "occurrences-herptiles": {
+      "life": ["landcover-2022", "bec-zones", "occurrences-mammals", "occurrences-vascular-plants"],
+      "pressures": ["human-footprint-40yr", "cumulative-impacts", "cdc-ecosystem-vulnerability"],
+      "protection": ["climate-refugia", "ecosystem-resilience", "habitat-permeability-2022"]
+    },
+    "occurrences-vascular-plants": {
+      "life": ["landcover-2022", "bec-zones", "occurrences-mammals", "occurrences-herptiles"],
+      "pressures": ["cumulative-impacts", "human-footprint-40yr", "cdc-ecosystem-vulnerability", "riparian-area-change-40yr"],
+      "protection": ["climate-refugia", "habitat-cores", "habitat-permeability-2022", "ecosystem-resilience"]
+    },
     "habitat-grizzly-bear": {
-      "life": ["habitat-wolverine", "habitat-canada-lynx", "habitat-black-bear-fall", "habitat-hoary-marmot"],
-      "pressures": ["human-footprint-40yr", "forest-change-40yr", "wildfire-hazards-current", "cumulative-impacts"],
-      "protection": ["connectivity-linkages", "protected-areas-cpcad", "climate-refugia", "conservation-priorities"]
+      "life": ["habitat-black-bear-fall", "landcover-2022", "habitat-wolverine", "habitat-suitability-2022"],
+      "pressures": ["cumulative-impacts", "human-footprint-40yr", "mesic-vegetation-change-40yr", "forest-change-40yr"],
+      "protection": ["connectivity-linkages", "habitat-cores", "ecosystem-resilience", "habitat-permeability-2022"]
+    },
+    "habitat-wolverine": {
+      "life": ["habitat-black-bear-fall", "bec-zones", "habitat-yellow-pine-chipmunk", "habitat-hoary-marmot"],
+      "pressures": ["cumulative-impacts", "human-footprint-40yr"],
+      "protection": ["connectivity-linkages", "protected-areas-iucn", "habitat-cores", "ecosystem-resilience"]
+    },
+    "habitat-canada-lynx": {
+      "life": ["occurrences-mammals", "bec-zones", "habitat-suitability-2022", "habitat-black-bear-fall"],
+      "pressures": ["human-footprint-40yr", "forest-change-40yr"],
+      "protection": ["habitat-permeability-2022", "connectivity-linkages", "habitat-cores", "ecosystem-resilience"]
+    },
+    "habitat-pacific-fisher": {
+      "life": ["occurrences-mammals", "habitat-suitability-2022", "habitat-black-bear-fall", "bec-zones"],
+      "pressures": ["human-footprint-40yr", "cdc-ecosystem-vulnerability"],
+      "protection": ["habitat-permeability-2022", "connectivity-linkages", "habitat-cores", "ecosystem-resilience"]
+    },
+    "habitat-black-bear-fall": {
+      "life": ["occurrences-mammals", "bec-zones", "habitat-suitability-2022", "habitat-grizzly-bear"],
+      "pressures": ["cumulative-impacts", "human-footprint-40yr", "riparian-area-change-40yr", "cdc-ecosystem-vulnerability"],
+      "protection": ["habitat-permeability-2022", "connectivity-linkages", "habitat-cores"]
+    },
+    "habitat-black-bear-summer": {
+      "life": ["occurrences-mammals", "bec-zones", "habitat-suitability-2022", "habitat-grizzly-bear"],
+      "pressures": ["cumulative-impacts", "mesic-vegetation-change-40yr", "forest-change-40yr", "human-footprint-40yr"],
+      "protection": ["habitat-permeability-2022", "connectivity-linkages"]
+    },
+    "habitat-hoary-marmot": {
+      "life": ["occurrences-mammals", "landcover-2022", "habitat-suitability-2022", "habitat-black-bear-fall"],
+      "pressures": ["human-footprint-40yr", "xeric-vegetation-change-40yr"],
+      "protection": ["habitat-permeability-2022", "connectivity-linkages", "protected-areas-iucn", "habitat-cores"]
+    },
+    "habitat-black-tailed-deer-a": {
+      "life": ["occurrences-mammals", "habitat-suitability-2022", "habitat-hoary-marmot", "habitat-douglas-squirrel"],
+      "pressures": ["cumulative-impacts", "human-footprint-40yr", "mesic-vegetation-change-40yr", "forest-change-40yr"],
+      "protection": ["connectivity-linkages"]
+    },
+    "habitat-black-tailed-deer-b": {
+      "life": ["occurrences-mammals", "habitat-suitability-2022", "habitat-hoary-marmot", "habitat-douglas-squirrel"],
+      "pressures": ["cumulative-impacts", "human-footprint-40yr", "cdc-ecosystem-vulnerability", "riparian-area-change-40yr"],
+      "protection": ["connectivity-linkages"]
+    },
+    "habitat-coyote": {
+      "life": ["occurrences-mammals", "bec-zones", "habitat-suitability-2022", "habitat-hoary-marmot"],
+      "pressures": ["human-footprint-40yr", "cumulative-impacts", "cdc-ecosystem-vulnerability", "riparian-area-change-40yr"],
+      "protection": ["habitat-permeability-2022", "connectivity-linkages", "habitat-cores"]
+    },
+    "habitat-douglas-squirrel": {
+      "life": ["occurrences-mammals", "bec-zones", "habitat-suitability-2022", "habitat-black-bear-fall"],
+      "pressures": ["cdc-ecosystem-vulnerability", "human-footprint-40yr", "cumulative-impacts", "riparian-area-change-40yr"],
+      "protection": ["habitat-permeability-2022", "connectivity-linkages", "habitat-cores"]
+    },
+    "habitat-yellow-pine-chipmunk": {
+      "life": ["occurrences-mammals", "habitat-suitability-2022", "habitat-black-bear-fall", "habitat-coyote"],
+      "pressures": ["xeric-vegetation-change-40yr", "mesic-vegetation-change-40yr", "forest-change-40yr"],
+      "protection": ["connectivity-linkages", "protected-areas-iucn", "ecosystem-resilience", "climate-refugia"]
+    },
+    "habitat-beaver": {
+      "life": ["occurrences-mammals", "habitat-suitability-2022", "habitat-mink", "habitat-garter-snake"],
+      "pressures": ["cumulative-impacts", "human-footprint-40yr", "riparian-area-change-40yr", "cdc-ecosystem-vulnerability"],
+      "protection": ["connectivity-linkages", "habitat-cores"]
+    },
+    "habitat-mink": {
+      "life": ["occurrences-mammals", "habitat-suitability-2022", "habitat-pacific-tree-frog", "landcover-2022"],
+      "pressures": ["cumulative-impacts", "human-footprint-40yr", "riparian-area-change-40yr", "cdc-ecosystem-vulnerability"],
+      "protection": ["connectivity-linkages"]
+    },
+    "habitat-northern-red-legged-frog": {
+      "life": ["occurrences-herptiles", "habitat-suitability-2022", "habitat-ensatina-salamander", "habitat-douglas-squirrel"],
+      "pressures": ["human-footprint-40yr", "cdc-ecosystem-vulnerability", "cumulative-impacts", "riparian-area-change-40yr"],
+      "protection": ["connectivity-linkages", "habitat-cores"]
     },
     "habitat-western-toad": {
-      "life": ["habitat-northern-red-legged-frog", "habitat-pacific-tree-frog", "habitat-long-toed-salamander", "habitat-beaver"],
-      "pressures": ["riparian-area-change-40yr", "human-footprint-40yr", "invasive-species", "mesic-vegetation-change-40yr"],
-      "protection": ["climate-refugia", "connectivity-linkages", "protected-areas-cpcad", "habitat-permeability-2022"]
+      "life": ["occurrences-herptiles", "habitat-suitability-2022", "landcover-2022", "habitat-northwestern-salamander"],
+      "pressures": ["human-footprint-40yr", "cdc-ecosystem-vulnerability"],
+      "protection": ["connectivity-linkages", "habitat-cores", "habitat-permeability-2022"]
+    },
+    "habitat-pacific-tree-frog": {
+      "life": ["occurrences-herptiles", "habitat-suitability-2022", "habitat-mink", "habitat-garter-snake"],
+      "pressures": ["cumulative-impacts", "human-footprint-40yr", "cdc-ecosystem-vulnerability", "riparian-area-change-40yr"],
+      "protection": ["connectivity-linkages", "habitat-cores"]
+    },
+    "habitat-ensatina-salamander": {
+      "life": ["occurrences-herptiles", "bec-zones", "biodiversity-categories", "habitat-suitability-2022"],
+      "pressures": ["human-footprint-40yr", "cdc-ecosystem-vulnerability", "cumulative-impacts", "riparian-area-change-40yr"],
+      "protection": ["habitat-permeability-2022", "connectivity-linkages", "habitat-cores"]
+    },
+    "habitat-northwestern-salamander": {
+      "life": ["occurrences-herptiles", "habitat-suitability-2022", "habitat-long-toed-salamander", "habitat-garter-snake"],
+      "pressures": ["human-footprint-40yr", "cumulative-impacts", "cdc-ecosystem-vulnerability", "riparian-area-change-40yr"],
+      "protection": ["connectivity-linkages", "habitat-cores"]
+    },
+    "habitat-long-toed-salamander": {
+      "life": ["occurrences-herptiles", "bec-zones", "habitat-suitability-2022", "habitat-northern-red-legged-frog"],
+      "pressures": ["cumulative-impacts", "human-footprint-40yr", "cdc-ecosystem-vulnerability", "riparian-area-change-40yr"],
+      "protection": ["connectivity-linkages", "habitat-cores"]
+    },
+    "habitat-northern-alligator-lizard": {
+      "life": ["occurrences-herptiles", "bec-zones", "biodiversity-categories", "habitat-suitability-2022"],
+      "pressures": ["cumulative-impacts", "cdc-ecosystem-vulnerability", "human-footprint-40yr", "forest-change-40yr"],
+      "protection": ["habitat-permeability-2022", "connectivity-linkages", "habitat-cores"]
+    },
+    "habitat-garter-snake": {
+      "life": ["occurrences-herptiles", "habitat-suitability-2022", "habitat-coyote", "landcover-2022"],
+      "pressures": ["cumulative-impacts", "human-footprint-40yr", "cdc-ecosystem-vulnerability", "riparian-area-change-40yr"],
+      "protection": ["connectivity-linkages", "habitat-cores"]
     },
     "human-footprint-40yr": {
-      "life": ["habitat-grizzly-bear", "habitat-western-toad", "habitat-beaver", "landcover-2022"],
-      "pressures": ["cumulative-impacts", "forest-change-40yr", "riparian-area-change-40yr", "invasive-species"],
-      "protection": ["habitat-permeability-2022", "connectivity-linkages", "protected-areas-cpcad", "conservation-priorities"]
+      "life": ["landcover-2022", "occurrences-mammals", "occurrences-herptiles", "habitat-grizzly-bear"],
+      "pressures": ["cumulative-impacts", "wildfire-hazards-current", "invasive-species", "forest-change-40yr"],
+      "protection": ["protected-areas-cpcad", "climate-refugia", "connectivity-linkages", "conservation-priorities"]
     },
-    "landcover-2022": {
-      "life": ["bec-zones", "habitat-suitability-2022", "ecosystem-services", "biodiversity-index"],
-      "pressures": ["forest-change-40yr", "human-footprint-40yr", "xeric-vegetation-change-40yr", "wildfire-hazards-current"],
-      "protection": ["protected-areas-iucn", "climate-refugia", "ecosystem-resilience", "conservation-priorities"]
+    "cumulative-impacts": {
+      "life": ["bec-zones", "biodiversity-categories", "occurrences-mammals", "occurrences-herptiles"],
+      "pressures": ["human-footprint-40yr", "wildfire-hazards-current", "forest-change-40yr", "mesic-vegetation-change-40yr"],
+      "protection": ["protected-areas-cpcad", "connectivity-linkages"]
+    },
+    "forest-change-40yr": {
+      "life": ["landcover-2022", "habitat-black-tailed-deer-a", "habitat-northern-alligator-lizard", "habitat-black-bear-summer"],
+      "pressures": ["human-footprint-40yr", "cumulative-impacts", "mesic-vegetation-change-40yr", "xeric-vegetation-change-40yr"],
+      "protection": ["conservation-priorities"]
+    },
+    "wildfire-hazards-current": {
+      "life": ["landcover-2022", "habitat-northern-alligator-lizard", "habitat-black-tailed-deer-a", "biodiversity-index"],
+      "pressures": ["human-footprint-40yr", "cumulative-impacts", "mesic-vegetation-change-40yr", "forest-change-40yr"],
+      "protection": ["climate-refugia", "habitat-cores", "habitat-permeability-2022"]
+    },
+    "invasive-species": {
+      "life": ["habitat-garter-snake", "habitat-beaver", "landcover-2022", "habitat-coyote"],
+      "pressures": ["human-footprint-40yr", "mesic-vegetation-change-40yr", "cumulative-impacts"],
+      "protection": ["climate-refugia"]
+    },
+    "riparian-area-change-40yr": {
+      "life": ["landcover-2022", "habitat-mink", "habitat-garter-snake", "habitat-coyote"],
+      "pressures": ["cumulative-impacts", "human-footprint-40yr", "mesic-vegetation-change-40yr", "cdc-ecosystem-vulnerability"],
+      "protection": []
+    },
+    "mesic-vegetation-change-40yr": {
+      "life": ["bec-zones", "landcover-2022", "habitat-black-tailed-deer-a", "habitat-black-bear-summer"],
+      "pressures": ["human-footprint-40yr", "cumulative-impacts", "wildfire-hazards-current", "invasive-species"],
+      "protection": ["conservation-priorities"]
+    },
+    "xeric-vegetation-change-40yr": {
+      "life": ["landcover-2022", "habitat-yellow-pine-chipmunk", "habitat-hoary-marmot", "habitat-black-bear-summer"],
+      "pressures": ["human-footprint-40yr", "cumulative-impacts", "forest-change-40yr"],
+      "protection": ["conservation-priorities"]
+    },
+    "cdc-ecosystem-vulnerability": {
+      "life": ["bec-zones", "habitat-northern-alligator-lizard", "habitat-douglas-squirrel", "habitat-northern-red-legged-frog"],
+      "pressures": ["human-footprint-40yr", "cumulative-impacts", "forest-change-40yr", "riparian-area-change-40yr"],
+      "protection": ["habitat-cores"]
     },
     "connectivity-linkages": {
-      "life": ["habitat-grizzly-bear", "habitat-wolverine", "habitat-canada-lynx", "habitat-black-tailed-deer-a"],
-      "pressures": ["human-footprint-40yr", "forest-change-40yr", "cumulative-impacts", "wildfire-hazards-current"],
-      "protection": ["habitat-cores", "habitat-permeability-2022", "protected-areas-cpcad", "climate-refugia"]
+      "life": ["bec-zones", "biodiversity-categories", "habitat-suitability-2022", "landcover-2022"],
+      "pressures": ["human-footprint-40yr", "cumulative-impacts"],
+      "protection": ["habitat-cores", "habitat-permeability-2022", "protected-areas-cpcad", "ecosystem-resilience"]
+    },
+    "habitat-cores": {
+      "life": ["landcover-2022", "occurrences-vascular-plants", "habitat-wolverine", "habitat-canada-lynx"],
+      "pressures": ["wildfire-hazards-current", "cdc-ecosystem-vulnerability"],
+      "protection": ["connectivity-linkages", "protected-areas-iucn", "habitat-permeability-2022", "ecosystem-resilience"]
+    },
+    "habitat-permeability-2022": {
+      "life": ["bec-zones", "landcover-2022", "occurrences-vascular-plants", "habitat-canada-lynx"],
+      "pressures": ["wildfire-hazards-current"],
+      "protection": ["climate-refugia", "connectivity-linkages", "ecosystem-resilience", "habitat-cores"]
+    },
+    "protected-areas-cpcad": {
+      "life": ["habitat-wolverine", "bec-zones", "habitat-yellow-pine-chipmunk", "habitat-hoary-marmot"],
+      "pressures": ["human-footprint-40yr", "cumulative-impacts"],
+      "protection": ["connectivity-linkages", "habitat-cores", "ecosystem-resilience", "climate-refugia"]
+    },
+    "protected-areas-iucn": {
+      "life": ["habitat-wolverine", "bec-zones", "habitat-yellow-pine-chipmunk", "habitat-hoary-marmot"],
+      "pressures": [],
+      "protection": ["habitat-cores", "ecosystem-resilience", "climate-refugia", "connectivity-linkages"]
+    },
+    "climate-refugia": {
+      "life": ["biodiversity-categories", "habitat-suitability-2022", "occurrences-mammals", "occurrences-herptiles"],
+      "pressures": ["wildfire-hazards-current", "invasive-species", "human-footprint-40yr"],
+      "protection": ["habitat-permeability-2022", "ecosystem-resilience", "protected-areas-iucn", "connectivity-linkages"]
+    },
+    "conservation-priorities": {
+      "life": ["landcover-2022", "habitat-canada-lynx"],
+      "pressures": ["forest-change-40yr", "xeric-vegetation-change-40yr", "human-footprint-40yr", "mesic-vegetation-change-40yr"],
+      "protection": ["habitat-cores"]
+    },
+    "ecosystem-resilience": {
+      "life": ["bec-zones", "biodiversity-categories", "occurrences-mammals", "occurrences-herptiles"],
+      "pressures": [],
+      "protection": ["habitat-permeability-2022", "habitat-cores", "protected-areas-iucn", "climate-refugia"]
     }
   }
 }
