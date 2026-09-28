@@ -488,6 +488,7 @@ const config = {
 
   .net :global(.net-ring) {
     --d: min(34rem, calc(100vw - 1.25rem), calc(100dvh - var(--safe-t) - 12rem));
+    position: relative;
     display: grid;
     justify-items: center;
     gap: 0.6rem;
@@ -495,8 +496,15 @@ const config = {
   }
   @keyframes net-in { from { opacity: 0; transform: scale(0.96); } }
 
-  /* The trail: where the focus has been, each step a way back to it. */
+  /* The trail: where the focus has been, each step a way back to it. Drawn
+     round the top of the circle (.net-arc); these buttons are the same
+     trail for a keyboard or a screen reader, shown when a key reaches them. */
   .net :global(.net-trail) {
+    position: absolute;
+    z-index: 1;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -505,18 +513,32 @@ const config = {
     max-width: calc(100vw - 2rem);
     padding: 0.3rem 0.5rem;
     border-radius: 999px;
-    background: rgba(13, 18, 16, 0.82);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    background: rgba(13, 18, 16, 0.92);
     font-size: 0.76rem;
     color: var(--ink-dim);
   }
+  .net :global(.net-trail:not(:focus-within)) { clip-path: inset(50%); width: 1px; height: 1px; overflow: hidden; padding: 0; white-space: nowrap; }
   .net :global(.net-trail button) { appearance: none; border: 0; background: none; padding: 0.2rem 0.3rem; color: var(--ink-dim); cursor: pointer; }
   .net :global(.net-trail button:hover) { color: var(--ink); }
   .net :global(.net-trail [aria-current]) { color: var(--ink); font-weight: 600; cursor: default; }
 
-  .net :global(.net-disc) { position: relative; width: var(--d); height: var(--d); }
-  .net :global(.net-disc svg) {
+  /* The trail round the outside of the circle, over the top. */
+  .net :global(.net-arc) { position: absolute; inset: -10%; width: 120%; height: 120%; overflow: visible; pointer-events: none; }
+  .net :global(.net-arc text) {
+    fill: var(--ink-dim);
+    font-weight: 500;
+    stroke: rgba(13, 18, 16, 0.85);
+    stroke-width: 0.35em;
+    stroke-linejoin: round;
+    paint-order: stroke;
+  }
+  .net :global(.net-arc [data-step]) { pointer-events: auto; cursor: pointer; }
+  .net :global(.net-arc [data-step]:hover) { fill: var(--ink); }
+  .net :global(.net-arc .here) { fill: var(--ink); font-weight: 700; cursor: default; }
+
+  /* Room above for the trail round its rim. */
+  .net :global(.net-disc) { position: relative; width: var(--d); height: var(--d); margin-top: calc(var(--d) * 0.06 + 0.8rem); }
+  .net :global(.net-face) {
     position: absolute;
     inset: 0;
     width: 100%;
@@ -528,22 +550,29 @@ const config = {
   .net :global(.net-third) { fill-opacity: 0.16; }
   .net :global(.net-rim) { fill: none; stroke-width: 2.4; stroke-linecap: round; }
 
-  /* Each third's maps, stacked at the middle of the third. */
+  /* Each third's maps at the middle of the third, packed as they fit --
+     short names side by side, a long one on a row of its own -- so a third
+     stays inside its piece of the circle. */
   .net :global(.net-thirds) { position: absolute; inset: 0; }
   .net :global(.net-set) {
     position: absolute;
     display: flex;
-    flex-direction: column;
-    align-items: center;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-content: center;
     gap: 0.3rem;
     transform: translate(-50%, -50%);
   }
-  .net :global(.net-set .net-chip) { font-size: clamp(0.66rem, calc(var(--d) / 38), 0.8rem); padding: 0.38em 0.72em; }
+  .net :global(.net-set .net-name) { flex-basis: 100%; text-align: center; }
+  /* Where each sits, how wide it packs and how big its words are is set by
+     the script (--w, --k), to fit its third; these are where it starts. */
+  .net :global(.net-set) { width: calc(var(--base) * var(--w, 1)); }
+  .net :global(.net-set .net-chip) { font-size: calc(clamp(0.66rem, calc(var(--d) / 38), 0.8rem) * var(--k, 1)); padding: 0.38em 0.72em; }
   /* Clear of the middle: the top third's above it, the lower two out to
      either side and down. */
-  .net :global(.net-set-0) { left: 50%; top: 19%; width: 56%; }
-  .net :global(.net-set-1) { left: 76.5%; top: 67%; width: 33%; }
-  .net :global(.net-set-2) { left: 23.5%; top: 67%; width: 33%; }
+  .net :global(.net-set-0) { left: 50%; top: 20%; --base: 64%; }
+  .net :global(.net-set-1) { left: 76%; top: 65%; --base: 38%; }
+  .net :global(.net-set-2) { left: 24%; top: 65%; --base: 38%; }
   .net :global(.net-name) { font-size: 0.62rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--c); margin-bottom: 0.1rem; }
   .net :global(.net-none) { font-size: 0.72rem; color: var(--ink-dim); }
   .net :global(.fresh .net-set) { animation: net-set-in 0.3s ease-out both; }
@@ -573,8 +602,14 @@ const config = {
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
   }
+  /* The narrowest phones: a smaller middle, to leave the thirds room. */
+  @media (max-width: 23.9rem) {
+    .net :global(.net-hub) { width: 22%; height: 22%; font-size: 0.64rem; }
+  }
   .net :global(.net-hub[aria-pressed='true']) { box-shadow: 0 0 0 4px rgba(13, 18, 16, 0.9), 0 0 0 5px var(--c); }
-  .net :global(.net-hub.fresh) { animation: net-in 0.26s ease-out; }
+  /* Its own keyframes: the shared ones would drop the centring transform. */
+  .net :global(.net-hub.fresh) { animation: net-hub-in 0.3s ease-out; }
+  @keyframes net-hub-in { from { opacity: 0; transform: translate(-50%, -50%) scale(0.85); } }
   .net :global(.net-which) { display: block; font-size: 0.58rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-dim); }
 
   /* Below the circle: what is on the map, Focus for it, and away. */
@@ -611,16 +646,17 @@ const config = {
 
   /* Put away: the circle itself, shrunk into the top right corner, its
      words gone and only its colours left; tapped, it comes back. */
-  .net :global(.net-disc) { transform-origin: 100% 0; transition: transform 0.32s ease; }
-  .net :global(.net-trail), .net :global(.net-bar), .net :global(.net-thirds), .net :global(.net-hub > *) { transition: opacity 0.2s; }
+  .net :global(.net-disc) { transform-origin: 100% 0; transition: transform 0.65s cubic-bezier(0.4, 0, 0.2, 1); }
+  .net :global(.net-arc), .net :global(.net-bar), .net :global(.net-thirds), .net :global(.net-hub > *) { transition: opacity 0.35s; }
   .net :global(.net-ring.mini) { pointer-events: none; }
   .net :global(.mini .net-disc) { transform: translate(var(--mx), var(--my)) scale(var(--s)); pointer-events: auto; cursor: pointer; }
   .net :global(.mini .net-disc *) { pointer-events: none; }
-  .net :global(.mini .net-trail), .net :global(.mini .net-bar), .net :global(.mini .net-thirds), .net :global(.mini .net-hub > *) { opacity: 0; }
+  .net :global(.mini .net-trail) { display: none; }
+  .net :global(.mini .net-arc), .net :global(.mini .net-bar), .net :global(.mini .net-thirds), .net :global(.mini .net-hub > *) { opacity: 0; }
   .net :global(.mini .net-rim) { stroke-width: 6; }
   .net :global(.mini .net-hub) { border-width: 6px; }
   .net :global(.mini .net-disc:focus-visible) { outline: none; }
-  .net :global(.mini .net-disc:focus-visible svg) { box-shadow: 0 0 0 8px var(--accent); }
+  .net :global(.mini .net-disc:focus-visible .net-face) { box-shadow: 0 0 0 8px var(--accent); }
 
   /* The control column: bottom right, level with the Bear's pill opposite. */
   .map-side {
@@ -815,6 +851,8 @@ const config = {
   }
   @keyframes tag-in { from { opacity: 0; } }
   :global(.here-tag i) { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+  :global(.here-tag b) { font-weight: 700; }
+  :global(.here-tag i[style*='transparent']) { box-shadow: inset 0 0 0 1px var(--ink-dim); }
   :global(.here-tag .sep) { color: var(--ink-dim); font-weight: 400; }
   :global(.here-tag:focus) { outline: none; }
   :global(.here-tag:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -1103,6 +1141,21 @@ const config = {
     flex: none;
   }
   .sheet :global(.here-swatch) { margin-right: 0.45rem; vertical-align: 0.05em; }
+  /* A layer's key under "where you are", the class you are in picked out. */
+  .sheet :global(.here-key) { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0.6rem 0 0.8rem; }
+  .sheet :global(.here-key span) {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    font-size: 0.72rem;
+    color: var(--ink-dim);
+  }
+  .sheet :global(.here-key i) { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+  .sheet :global(.here-key .on) { border-color: var(--ink); color: var(--ink); font-weight: 600; }
+  .sheet :global(.here-value) { margin: 0.2rem 0 0; font-size: 1.05rem; }
 
   .sheet :global(.here-panels) { display: grid; }
   .sheet :global(.here-panels > div) { grid-area: 1 / 1; }
@@ -1318,10 +1371,11 @@ const config = {
 
   const protocol = new Protocol();
   maplibregl.addProtocol('pmtiles', protocol.tile);
-  // Each file that is asked what is under you, opened once and shared with
-  // the map, so the asking reads the tiles the map has already fetched.
+  // Every layer's file, opened once and shared with the map, so asking what
+  // is under you reads the tiles the map has already fetched. Opening one
+  // fetches nothing until it is read.
   const archives = new Map(
-    config.layers.filter((l) => l.here).map((l) => {
+    config.layers.map((l) => {
       const pm = new PMTiles(abs(l.src));
       protocol.add(pm);
       return [l.id, pm] as const;
@@ -1457,6 +1511,7 @@ const config = {
     syncCallouts();
     renderLegend();
     lensUi.refresh();
+    hereAgain();
     whenDrawn(map, () => {
       // Turned off again before its tiles were in: left at its own
       // opacity, for the next time it is switched on.
@@ -1485,6 +1540,7 @@ const config = {
     syncCallouts();
     renderLegend();
     lensUi.refresh();
+    hereAgain();
   };
 
   // ---- The legend ----------------------------------------------------------
@@ -2249,11 +2305,20 @@ const config = {
 
   // ---- What is under you ---------------------------------------------------
   // Read straight off each layer's own tiles: the pixel under you at the
-  // layer's deepest zoom, painted or clear. Nearest resampling and lossless
-  // PNG mean a painted pixel is exactly a pixel of the data, so no colour
-  // matching is needed -- any alpha is a yes. It reads the file rather than
-  // the rendered map, so it answers with a layer switched off too.
+  // layer's deepest zoom. Nearest resampling and lossless tiles mean a
+  // painted pixel is exactly a pixel of the data, drawn in one of its
+  // legend's colours -- so the colour says which class you are in. It reads
+  // the file rather than the rendered map, so it answers the same whatever
+  // else is drawn over the layer.
+  //
+  // The tag names what is under you in the layers that are on, top of the
+  // stack first ("Grizzly bear: High"). With none on, it falls back to the
+  // layers that have words of their own for it (`here` in sea-to-sky.md):
+  // the habitat core or the corridor you are in.
   const hereLayers = config.layers.filter((l) => l.here);
+  /** How many of the layers that are on the tag names at most. */
+  const HERE_MOST = 2;
+  const shortName = (l: Layer) => config.network.names[l.id] ?? l.name;
 
   // The last tile decoded for each layer: walking about, you stay on the same
   // one for a long time, and decoding it again for every fix would be waste.
@@ -2280,11 +2345,12 @@ const config = {
     return { pixels: ctx.getImageData(0, 0, canvas.width, canvas.height).data, size: canvas.width };
   };
 
-  /** Whether the layer has data painted at this point. */
-  const under = async (layer: Layer, [lng, lat]: LngLat) => {
+  /** The layer's pixel at this point, [r, g, b, a], or null where it has
+   *  nothing painted. */
+  const pixel = async (layer: Layer, [lng, lat]: LngLat) => {
     const pm = archives.get(layer.id)!;
     const h = await pm.getHeader();
-    if (lng < h.minLon || lng > h.maxLon || lat < h.minLat || lat > h.maxLat) return false;
+    if (lng < h.minLon || lng > h.maxLon || lat < h.minLat || lat > h.maxLat) return null;
     const z = h.maxZoom;
     const n = 2 ** z;
     const fx = ((lng + 180) / 360) * n;
@@ -2300,32 +2366,80 @@ const config = {
       tile = res ? { key, ...(await decode(res.data, mime)) } : { key, pixels: new Uint8ClampedArray(), size: 0 };
       decoded.set(layer.id, tile);
     }
-    if (!tile.size) return false;
+    if (!tile.size) return null;
     const px = Math.min(tile.size - 1, Math.floor((fx - x) * tile.size));
     const py = Math.min(tile.size - 1, Math.floor((fy - y) * tile.size));
-    return tile.pixels[(py * tile.size + px) * 4 + 3] > 0;
+    const i = (py * tile.size + px) * 4;
+    return tile.pixels[i + 3] > 0 ? [...tile.pixels.slice(i, i + 4)] : null;
   };
+
+  const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  /** Which of the layer's legend entries a painted colour is: the nearest.
+   *  A continuous ramp labels only its ends, so a colour between them reads
+   *  as the nearer end ("towards High buffering"). */
+  const classOf = (layer: Layer, [r, g, b]: number[]) => {
+    const key = layer.legend;
+    if (!key.length) return null;
+    let best = 0;
+    let least = Infinity;
+    key.forEach((k, i) => {
+      const [kr, kg, kb] = rgb(k.colour);
+      const d = (kr - r) ** 2 + (kg - g) ** 2 + (kb - b) ** 2;
+      if (d < least) [best, least] = [i, d];
+    });
+    const label = key[best].label.trim();
+    if (label) return { label, colour: key[best].colour };
+    const end = best < key.length / 2 ? key[0] : key.at(-1)!;
+    return { label: `towards ${end.label.trim().toLowerCase()}`, colour: key[best].colour };
+  };
+
+  /** One thing the tag names: a layer that is on and what class of it you
+   *  are in, or (none on) a layer with words of its own that you are in. */
+  type Here = { layer: Layer; value?: string; colour: string };
 
   // Fixes can land faster than tiles decode: only the latest one writes.
   let asked = 0;
-  // The layers you are standing in, as of the latest fix.
-  let inLayers: Layer[] = [];
+  // What is under you, as of the latest fix.
+  let inLayers: Here[] = [];
   let tag: maplibregl.Marker | null = null;
   let tagShown = false;
   let pendingKey: string | null = null;
+  const keyOf = (hs: Here[]) => hs.map((h) => `${h.layer.id}=${h.value ?? ''}`).join();
 
   async function updateHere() {
     const at = here;
     const ask = ++asked;
-    const answers = at && inside(at) ? await Promise.all(hereLayers.map((l) => under(l, at).catch(() => null))) : [];
+    let now: Here[] = [];
+    if (at && inside(at)) {
+      // Top of the stack first: the layer drawn over the others is the one
+      // named first.
+      const on = config.layers.filter((l) => state.get(l.id)!.on && l.legend.length).reverse();
+      if (on.length) {
+        const reads = await Promise.all(on.map((l) => pixel(l, at).catch(() => undefined)));
+        on.forEach((l, i) => {
+          const px = reads[i];
+          // A read that failed keeps the answer it had.
+          if (px === undefined) {
+            const had = inLayers.find((h) => h.layer === l);
+            if (had) now.push(had);
+            return;
+          }
+          // Nothing painted is an answer too: no change, no record, not in it.
+          const c = px ? classOf(l, px) : { label: 'none here', colour: 'transparent' };
+          if (c) now.push({ layer: l, value: c.label, colour: c.colour });
+        });
+        now = now.slice(0, HERE_MOST);
+      } else {
+        const reads = await Promise.all(hereLayers.map((l) => pixel(l, at).catch(() => undefined)));
+        now = hereLayers
+          .filter((l, i) => (reads[i] === undefined ? inLayers.some((h) => h.layer === l) : reads[i] !== null))
+          .reverse()
+          .map((l) => ({ layer: l, colour: swatch(l) }));
+      }
+    }
     if (ask !== asked) return;
-    // A read that failed keeps the answer it had, rather than counting as out.
-    const inNow = (l: Layer, i: number) => (answers[i] === null ? inLayers.includes(l) : Boolean(answers[i]));
-    // Top of the stack first: the layer drawn over the others is the one named
-    // first (a habitat core before the linkage it sits in).
-    const now = hereLayers.filter((l, i) => inNow(l, i)).reverse();
-    const key = now.map((l) => l.id).join();
-    const changed = key !== inLayers.map((l) => l.id).join();
+    const key = keyOf(now);
+    const changed = key !== keyOf(inLayers);
     // Walking along an edge, fixes a few metres apart land either side of it.
     // A change is only taken once two readings in a row agree -- except the
     // first answer, and a placed (?at) position, which only reads once.
@@ -2362,10 +2476,11 @@ const config = {
     }
     const el = tag.getElement();
     if (changed || !el.childElementCount) {
+      const words = (h: Here) => (h.value ? `${shortName(h.layer)}: ${h.value}` : h.layer.here!.label);
       el.innerHTML = inLayers
-        .map((l) => `<i style="background:${esc(swatch(l))}"></i>${esc(l.here!.label)}`)
+        .map((h) => `<i style="background:${esc(h.colour)}"></i>${h.value ? `<span>${esc(shortName(h.layer))}: <b>${esc(h.value)}</b></span>` : esc(h.layer.here!.label)}`)
         .join('<span class="sep">·</span>');
-      el.setAttribute('aria-label', `Where you are: ${inLayers.map((l) => l.here!.label).join(' and ')}`);
+      el.setAttribute('aria-label', `Where you are: ${inLayers.map(words).join('; ')}`);
       if (sheetFor === 'here') showHere();
     }
     tag.setLngLat(at);
@@ -2374,27 +2489,59 @@ const config = {
       tagShown = true;
     }
   }
+  /** Asked again when the layers that are on change. After the script has
+   *  run, so everything updateHere reads is set up. */
+  const hereAgain = () => queueMicrotask(() => here && updateHere());
 
-  /** The card: what you are standing in. One heading for all of it --
-   *  "You're in a habitat core and a wildlife corridor" -- then, when there is
-   *  more than one, a pill for each, switching between their words. */
+  /** The card: what is under you. For a layer that is on, its class here and
+   *  its key with that class marked, and the layer's own words if it has
+   *  them; for a layer with words of its own, those. More than one, a pill
+   *  for each, switching between them. */
   const showHere = (open = 0) => {
     activePin?.classList.remove('on');
     activePin = null;
     const tabs = inLayers.length > 1;
-    const whats = inLayers.map((l) => l.here!.what);
-    const headline = `You're in ${whats.length > 1 ? `${whats.slice(0, -1).join(', ')} and ${whats.at(-1)}` : whats[0]}`;
+    const one = inLayers[0];
+    const headline = tabs
+      ? 'What is under you'
+      : one.value
+        ? `${one.layer.name}: ${one.value}`
+        : `You're in ${one.layer.here!.what}`;
+    const panel = (h: Here) => {
+      const l = h.layer;
+      const key = h.value
+        ? `<div class="here-key">` +
+          l.legend
+            // A continuous ramp's unlabelled steps left out, unless you are on one.
+            .filter((k) => k.label.trim() || k.colour === h.colour)
+            .map((k) => `<span${k.colour === h.colour ? ' class="on"' : ''}><i style="background:${esc(k.colour)}"></i>${esc(k.label.trim() || h.value!)}</span>`)
+            .join('') +
+          `</div>`
+        : '';
+      // A layer's own words, where it has them: painted under you is in it.
+      const words = l.here ?? null;
+      return (
+        (h.value && tabs ? `<p class="here-value"><b>${esc(h.value)}</b></p>` : '') +
+        (h.value && l.about ? `<p>${esc(l.about)}</p>` : '') +
+        key +
+        (words ? `<p>${esc(words.body)}</p>` : '') +
+        (words?.look?.length
+          ? `<h3 class="look-title">Things to look for</h3><ul class="look">` + words.look.map((t) => `<li>${esc(t)}</li>`).join('') + `</ul>`
+          : '') +
+        (l.source ? `<p class="dim">${esc(l.source)}</p>` : '')
+      );
+    };
     openSheet(
       'here',
       `<p class="eyebrow">Where you are</p>` +
-        `<h2 id="sheet-title">${tabs ? '' : `<span class="here-swatch" style="background:${esc(swatch(inLayers[0]))}"></span>`}${esc(headline)}</h2>` +
+        `<h2 id="sheet-title">${tabs ? '' : `<span class="here-swatch" style="background:${esc(one.colour)}"></span>`}${esc(headline)}</h2>` +
         (tabs
-          ? `<div class="pills" role="tablist" aria-label="What you are standing in">` +
+          ? `<div class="pills" role="tablist" aria-label="What is under you">` +
             inLayers
               .map(
-                (l, i) =>
+                (h, i) =>
                   `<button type="button" role="tab" id="here-tab-${i}" aria-controls="here-panel-${i}" aria-selected="${i === open}" tabindex="${i === open ? 0 : -1}">` +
-                  `<i style="background:${esc(swatch(l))}"></i>${esc(l.here!.label)}</button>`,
+                  `<i style="background:${esc(h.colour)}"></i>${esc(h.value ? shortName(h.layer) : h.layer.here!.label)}</button>`,
               )
               .join('') +
             `</div>`
@@ -2405,15 +2552,9 @@ const config = {
         `<div class="here-panels">` +
         inLayers
           .map(
-            (l, i) =>
+            (h, i) =>
               `<div${tabs ? ` role="tabpanel" id="here-panel-${i}" aria-labelledby="here-tab-${i}"` : ''}${i === open ? '' : ' data-off'}>` +
-              `<p>${esc(l.here!.body)}</p>` +
-              (l.here!.look?.length
-                ? `<h3 class="look-title">Things to look for</h3><ul class="look">` +
-                  l.here!.look.map((t) => `<li>${esc(t)}</li>`).join('') +
-                  `</ul>`
-                : '') +
-              (l.source ? `<p class="dim">${esc(l.source)}</p>` : '') +
+              panel(h) +
               `</div>`,
           )
           .join('') +

@@ -68,13 +68,17 @@ export function network(opts: {
     return Object.fromEntries(roles.map((r) => [r, (from[r] ?? []).filter((o) => o !== id && byId.has(o)).slice(0, PER)]));
   };
 
+  /** A point on the circle: `r` out from the middle, `a` degrees clockwise
+   *  from the top, in the drawings' units. */
+  const at = (r: number, a: number) => `${(r * Math.sin((a * Math.PI) / 180)).toFixed(2)} ${(-r * Math.cos((a * Math.PI) / 180)).toFixed(2)}`;
+
   // Laid out once; the parts filled in as they change.
   root.innerHTML =
     `<div class="net-start" role="group" aria-labelledby="net-start-title">` +
     `<p class="eyebrow" id="net-start-title">Start with a map</p><div class="net-starts"></div></div>` +
     `<div class="net-ring">` +
     `<nav class="net-trail" aria-label="Maps focused so far"></nav>` +
-    `<div class="net-disc">${disc()}<div class="net-thirds"></div><button class="net-hub" type="button"></button></div>` +
+    `<div class="net-disc">${disc()}${arc()}<div class="net-thirds"></div><button class="net-hub" type="button"></button></div>` +
     `<div class="net-bar"></div>` +
     `</div>`;
   const startEl = root.querySelector<HTMLElement>('.net-start')!;
@@ -85,15 +89,135 @@ export function network(opts: {
   const hubEl = root.querySelector<HTMLButtonElement>('.net-hub')!;
   const barEl = root.querySelector<HTMLElement>('.net-bar')!;
   const discEl = root.querySelector<HTMLElement>('.net-disc')!;
+  const arcEl = root.querySelector<SVGSVGElement>('.net-arc')!;
+  const arcText = root.querySelector<SVGTextPathElement>('.net-arc textPath')!;
+
+
+  /** The trail, round the outside of the circle over the top: a path for
+   *  it to run along, in a drawing a little bigger than the circle's. The
+   *  same trail is in the page as buttons too, for a keyboard or a screen
+   *  reader (.net-trail, shown when a key reaches it). */
+  const ARC_R = 109;
+  function arc() {
+    return (
+      `<svg class="net-arc" viewBox="-120 -120 240 240" aria-hidden="true">` +
+      `<path id="net-arc-path" fill="none" />` +
+      `<text><textPath href="#net-arc-path" startOffset="50%" text-anchor="middle"></textPath></text></svg>`
+    );
+  }
+  /** Its words the same size on the screen however big the circle is. */
+  const sizeArc = () => {
+    const d = discEl.offsetWidth;
+    if (d) arcEl.querySelector('text')!.setAttribute('font-size', String(2500 / d));
+  };
+  /** Each third's chips placed inside their piece of the circle: clear of
+   *  the rim, of the middle and of the other thirds. Names differ too much in
+   *  length for one layout to fit every focus on every screen, so each third
+   *  tries a few -- set in or out along its middle line, packed wider or
+   *  narrower, the words a little smaller -- and keeps the first that fits
+   *  (or the last, if none does). */
+  const PLACES = (() => {
+    const out: { t: number; w: number; k: number }[] = [];
+    for (const k of [1, 0.92, 0.84, 0.76, 0.7])
+      for (const w of [1, 0.85, 1.15, 1.3])
+        for (const t of [0.6, 0.64, 0.56, 0.68, 0.72]) out.push({ t, w, k });
+    return out;
+  })();
+  // Measured by layout, not on the screen, so a circle still growing or
+  // shrinking measures the same as one at rest.
+  const fit = () => {
+    const size = discEl.offsetWidth;
+    if (!size || view === 'start') return;
+    const cx = size / 2;
+    const cy = size / 2;
+    const rim = (size / 2) * 0.96;
+    const hub = hubEl.offsetWidth / 2 + 4;
+    thirdsEl.querySelectorAll<HTMLElement>('.net-set').forEach((set, i) => {
+      const mid = i * 120;
+      // A chip, or the third's name (its words, not the full-width line
+      // it sits on), as a box in the circle's own px.
+      const boxes = () =>
+        [...set.querySelectorAll<HTMLElement>('.net-chip, .net-name > span, .net-none')].map((c) => {
+          const x = set.offsetLeft - set.offsetWidth / 2 + c.offsetLeft;
+          const y = set.offsetTop - set.offsetHeight / 2 + c.offsetTop;
+          return { left: x, top: y, right: x + c.offsetWidth, bottom: y + c.offsetHeight };
+        });
+      // How many px the boxes stray out of the third, all told.
+      const stray = () =>
+        boxes().reduce((sum, q) => {
+          // Corners and the middles of the sides: a side can cross the
+          // round middle with all four corners clear of it.
+          const mx = (q.left + q.right) / 2;
+          const my = (q.top + q.bottom) / 2;
+          const points = [[q.left, q.top], [q.right, q.top], [q.left, q.bottom], [q.right, q.bottom], [mx, q.top], [mx, q.bottom], [q.left, my], [q.right, my]];
+          return sum + points.reduce((s2, [x, y]) => {
+            const dx = x - cx;
+            const dy = y - cy;
+            const r = Math.hypot(dx, dy);
+            const a = ((Math.atan2(dx, -dy) * 180) / Math.PI + 360) % 360;
+            const off = Math.abs(((a - mid + 540) % 360) - 180);
+            // Past the line between thirds, less a few px for the gap drawn there.
+            const across = r * Math.sin(((off - 60) * Math.PI) / 180) + 2;
+            return s2 + Math.max(0, r - rim) + Math.max(0, hub - r) + Math.max(0, across);
+          }, 0);
+        }, 0);
+      const a = (mid * Math.PI) / 180;
+      const place = (p: (typeof PLACES)[number]) => {
+        set.style.left = `${50 + 50 * p.t * Math.sin(a)}%`;
+        set.style.top = `${50 - 50 * p.t * Math.cos(a)}%`;
+        set.style.setProperty('--w', String(p.w));
+        set.style.setProperty('--k', String(p.k));
+      };
+      let best = PLACES[0];
+      let least = Infinity;
+      for (const p of PLACES) {
+        place(p);
+        const out = stray();
+        if (out < least) [best, least] = [p, out];
+        if (out === 0) return;
+      }
+      place(best);
+    });
+  };
+
+  /** The trail round the rim: Start and as many of the last steps as fit
+   *  along it, the ones before them an ellipsis. */
+  const drawArc = () => {
+    const path = arcEl.querySelector<SVGPathElement>('path')!;
+    const text = arcEl.querySelector<SVGTextElement>('text')!;
+    // Round the top, but no further down the sides than the screen is wide.
+    // By layout: the circle is always in the middle of the screen's width.
+    const px = discEl.offsetWidth / 200;
+    if (!px) return;
+    // Clear of the edge by more than the words' height: they tip down the
+    // sides at the ends.
+    const edge = root.clientWidth / 2 - 28;
+    const span = Math.min(72, (Math.asin(Math.min(1, edge / (ARC_R * px))) * 180) / Math.PI);
+    path.setAttribute('d', `M${at(ARC_R, -span)} A${ARC_R} ${ARC_R} 0 0 1 ${at(ARC_R, span)}`);
+    const room = path.getTotalLength();
+    for (let from = 0; from < trail.length; from++) {
+      arcText.innerHTML =
+        `<tspan data-step="-1">Start</tspan>` +
+        (from ? `<tspan class="sep"> › …</tspan>` : '') +
+        trail
+          .slice(from)
+          .map((id, j) => {
+            const i = from + j;
+            return `<tspan class="sep"> › </tspan><tspan data-step="${i}"${i === trail.length - 1 ? ' class="here"' : ''}>${esc(short(id))}</tspan>`;
+          })
+          .join('');
+      // With some to spare: glyphs past the path's end are not drawn at all.
+      if (text.getComputedTextLength() <= room * 0.92) return;
+    }
+  };
 
   /** The circle's three thirds and their rims, clockwise from the top. */
   function disc() {
-    const at = (r: number, a: number) => `${(r * Math.sin((a * Math.PI) / 180)).toFixed(2)} ${(-r * Math.cos((a * Math.PI) / 180)).toFixed(2)}`;
     const R = 99;
     const IN = 25;
     const GAP = 1.2;
     return (
-      `<svg viewBox="-100 -100 200 200" aria-hidden="true">` +
+      `<svg class="net-face" viewBox="-100 -100 200 200" aria-hidden="true">` +
       roles
         .map((r, i) => {
           const a0 = -60 + i * 120 + GAP;
@@ -150,7 +274,7 @@ export function network(opts: {
       .map(
         (r, i) =>
           `<div class="net-set net-set-${i}" role="group" aria-label="${esc(net.roles[r].name)}" style="--c:${net.roles[r].colour}">` +
-          `<span class="net-name">${esc(net.roles[r].name)}</span>` +
+          `<span class="net-name"><span>${esc(net.roles[r].name)}</span></span>` +
           (links[r].length ? links[r].map((id) => chip(id)).join('') : `<span class="net-none">Nothing on the same ground</span>`) +
           `</div>`,
       )
@@ -169,6 +293,9 @@ export function network(opts: {
           return `<span aria-hidden="true">›</span><button type="button" data-step="${i}"${last ? ' aria-current="true"' : ''}>${esc(short(id))}</button>`;
         })
         .join('');
+    sizeArc();
+    drawArc();
+    fit();
 
     const sl = byId.get(shown ?? focus)!;
     barEl.innerHTML =
@@ -209,14 +336,25 @@ export function network(opts: {
     showMap(trail.at(-1)!);
     render();
   });
-  trailEl.addEventListener('click', (e) => {
-    const b = (e.target as HTMLElement).closest<HTMLElement>('button[data-step]');
-    if (!b) return;
-    const i = Number(b.dataset.step);
+  /** A step of the trail taken: back to the start, or to a focus before. */
+  const step = (i: number) => {
     if (i < 0) {
       view = 'start';
       render();
     } else if (i < trail.length - 1) focusOn(trail[i], true);
+  };
+  trailEl.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLElement>('button[data-step]');
+    if (b) step(Number(b.dataset.step));
+  });
+  arcEl.addEventListener('click', (e) => {
+    const t = (e.target as Element).closest('[data-step]');
+    if (t && view === 'ring') step(Number(t.getAttribute('data-step')));
+  });
+  addEventListener('resize', () => {
+    sizeArc();
+    if (trail.length) drawArc();
+    fit();
   });
   barEl.addEventListener('click', (e) => {
     const t = e.target as HTMLElement;
