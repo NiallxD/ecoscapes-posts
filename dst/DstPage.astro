@@ -1549,6 +1549,27 @@ const config = {
     } catch {
       say('This needs a browser with WebGL 2.');
     }
+    // The relief is under the water and so under the score, which would lie
+    // flat over the mountains: a gentler shading from the same elevation
+    // tiles goes over the score too, so the ground's shape still shows
+    // through it. Only while there is a score to shade (push).
+    map.addLayer(
+      {
+        id: 'light',
+        type: 'hillshade',
+        source: 'relief',
+        layout: { visibility: 'none' },
+        paint: {
+          'hillshade-method': 'igor',
+          'hillshade-exaggeration': 0.35,
+          'hillshade-illumination-direction': 315,
+          'hillshade-shadow-color': 'rgba(2, 5, 4, 0.6)',
+          'hillshade-highlight-color': 'rgba(214, 232, 222, 0.06)',
+          'hillshade-accent-color': 'rgba(2, 5, 4, 0.3)',
+        },
+      },
+      firstRoad,
+    );
     push();
   });
 
@@ -1578,6 +1599,7 @@ const config = {
    *  frame. */
   function push() {
     score.setModel(criteria(), op);
+    if (map.getLayer('light')) map.setLayoutProperty('light', 'visibility', items.length ? 'visible' : 'none');
     const two = effectiveMode() === 'two';
     score.setBivariate(two ? { breaks, palette, only } : null);
     syncSteady();
