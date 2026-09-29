@@ -78,6 +78,10 @@
     "description": "An integrated system of core habitats (protected areas and other undisturbed natural regions) connected by wildlife corridors that are established through coordinated land-use policies to enable the unimpeded movement of species and the flow of natural processes. They are essential for maintaining and restoring ecological functions, halting current trends in biodiversity loss, and helping species adapt to changing environmental conditions in fragmented wildland habitats affected by landscape disturbance and climate change.",
     "subthemes": [
       {
+        "id": "05-01-habitat-cores",
+        "name": "Habitat Cores"
+      },
+      {
         "id": "05-02-priority-linkages",
         "name": "Priority Linkages",
         "description": "Modelled pathways of ecological connectivity that provide the most efficient movement corridors for wildlife and gene flow across the widest range of species. These pathways identify areas of least resistance for animals and plants to move between protected areas and other high-value habitats, including core and stepping-stone patches found in fragmented landscapes at lower elevations and in valley bottoms. Mapping these movement corridors helps guide the development of practical conservation solutions that deliver the greatest benefits for vulnerable plants and animals."

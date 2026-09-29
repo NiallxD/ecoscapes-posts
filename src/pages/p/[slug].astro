@@ -1,10 +1,10 @@
 ---
 // /p/<slug>/: one page per post in posts/content/. The page itself is posts/PostPage.astro.
-import { getCollection } from 'astro:content';
+import { livePosts } from '../../../shared/lib/posts';
 import PostPage from '../../../posts/PostPage.astro';
 
 export async function getStaticPaths() {
-  const locations = await getCollection('locations');
+  const locations = await livePosts();
   return locations.map((entry) => ({ params: { slug: entry.id }, props: { entry } }));
 }
 ---

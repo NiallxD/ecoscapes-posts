@@ -1,0 +1,8 @@
+{
+  "landcover-2022": [
+    { "label": "Water", "colour": "#418fbf", "of": ["Water", "Freshwater Emergent Wetland", "Saltwater Emergent Wetland"] },
+    { "label": "Grass & shrub", "colour": "#a9d46f", "of": ["Mesic Grass/Forb", "Xeric Grass/Forb", "Mesic Shrub", "Xeric Shrub"] },
+    { "label": "Forest", "colour": "#169b42", "of": ["Deciduous Forest", "Coniferous Forest"] },
+    { "label": "Agriculture", "colour": "#f5b83d", "of": ["Pasture & Planted Grass", "Row Crops", "Cereal Crops", "Orchard & Vinyard", "Fallow Crops"] }
+  ]
+}

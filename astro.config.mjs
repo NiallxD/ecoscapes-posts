@@ -3,6 +3,7 @@ import { defineConfig } from 'astro/config';
 
 import heroes from './posts/tools/hero-integration.mjs';
 import swVersion from './shared/tools/sw-version.mjs';
+import unpublished from './posts/tools/unpublished.mjs';
 
 // GitHub Pages project sites live under /<repo>/. Both are read from the env so
 // `npm run dev` stays at the root and the deploy workflow supplies the real
@@ -14,8 +15,9 @@ export default defineConfig({
   site,
   base,
   // Re-renders each location's hero still from its frontmatter, on build and on
-  // save in dev. See tools/hero.mjs.
-  integrations: [heroes(), swVersion()],
+  // save in dev. See tools/hero.mjs. A post marked `published: false` has its
+  // media taken back out of the build (tools/unpublished.mjs).
+  integrations: [heroes(), unpublished(), swVersion()],
   build: { format: 'directory' },
   // The gyroscope needs a secure context, which a LAN IP is not, so phone
   // testing goes through a cloudflared tunnel. Vite rejects hostnames it was
@@ -25,8 +27,9 @@ export default defineConfig({
   // The dev toolbar docks to the bottom centre of the screen, which is where the
   // panel arrows now live -- on a phone it sits right on top of them.
   devToolbar: { enabled: false },
-  // Loaded only when the planning map's full image is saved: Vite's first scan
-  // misses it, and finding it later re-bundles every dependency under a page
-  // already open, which breaks that page (no map, no buttons) until a reload.
-  vite: { optimizeDeps: { include: ['qrcode-generator'] } },
+  // Loaded only when the planning map's full image is saved, and when a video
+  // is made (the flyover, the map's years): Vite's first scan misses them, and
+  // finding one later re-bundles every dependency under a page already open,
+  // which breaks that page (no map, no buttons, no panorama) until a reload.
+  vite: { optimizeDeps: { include: ['qrcode-generator', 'mediabunny'] } },
 });

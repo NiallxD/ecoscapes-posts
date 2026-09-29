@@ -2,7 +2,7 @@
 title: Sea-to-Sky
 # The whole EcoScapes study area, Sunshine Coast and Vancouver to past
 # Lillooet: what the map opens on when it does not know where you are, or you
-# are somewhere else. The widest sensible look at everywhere the portal's
+# are somewhere else. The widest sensible look at everywhere the map's
 # layers cover, so a layer switched on reads as a whole area rather than a
 # sliver of one; once it finds you, it flies in to walking scale.
 bounds: [[-124.69, 48.94], [-121.43, 51.26]]
@@ -30,144 +30,152 @@ bear:
     Bears know their ground up close. They cover long distances on foot and
     read the land by smell as much as by sight. Find where you are standing,
     and see what the land around you holds.
-# The portal's layers themselves come from map/content/ecoscapes-layers.json.
-# Anything here with a portal layer's id is laid over that layer: which ones
-# are on when the map opens, and the words for standing in one. Anything
-# else is a layer of this site's own, stacked over the portal's in this order
-# (the last on top), and needs its name, file and place in the list.
-layers:
-  - id: connectivity-linkages
-    # Off unless asked for: a post's "Explore the map" opens /map/ with
-    # ?layers=connectivity-linkages; plain /map/ opens with no layer on.
-    # When you are standing in one: the tag beside your dot, and the card it
-    # opens. Draft wording -- for Murray to check.
-    here:
-      label: Wildlife corridor
-      what: a wildlife corridor
-      body: >-
-        Wildlife corridors are the easiest routes for animals to travel
-        between habitat cores. Keeping them open lets wildlife reach food,
-        shelter and new ground as the landscape and the climate change around
-        them.
-      # Things someone standing here could spot. Drafts -- for Murray to check.
-      look:
-        - Narrow game trails, especially along streams and valley bottoms
-        - Tracks or scat where the ground is soft or snowy
-        - Culverts, bridges and underpasses animals could use to cross roads
-        - Fences, roads or buildings that could block the way
-  # From the GeoPackage, burned to a raster and tiled by map/tools/build-map.py
-  # (its entry in map/tools/map-catalogue.json).
-  - id: habitat-cores
-    name: Habitat cores and patches
-    src: /tiles/layers/habitat-cores.pmtiles
-    # From a multispecies distribution model -- not from the linkages, which
-    # are mapped between these. Plain words for visitors.
-    source: EcoScapes
-    opacity: 0.85
-    kind: categories
-    theme: 05-connectivity-network
-    subtheme: 05-01-habitat-cores
-    about: Where many of the region's species are most likely to be found.
+# What someone standing in a layer is told, by the layer's id: the tag beside
+# your dot, and the card it opens. The layers themselves -- every one, however
+# it was made -- are in ecoscapes-layers.json.
+here:
+  connectivity-linkages:
     # Draft wording -- for Murray to check.
-    here:
-      label: Habitat core
-      what: a habitat core
-      body: >-
-        Habitat cores are the places where many of the region's species are
-        most likely to be found: good ground to live, feed and raise young.
-      # Drafts -- for Murray to check.
-      look:
-        - Big old trees, standing dead snags and fallen logs
-        - Nibbled shrubs and young trees, where deer and elk have browsed
-        - Birdsong — how many different calls can you hear?
-        - Tracks, scat or claw marks on trees
-    legend:
-      - colour: '#70a800'
-        label: Habitat core or patch
-  # TerrAdapt series with no map of the portal's own: each shows its latest
-  # year, and its years through Through time (timeseries.json).
-  - id: developed-land
-    name: Developed land
-    src: /tiles/ecoscapes/developed/2024.pmtiles
-    source: TerrAdapt-Cascadia
-    opacity: 0.8
-    kind: continuous
-    theme: 02-ecosystem-integrity
-    subtheme: 02-02-habitat-threats
-    about: How likely the ground is to be built on or paved, in 2024.
-    legend:
-      - { colour: '#ffffcc', label: Less likely }
-      - { colour: '#ffeda0', label: '' }
-      - { colour: '#fed976', label: '' }
-      - { colour: '#feb24c', label: '' }
-      - { colour: '#fd8d3c', label: '' }
-      - { colour: '#fc4e2a', label: '' }
-      - { colour: '#e31a1c', label: '' }
-      - { colour: '#bd0026', label: '' }
-      - { colour: '#800026', label: More likely }
-  # Draft: which end is loss is not confirmed -- for Murray to check.
-  - id: ecosystem-change
-    name: Ecosystem change
-    src: /tiles/ecoscapes/ecosystem-change/2022.pmtiles
-    source: TerrAdapt-Cascadia
-    opacity: 0.8
-    kind: continuous
-    theme: 01-biodiversity-conservation
-    subtheme: 01-02-ecosystem-risk
-    about: How much the land's ecosystems had changed by 2022.
-    legend:
-      - { colour: '#7f3b08', label: Decline }
-      - { colour: '#b35806', label: '' }
-      - { colour: '#e08214', label: '' }
-      - { colour: '#fdb863', label: '' }
-      - { colour: '#fee0b6', label: '' }
-      - { colour: '#f7f7f7', label: Little change }
-      - { colour: '#d8daeb', label: '' }
-      - { colour: '#b2abd2', label: '' }
-      - { colour: '#8073ac', label: '' }
-      - { colour: '#542788', label: '' }
-      - { colour: '#2d004b', label: Gain }
-  - id: mean-annual-temperature
-    name: Mean annual temperature
-    src: /tiles/ecoscapes/mean-annual-temperature/2020.pmtiles
-    source: TerrAdapt-Cascadia
-    opacity: 0.8
-    kind: continuous
-    theme: 04-climate-change-refugia
-    subtheme: 04-01-climate-refugia
-    about: The average temperature over a year, as a thirty-year norm, for 2020.
-    legend:
-      - { colour: '#042333', label: 0.6 °C }
-      - { colour: '#2c3395', label: '' }
-      - { colour: '#744992', label: '' }
-      - { colour: '#b15f82', label: '' }
-      - { colour: '#eb7958', label: '' }
-      - { colour: '#fbb43d', label: '' }
-      - { colour: '#e8fa5b', label: 11.6 °C }
-# Headings the layer list needs that the portal's own list does not have.
-subthemes:
-  - theme: 05-connectivity-network
-    id: 05-01-habitat-cores
-    name: Habitat Cores
-# Pins. Placeholders until the real stories are written: the places are real,
-# the words are not.
+    label: Wildlife corridor
+    what: a wildlife corridor
+    body: >-
+      Wildlife corridors are the easiest routes for animals to travel
+      between habitat cores. Keeping them open lets wildlife reach food,
+      shelter and new ground as the landscape and the climate change around
+      them.
+    # Things someone standing here could spot. Drafts -- for Murray to check.
+    look:
+      - Narrow game trails, especially along streams and valley bottoms
+      - Tracks or scat where the ground is soft or snowy
+      - Culverts, bridges and underpasses animals could use to cross roads
+      - Fences, roads or buildings that could block the way
+  habitat-cores:
+    # Draft wording -- for Murray to check.
+    label: Habitat core
+    what: a habitat core
+    body: >-
+      Habitat cores are the places where many of the region's species are
+      most likely to be found: good ground to live, feed and raise young.
+    # Drafts -- for Murray to check.
+    look:
+      - Big old trees, standing dead snags and fallen logs
+      - Nibbled shrubs and young trees, where deer and elk have browsed
+      - Birdsong — how many different calls can you hear?
+      - Tracks, scat or claw marks on trees
+# Pins: things to notice on the ground. Placed with /map/?pick; the facts are
+# from each place's Wikipedia page (2026-09-28).
 callouts:
-  - title: Placeholder — Stawamus Chief
+  - title: Stawamus Chief
     lat: 49.6819
     lng: -123.1409
     body: >-
-      A callout about something you can see on the ground from here. A few
-      sentences, a story rather than a data sheet.
-  - title: Placeholder — Squamish Estuary
+      Stawamus Chief is a large granite monolith which towers over downtown Squamish.
+  - title: Squamish Estuary
     lat: 49.6905
     lng: -123.1755
     body: >-
-      A callout can carry a picture as well, and can be tied to a layer so it
-      only shows while that layer is on.
-  - title: Placeholder — Brackendale
-    lat: 49.7735
-    lng: -123.1523
+      Squamish estuary is a large estuarine region in Squamish and is home to a diverse group of wildlife.
+  - title: Mount Price & Clinker Peak
+    lat: 49.91532
+    lng: -123.04185
     body: >-
-      Pins further up the corridor show in the "near you" list for anyone
-      standing close to them.
+      Mount Price is a small stratovolcano in the Garibaldi Ranges of the Pacific Ranges in southwestern British Columbia, Canada.
+  - title: "The Barrier"
+    lat: 49.94199
+    lng: -123.08886
+    body: >-
+      A lava dam holding back Garibaldi Lake. About 13,000 years ago, lava
+      from Clinker Peak ponded and cooled against the retreating ice
+      sheet, which is why it is so thick. In 1855–56 part of it gave way
+      in a huge rock avalanche down Rubble Creek, and in 1980–81 the land
+      below was declared unsafe to live on.
+  - title: "Mt. Garibaldi (Nch'kay)"
+    lat: 49.85092
+    lng: -123.00588
+    body: >-
+      Nch'ḵay̓ is a dormant volcano, 2,678 m, the tallest peak around
+      Squamish. It grew while surrounded by the last ice sheet, and as the
+      ice melted its west face collapsed in a series of landslides between
+      12,800 and 11,500 years ago, spreading debris out into the Squamish
+      Valley.
+  - title: "Black Tusk"
+    lat: 49.97489
+    lng: -123.04311
+    body: >-
+      T'ákt'akmúten tl'a Ín7inyáx̱a7en in the Squamish language: a
+      pinnacle of volcanic rock, 2,319 m, the worn-down core of an old
+      volcano. Its dark spire can be seen from far off in every direction,
+      especially from the highway just south of Whistler.
+  - title: "Mt Tantalus"
+    lat: 49.81602
+    lng: -123.32893
+    body: >-
+      At 2,608 m, the highest mountain in the Tantalus Range, famous for
+      its snow-covered face. In the land cover maps, its snow and ice
+      shrink from the 1980s on.
+  - title: "Sky Pilot & Copilot"
+    lat: 49.63512
+    lng: -123.0838
+    body: >-
+      Sky Pilot is the highest mountain in the Britannia Range, with Co-
+      Pilot (1,881 m) beside it. It is named after the United Church's
+      mission boat Sky Pilot, and has drawn many more climbers since the
+      Sea to Sky Gondola opened in 2014.
+  - title: "Squamish Valley"
+    lat: 49.84159
+    lng: -123.22997
+    body: >-
+      The valley of the Squamish River: short, about 80 km, but a very
+      large river, draining more than 3,300 km² of mountains. Glacier-fed
+      tributaries join it all the way down.
+  - title: "Squamish - Ashlu Confluence"
+    lat: 49.90246
+    lng: -123.30916
+    body: >-
+      Ashlu Creek, short and swift, joins the Squamish here, about 24 km
+      north-west of town. Below its canyon, a run-of-river hydro plant has
+      made power from it since 2009.
+  - title: "Squamish - Elaho Confluence"
+    lat: 50.1108
+    lng: -123.39153
+    body: >-
+      Where the Elaho River, flowing from the Elaho Glacier, meets the
+      Squamish. Here the Elaho is the bigger of the two rivers, and it is
+      prone to flash floods.
+  - title: "Squamish - Mamquam Confluence"
+    lat: 49.73458
+    lng: -123.15062
+    body: >-
+      The Mamquam River, about 35 km long, ends here in the Squamish. It
+      gathers creeks from the glaciers and lakes of Garibaldi Park on its
+      way down.
+  - title: "Stawamus River"
+    lat: 49.69301
+    lng: -123.13635
+    body: >-
+      A small, creek-like river that starts at Stawamus Lake and runs down
+      past the Chief, with no major tributaries. It reaches Howe Sound
+      just east of the mouth of the Squamish.
+  - title: "Squamish River"
+    lat: 49.71491
+    lng: -123.17165
+    body: >-
+      The river that gives the town its name, fed by glaciers along its
+      whole length. At its mouth is the Skwelwil'em Squamish Estuary
+      Wildlife Management Area.
+  - title: "Howe Sound"
+    lat: 49.66815
+    lng: -123.20752
+    body: >-
+      Átl'ḵa7tsem, a triangle of fjords reaching up from the sea to
+      Squamish. The Britannia copper mine, once the largest in the British
+      Empire, and other industry left it badly polluted. Since the clean-
+      up, humpback whales, orcas and sea lions have returned, and in 2021
+      it was named a UNESCO Biosphere Reserve for that recovery.
+  - title: "Skookum - Mamquam Confluence"
+    lat: 49.71949
+    lng: -122.99437
+    body: >-
+      Skookum Creek flows south-west from remote Mamquam Lake in Garibaldi
+      Park and meets the Mamquam River here, about 12 km above its mouth.
 ---

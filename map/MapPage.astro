@@ -1,25 +1,27 @@
 ---
-import { getCollection, getEntry } from 'astro:content';
+import { getEntry } from 'astro:content';
+import { livePosts } from '../shared/lib/posts';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import Shell from '../shared/layouts/Shell.astro';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import AnimalButton from '../shared/components/AnimalButton.astro';
 import { asset, tile } from '../shared/lib/paths';
-import portalLayers from './content/ecoscapes-layers.json';
-import portalThemes from './content/ecoscapes-themes.json';
+import allLayers from './content/ecoscapes-layers.json';
+import allThemes from './content/ecoscapes-themes.json';
 import connections from './content/connections.json';
 import searchWords from './content/search-words.json';
 import timeseries from './content/timeseries.json';
+import fewerColours from './content/fewer-colours.json';
 
-/** The map: the Sea-to-Sky, where you are on it, every layer of the map
- *  portal over it, and pins for the posts and the things worth noticing. The
+/** The map: the Sea-to-Sky, where you are on it, every data layer over it,
+ *  and pins for the posts and the things worth noticing. The
  *  Bear's -- not a page of any one post's story, it sits beside all of them. */
 const entry = await getEntry('ecoscapes', 'sea-to-sky');
 if (!entry) throw new Error('map/content/sea-to-sky.md is missing');
 const { data } = entry;
 
-const posts = (await getCollection('locations')).map((loc) => ({
+const posts = (await livePosts()).map((loc) => ({
   href: asset(`/p/${loc.id}/`),
   title: loc.data.title,
   place: loc.data.place,
@@ -28,24 +30,20 @@ const posts = (await getCollection('locations')).map((loc) => ({
   image: asset(loc.data.pano.card ?? loc.data.pano.src),
 }));
 
-// The portal's layers with this site's settings laid over them by id, then
-// this site's own layers on top.
-const own = new Map(data.layers.map((l) => [l.id, l]));
-const layers = [
-  ...portalLayers.map((l) => ({ ...l, ...own.get(l.id) })),
-  ...data.layers
-    .filter((l) => !portalLayers.some((p) => p.id === l.id))
-    .map((l) => {
-      if (!l.name || !l.src || !l.theme || !l.subtheme)
-        throw new Error(`layer ${l.id}: a layer that is not the portal's needs name, src, theme and subtheme`);
-      return { kind: 'classes' as const, legend: [], ...l };
-    }),
-].map((l) => ({ opacity: 0.8, resampling: 'nearest' as const, ...l, on: l.on ?? false, src: tile(l.src!) }));
-// And the headings for them, in the portal's own numbering order.
-const themes = portalThemes.map((t) => ({
-  ...t,
-  subthemes: [...t.subthemes, ...data.subthemes.filter((s) => s.theme === t.id)].sort((a, b) => a.id.localeCompare(b.id)),
+// Every data layer (ecoscapes-layers.json, the last drawn on top), with what
+// someone standing in it is told (sea-to-sky.md) by its id.
+for (const id of Object.keys(data.here))
+  if (!allLayers.some((l) => l.id === id)) throw new Error(`sea-to-sky.md: here: no layer ${id} in ecoscapes-layers.json`);
+const layers = allLayers.map((l) => ({
+  ...l,
+  resampling: l.resampling as 'nearest' | 'linear',
+  kind: l.kind as 'classes' | 'categories' | 'continuous',
+  here: data.here[l.id],
+  on: false,
+  src: tile(l.src),
 }));
+// And the headings they are listed under (ecoscapes-themes.json).
+const themes = allThemes;
 
 // What the lens's rim can be narrowed to: plain groups of the layers, by
 // subtheme. A subtheme with no layers on this map drops out of its group.
@@ -94,6 +92,19 @@ const series = timeseries.map((t) => {
   return { ...t, legend, resampling: t.resampling as 'nearest' | 'linear', src: tile(t.src), years: Array.from({ length: Math.floor((last - first) / step) + 1 }, (_, i) => first + i * step) };
 });
 
+// A layer's fewer colours (fewer-colours.json): its classes gathered into a
+// few groups, one colour each, for a map that is easier to take in. Every
+// class named must be in the layer's legend and its years'.
+for (const [id, groups] of Object.entries(fewerColours)) {
+  const l = layers.find((x) => x.id === id);
+  if (!l) throw new Error(`fewer-colours.json: no such layer ${id}`);
+  for (const key of [l.legend, ...series.filter((t) => t.layer === id).map((t) => t.legend)]) {
+    const labels = new Set(key.map((k) => k.label));
+    const missing = groups.flatMap((g) => g.of).filter((c) => !labels.has(c));
+    if (missing.length) throw new Error(`fewer-colours.json: ${id} has no class ${missing.join(', ')}`);
+  }
+}
+
 // Everything the script needs, with every path already through asset() so the
 // map works under a GitHub Pages project path as well as at a root.
 const config = {
@@ -112,6 +123,7 @@ const config = {
   network: connections,
   searchWords,
   series,
+  fewerColours,
   callouts: data.callouts.map((c) => ({ ...c, image: c.image ? asset(c.image) : undefined })),
   posts,
   // Opened in the sheet, like a story, rather than as a full-screen animal
@@ -215,6 +227,16 @@ const config = {
          the map under it; put away, small in the top corner. -->
     <div class="webmap" id="webmap" hidden></div>
 
+    <!-- Recording the years: the box the video shows, the rest dimmed. -->
+    <div class="rec" id="rec" hidden>
+      <div class="rec-box" id="rec-box"></div>
+      <div class="rec-bar">
+        <p id="rec-say"></p>
+        <button type="button" class="rec-go" id="rec-go">Record</button>
+        <button type="button" id="rec-stop">Cancel</button>
+      </div>
+    </div>
+
     <!-- Through time, from the landing: a slice of the globe along the foot,
          and over it a satellite for each map that has its years. -->
     <div class="time-view" id="time-view" hidden></div>
@@ -252,6 +274,27 @@ const config = {
         <input class="ts-slider" type="range" min="0" max="0" step="1" value="0" aria-label="Year" />
       </div>
       <button class="ts-close" type="button" aria-label="Back to the one map">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+      </button>
+    </div>
+
+    <!-- The light: the sun over the Sea-to-Sky at a time of day and of year,
+         lighting the ground and the layers on it. Behind the L key for now. -->
+    <div class="sun-bar" id="sun-bar" role="group" aria-label="Light" hidden>
+      <button class="sun-play" type="button" aria-pressed="false" aria-label="Play the day">
+        <svg class="ts-go" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z" /></svg>
+        <svg class="ts-wait" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5.5h3.5v13H7zM13.5 5.5H17v13h-3.5z" /></svg>
+      </button>
+      <button class="sun-speed" type="button" aria-label="Speed">×1</button>
+      <div class="sun-row">
+        <span>Time</span><b class="sun-time"></b>
+        <input class="sun-hour" type="range" min="0" max="1439" step="any" aria-label="Time of day" />
+      </div>
+      <div class="sun-row">
+        <span>Day</span><b class="sun-day"></b>
+        <input class="sun-date" type="range" min="0" max="364" step="1" aria-label="Day of the year" />
+      </div>
+      <button class="sun-close" type="button" aria-label="Back to the usual light">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
       </button>
     </div>
@@ -365,8 +408,11 @@ const config = {
            area with its key, or the view. Not on a phone. -->
       <div class="pop-wrap save-wrap" id="save-wrap">
         <div class="pop-menu" id="save-menu" hidden>
-          <button type="button" data-save="full">Full map<small>The whole area, with its key</small></button>
-          <button type="button" data-save="view">This view<small>The map as it is on screen</small></button>
+          <button type="button" data-save="full">Map: Full<small>The whole area, with its key</small></button>
+          <button type="button" data-save="view">Map: View<small>An area you frame, 4:5 upright, with its key</small></button>
+          <button type="button" data-save="grab">Screengrab<small>The map as it is on screen</small></button>
+          <!-- Only while a layer is going through time. -->
+          <button type="button" data-save="years" hidden>The years, as a video<small>For a post: 4:3, no pins, year or key</small></button>
         </div>
         <button class="step way" id="save-btn" type="button" aria-expanded="false" aria-controls="save-menu" aria-label="Save the map" title="Save the map as a picture">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M5 19.5h14" /></svg>
@@ -1813,6 +1859,48 @@ const config = {
   .pop-menu > button:hover:not(:disabled) { background: var(--bg-lift); }
   .pop-menu > button:disabled { opacity: 0.5; cursor: progress; }
   #save-btn[aria-expanded='true'] { border-color: var(--accent); color: var(--accent); }
+
+  /* Recording the years: a 4:3 box of what the video shows, the rest dimmed,
+     and no pins -- stories, posts, your dot -- so the screen shows what the
+     video will. Under the controls, so the years can still be scrubbed to
+     check the framing; nothing takes a click while it records. */
+  .rec { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+  .rec-box {
+    position: absolute;
+    border: 1.5px solid var(--accent);
+    border-radius: 3px;
+    box-shadow: 0 0 0 100vmax rgba(8, 12, 10, 0.55);
+  }
+  .rec-bar {
+    position: absolute;
+    left: 50%;
+    top: 1rem;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.45rem 0.5rem 0.45rem 1rem;
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    background: rgba(13, 18, 16, 0.92);
+    color: var(--ink);
+    font-size: 0.8rem;
+    pointer-events: auto;
+  }
+  .rec-bar p { margin: 0; max-width: 24rem; }
+  .rec-bar button {
+    padding: 0.4rem 0.8rem;
+    border-radius: 9px;
+    border: 1px solid var(--line);
+    background: none;
+    color: var(--ink);
+    font: inherit;
+    cursor: pointer;
+  }
+  .rec-bar .rec-go { border-color: var(--accent); color: var(--accent); }
+  .rec-bar button:disabled { display: none; }
+  .map-page.rec-on :global(.maplibregl-marker) { visibility: hidden; }
+  .map-page.rec-busy > :not(.rec) { pointer-events: none; }
   @media (max-width: 47.99rem), (max-height: 30rem), (hover: none) { .save-wrap { display: none; } }
 
   /* The legend: at the foot, between the Bear's pill and the controls. */
@@ -1976,6 +2064,20 @@ const config = {
   .legend-body :global(.lg-off:hover) { color: var(--ink); border-color: var(--ink-dim); }
   .legend-body :global(.lg-off:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
   /* A layer that is only in the lens. */
+  .legend-body :global(.lg-fewer) {
+    margin-top: 0.45rem;
+    padding: 0.2rem 0.6rem;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: none;
+    color: var(--ink-dim);
+    font: inherit;
+    font-size: 0.68rem;
+    cursor: pointer;
+  }
+  .legend-body :global(.lg-fewer:hover) { color: var(--ink); border-color: var(--ink-dim); }
+  .legend-body :global(.lg-fewer[aria-pressed='true']) { color: var(--accent); border-color: var(--accent); }
+  .legend-body :global(.lg-fewer:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
   .legend-body :global(.lg-where) { display: block; margin-bottom: 0.1rem; font-size: 0.6rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); }
 
   /* The years: along the foot of the map, clear of the columns either side. */
@@ -1997,6 +2099,118 @@ const config = {
     -webkit-backdrop-filter: blur(12px);
   }
   .ts-bar[hidden] { display: none; }
+  .sun-bar {
+    position: absolute;
+    z-index: 20;
+    left: 50%;
+    top: 1rem;
+    transform: translateX(-50%);
+    width: min(24rem, calc(100% - 2rem));
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 0.2rem 0.5rem;
+    padding: 0.5rem;
+    border-radius: 16px;
+    border: 1px solid var(--line);
+    background: rgba(13, 18, 16, 0.9);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+  .sun-bar[hidden] { display: none; }
+  .map-page :global(.sun-debug) {
+    position: absolute;
+    z-index: 20;
+    top: 1rem;
+    left: 1rem;
+    width: 20rem;
+    max-height: calc(100% - 2rem);
+    overflow-y: auto;
+    display: grid;
+    gap: 0.3rem;
+    padding: 0.7rem 0.8rem;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    background: rgba(13, 18, 16, 0.94);
+    font-size: 0.68rem;
+    color: var(--ink-dim);
+  }
+  .map-page :global(.sun-debug b) { color: var(--ink); font-size: 0.8rem; }
+
+  /* ?pick: points clicked onto the map, listed to paste in as callouts. */
+  .map-page :global(.pick-panel) {
+    position: absolute;
+    z-index: 20;
+    top: calc(var(--safe-t, 0px) + 0.9rem);
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(21rem, calc(100% - 1.8rem));
+    max-height: 55dvh;
+    overflow-y: auto;
+    display: grid;
+    gap: 0.4rem;
+    padding: 0.7rem 0.8rem;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    background: rgba(13, 18, 16, 0.94);
+    font-size: 0.72rem;
+    color: var(--ink-dim);
+  }
+  .map-page :global(.pick-panel b) { color: var(--ink); font-size: 0.8rem; }
+  .map-page :global(.pick-head), .map-page :global(.pick-tools) { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+  .map-page :global(.pick-head b) { flex: 1; }
+  .map-page :global(.pick-panel button) { padding: 0.3rem 0.6rem; border-radius: 8px; border: 1px solid var(--line); background: none; color: var(--ink); font: inherit; cursor: pointer; }
+  .map-page :global(.pick-panel button[aria-pressed='true']) { border-color: var(--accent); color: var(--accent); }
+  .map-page :global(.pick-row) { display: grid; grid-template-columns: 1.4rem 1fr auto; align-items: center; gap: 0.4rem; }
+  .map-page :global(.pick-row input) { min-width: 0; padding: 0.25rem 0.4rem; border-radius: 6px; border: 1px solid var(--line); background: var(--bg-lift); color: var(--ink); font: inherit; font-size: 16px; }
+  .map-page :global(.pick-row small) { grid-column: 2; font-variant-numeric: tabular-nums; }
+  .map-page :global(.pick-row button) { grid-row: 1 / span 2; grid-column: 3; padding: 0.2rem 0.45rem; }
+  .map-page :global(.pick-panel textarea) { width: 100%; box-sizing: border-box; min-height: 5rem; border-radius: 6px; border: 1px solid var(--line); background: var(--bg-lift); color: var(--ink); font: 0.68rem ui-monospace, monospace; }
+  .map-page :global(.pick-dot) {
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 2px solid #0d1210;
+    background: var(--accent);
+    color: #0d1210;
+    font: 700 11px system-ui, sans-serif;
+    cursor: grab;
+  }
+  .map-page :global(.sun-debug label) { display: grid; grid-template-columns: 6.5rem 26px 1fr 2.4rem; align-items: center; gap: 0.35rem; }
+  .map-page :global(.sun-debug input.wide) { grid-column: 2 / span 2; }
+  .map-page :global(.sun-debug input[type='range']) { width: 100%; margin: 0; accent-color: var(--accent); }
+  .map-page :global(.sun-debug input[type='color']) { width: 26px; height: 20px; padding: 0; border: 0; background: none; }
+  .map-page :global(.sun-debug output) { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink); }
+  .map-page :global(.sun-debug h4) { margin: 0.5rem 0 0.1rem; font-size: 0.66rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); }
+  .map-page :global(.sun-debug-now) { margin: 0; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .map-page :global(.sun-debug-tabs) { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.2rem; }
+  .map-page :global(.sun-debug-tabs button) { flex: none; padding: 0.25rem 0.55rem; border-radius: 999px; }
+  .map-page :global(.sun-debug-live p) { margin: 0 0 0.2rem; color: var(--ink); }
+  .map-page :global(.sun-debug-val) { display: grid; grid-template-columns: 6.5rem 14px 1fr 2.4rem; align-items: center; gap: 0.35rem; }
+  .map-page :global(.sun-debug-val i) { width: 14px; height: 14px; border-radius: 3px; }
+  .map-page :global(.sun-debug-val code) { font: 0.64rem ui-monospace, monospace; color: var(--ink-dim); }
+  /* How much of each moment is in the light now: its button filled that far. */
+  .map-page :global(.sun-debug-tabs button[data-pick]) {
+    background: linear-gradient(to right, color-mix(in srgb, var(--accent) 28%, transparent) calc(var(--share, 0) * 100%), transparent 0);
+  }
+  .map-page :global(.sun-debug-tabs button[data-share]:not([data-share='']))::after { content: ' ' attr(data-share); color: var(--ink-dim); font-size: 0.6rem; }
+  .map-page :global(.sun-debug-tabs button[aria-pressed='true']) { border-color: var(--accent); color: var(--accent); }
+  .map-page :global(.sun-debug-foot) { display: flex; gap: 0.4rem; margin-top: 0.3rem; }
+  .map-page :global(.sun-debug button) { flex: 1; padding: 0.3rem; border-radius: 8px; border: 1px solid var(--line); background: none; color: var(--ink); font: inherit; cursor: pointer; }
+  .map-page :global(.sun-debug textarea) { width: 100%; box-sizing: border-box; font: 0.62rem/1.35 ui-monospace, monospace; background: rgba(0, 0, 0, 0.3); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; }
+  .sun-row { grid-column: 2; display: grid; grid-template-columns: 2.4rem 4.6rem 1fr; align-items: center; gap: 0.4rem; font-size: 0.72rem; color: var(--ink-dim); }
+  .sun-row b { font-size: 0.8rem; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .sun-row input { width: 100%; margin: 0; accent-color: var(--accent); }
+  .sun-play,
+  .sun-speed { grid-column: 1; appearance: none; display: grid; place-items: center; width: 34px; height: 24px; padding: 0; border-radius: 999px; border: 1px solid var(--line); background: none; color: var(--ink); font: inherit; font-size: 0.68rem; font-variant-numeric: tabular-nums; cursor: pointer; }
+  .sun-play svg { width: 14px; height: 14px; }
+  .sun-play[aria-pressed='true'] { border-color: var(--accent); color: var(--accent); }
+  .sun-play .ts-wait,
+  .sun-play[aria-pressed='true'] .ts-go { display: none; }
+  .sun-play[aria-pressed='true'] .ts-wait { display: block; }
+  .sun-close { grid-column: 3; grid-row: 1 / span 2; align-self: center; appearance: none; display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; background: none; color: var(--ink-dim); cursor: pointer; }
+  .sun-close svg { width: 16px; height: 16px; }
   .ts-mid { flex: 1; min-width: 0; }
   .ts-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; font-size: 0.74rem; color: var(--ink-dim); }
   .ts-year { font-size: 1rem; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; transition: opacity 0.12s; }
@@ -2543,6 +2757,7 @@ const config = {
     network: NetConfig;
     searchWords: Record<string, string[]>;
     series: Series[];
+    fewerColours: Record<string, { label: string; colour: string; of: string[] }[]>;
     callouts: Callout[];
     posts: Post[];
     bear: { title: string; body: string; image?: string };
@@ -2562,6 +2777,108 @@ const config = {
 
   const protocol = new Protocol();
   maplibregl.addProtocol('pmtiles', protocol.tile);
+
+  // ---- Fewer colours -------------------------------------------------------
+  // A layer with groups (fewer-colours.json) can be drawn with those instead
+  // of its every class: its tiles recoloured as they come in, each pixel of a
+  // class in a group painted the group's colour, and its legend the groups.
+  // The recolouring is its own protocol, pmgroup:// -- the same length as
+  // pmtiles://, which the PMTiles protocol counts on when it reads the file's
+  // header -- so a layer switches over by pointing its source at the other.
+  /** The layers showing fewer colours. */
+  const fewer = new Set<string>();
+  const groupsOf = (id: string) => config.fewerColours[id];
+  /** A legend in its groups: each group where its first class was, the
+   *  classes in no group as they are. */
+  const groupedKey = (id: string, legend: Layer['legend']) => {
+    const gs = groupsOf(id);
+    if (!gs || !fewer.has(id)) return legend;
+    const out: Layer['legend'] = [];
+    for (const k of legend) {
+      const g = gs.find((x) => x.of.includes(k.label));
+      if (!g) out.push(k);
+      else if (!out.some((o) => o.label === g.label)) out.push({ colour: g.colour, label: g.label });
+    }
+    return out;
+  };
+  /** A class as its group, while the layer shows its groups. */
+  const groupedClass = (id: string, c: { label: string; colour: string }) => {
+    const g = fewer.has(id) ? groupsOf(id)?.find((x) => x.of.includes(c.label)) : undefined;
+    return g ? { label: g.label, colour: g.colour } : c;
+  };
+  const rgbOf = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  /** Each file drawn in its groups: the colours of its legend, and what each
+   *  becomes (null: stays as it is). */
+  const recolour = new Map<string, { from: number[][]; to: (number[] | null)[] }>();
+  /** A layer's file as a source URL: in its groups or not. */
+  const tileUrl = (id: string, src: string, legend: Layer['legend']) => {
+    const file = abs(src);
+    if (!fewer.has(id) || !groupsOf(id)) return `pmtiles://${file}`;
+    const gs = groupsOf(id);
+    recolour.set(file, {
+      from: legend.map((k) => rgbOf(k.colour)),
+      to: legend.map((k) => {
+        const g = gs.find((x) => x.of.includes(k.label));
+        return g ? rgbOf(g.colour) : null;
+      }),
+    });
+    return `pmgroup://${file}`;
+  };
+  maplibregl.addProtocol('pmgroup', async (params, ac) => {
+    if (params.type === 'json') return protocol.tilev4(params, ac);
+    const url = params.url.replace(/^pmgroup:/, 'pmtiles:');
+    const res = await protocol.tilev4({ ...params, url }, ac);
+    const data = res.data as Uint8Array | null;
+    const how = recolour.get(url.slice(10).replace(/\/\d+\/\d+\/\d+$/, ''));
+    if (!data?.byteLength || !how) return res;
+    const bitmap = await createImageBitmap(new Blob([data]), { premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
+    ctx.drawImage(bitmap, 0, 0);
+    bitmap.close();
+    const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const px = img.data;
+    // Each colour matched once to its nearest class: a tile has few of them.
+    const seen = new Map<number, number[] | null>();
+    for (let i = 0; i < px.length; i += 4) {
+      if (!px[i + 3]) continue;
+      const key = (px[i] << 16) | (px[i + 1] << 8) | px[i + 2];
+      let to = seen.get(key);
+      if (to === undefined) {
+        let best = 0;
+        let least = Infinity;
+        how.from.forEach(([r, g, b], j) => {
+          const d = (r - px[i]) ** 2 + (g - px[i + 1]) ** 2 + (b - px[i + 2]) ** 2;
+          if (d < least) [best, least] = [j, d];
+        });
+        to = how.to[best];
+        seen.set(key, to);
+      }
+      if (to) [px[i], px[i + 1], px[i + 2]] = to;
+    }
+    ctx.putImageData(img, 0, 0);
+    const blob = await canvas.convertToBlob({ type: 'image/png' });
+    return { data: new Uint8Array(await blob.arrayBuffer()) };
+  });
+  /** A layer put into its groups or back to its every class, on every map
+   *  that draws it -- its own and its years, here and in the compare. */
+  function setFewer(id: string, on: boolean) {
+    if (on) fewer.add(id);
+    else fewer.delete(id);
+    const l = config.layers.find((x) => x.id === id)!;
+    const s = config.series.find((x) => x.layer === id);
+    for (const m of [map, ...panes.map((p) => p.map)]) {
+      if (!m) continue;
+      for (const sid of Object.keys(m.getStyle().sources)) {
+        const year = sid.startsWith(`${id}@`) ? sid.slice(id.length + 1) : sid === id ? '' : null;
+        if (year === null) continue;
+        const src = year && s ? s.src.replace('{year}', year) : l.src;
+        (m.getSource(sid) as maplibregl.RasterTileSource).setUrl(tileUrl(id, src, year && s ? s.legend : l.legend));
+      }
+    }
+    renderLegend();
+    hereAgain();
+  }
   // Every layer's file, opened once and shared with the map, so asking what
   // is under you reads the tiles the map has already fetched. Opening one
   // fetches nothing until it is read.
@@ -2642,7 +2959,7 @@ const config = {
     const after = config.layers.slice(config.layers.indexOf(layer) + 1).find((l) => map.getLayer(l.id));
     map.addSource(layer.id, {
       type: 'raster',
-      url: `pmtiles://${abs(layer.src)}`,
+      url: tileUrl(layer.id, layer.src, layer.legend),
       tileSize: 256,
       ...(layer.source ? { attribution: layer.source } : {}),
     });
@@ -2656,7 +2973,7 @@ const config = {
         layout: { visibility: state.get(layer.id)!.on ? 'visible' : 'none' },
         paint: { 'raster-opacity': state.get(layer.id)!.opacity, 'raster-resampling': layer.resampling, 'raster-fade-duration': 150 },
       },
-      after ? lowestOf(after.id) : firstRoad,
+      after ? lowestOf(after.id) : underLight(),
     );
   };
 
@@ -2664,6 +2981,7 @@ const config = {
     addRelief(map, abs(config.terrain));
     addSky(map);
     firstRoad = map.getStyle().layers.find((l) => l.id.startsWith('roads_tunnels'))?.id;
+    addLight();
     styled = true;
     // Top of the stack first, so each finds the one above it already there.
     for (const layer of [...config.layers].reverse()) if (state.get(layer.id)!.on) addToMap(layer);
@@ -2672,10 +2990,409 @@ const config = {
     requestAnimationFrame(cmpUpdate);
   });
 
+  // ---- The light -------------------------------------------------------------
+  // The relief shades only the ground: under the water, and under every
+  // layer, which would otherwise lie flat over the mountains. So a second
+  // shading from the same elevation tiles goes over the layers (under the
+  // roads), gentle enough that their colours still read -- and shown only
+  // while a layer is on, so the base map alone is not shaded twice. Both come
+  // from the elevation already fetched: nothing more to download, and moving
+  // the light only changes how the same tiles are lit.
+  //
+  // Behind the L key, the sun: where it really is over the corridor at a
+  // time of day and a day of the year, low and warm in the evening, gone
+  // below the ridges at night, high and pale at midsummer noon. Closed, the
+  // usual light is back.
+  /** Every number the light is made of, in one place (tuned with ?sun-light;
+   *  colours as hex and a strength, 0 to 1).
+   *
+   *  With the sun out, the day is a handful of moments, each at a height of
+   *  the sun in degrees (0 on the horizon, below it negative) with a look of
+   *  its own: its shade, its light, and the last light on the peaks -- lit
+   *  above glowLine metres, so as the line climbs the valleys go dark first
+   *  and the summits last. Between two moments the look is blended. The
+   *  shading goes over the glow, so only faces turned to the sun catch it. */
+  type Tint = [string, number];
+  type Moment = { name: string; at: number; shadow: Tint; light: Tint; glow: Tint; glowLine: number };
+  const SUN = {
+    // The usual light over the layers, when the sun is not out.
+    usualExaggeration: 0.35,
+    usualShadow: ['#020504', 1] as Tint,
+    usualLight: ['#d6e8de', 0] as Tint,
+    // The sun's, whatever the moment.
+    exaggeration: 1,
+    /** Over the layers, this much of each: their colours still have to read. */
+    overShadow: 1,
+    overLight: 0.79,
+    /** How many metres below its line the glow fades out over. */
+    glowSoft: 500,
+    // The day, night to noon; the afternoon runs back through it in reverse.
+    // Dark all night; before sunrise the alpenglow on the peaks alone; the
+    // sun up, a warm glow on the slopes facing it; then plain shade and white
+    // light all day. (Blended in order of height, not of this list.)
+    moments: [
+      { name: 'Night', at: -8, shadow: ['#040615', 1], light: ['#ff9e52', 0], glow: ['#ff5736', 0], glowLine: 3000 },
+      { name: 'Alpenglow', at: -2, shadow: ['#080713', 0.85], light: ['#ff9e52', 0], glow: ['#ff5736', 0.36], glowLine: 2360 },
+      { name: 'Sunrise/Sunset', at: 1, shadow: ['#0c0a1c', 0.7], light: ['#ff9e52', 0.35], glow: ['#ff7436', 0.45], glowLine: 2360 },
+      { name: 'Golden glow', at: 6, shadow: ['#120e24', 0.7], light: ['#ffa860', 0.3], glow: ['#ff9e52', 0.08], glowLine: 2360 },
+      { name: 'Day', at: 16, shadow: ['#000000', 0.88], light: ['#ffffff', 0.2], glow: ['#ff9e52', 0], glowLine: 3000 },
+    ] as Moment[],
+  };
+  const hexA = ([hex, a]: Tint) => [...[1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)), a];
+  const usualPaint = () => ({
+    'hillshade-method': 'igor',
+    'hillshade-exaggeration': SUN.usualExaggeration,
+    'hillshade-illumination-direction': 315,
+    'hillshade-shadow-color': rgba(hexA(SUN.usualShadow)),
+    'hillshade-highlight-color': rgba(hexA(SUN.usualLight)),
+    'hillshade-accent-color': rgba([...hexA(SUN.usualShadow).slice(0, 3), SUN.usualShadow[1] / 2]),
+  }) as const;
+  /** The relief's own paint, as terrain.ts set it, for when the sun goes. */
+  let reliefPaint: Record<string, unknown> | undefined;
+  function addLight() {
+    if (!map.getSource('relief') || map.getLayer('light')) return;
+    reliefPaint = Object.fromEntries(Object.keys(usualPaint()).map((k) => [k, map.getPaintProperty('relief', k)]));
+    map.addLayer({ id: 'light', type: 'hillshade', source: 'relief', layout: { visibility: 'none' }, paint: usualPaint() }, firstRoad);
+    // The last light on the peaks, under the shading: only with the sun out.
+    map.addLayer({ id: 'glow', type: 'color-relief', source: 'relief', layout: { visibility: 'none' }, paint: { 'color-relief-color': 'rgba(0, 0, 0, 0)' } }, 'light');
+    syncLight();
+  }
+  /** Over the layers only while there are layers to light -- or while the
+   *  sun is out, lighting its glow on the peaks as well. */
+  function syncLight() {
+    if (!map.getLayer('light')) return;
+    const sun = !document.getElementById('sun-bar')!.hidden;
+    const any = sun || config.layers.some((l) => state.get(l.id)?.on);
+    map.setLayoutProperty('light', 'visibility', any ? 'visible' : 'none');
+    map.setLayoutProperty('glow', 'visibility', sun ? 'visible' : 'none');
+  }
+  /** Where the layers go when nothing of theirs is above them: under the
+   *  light, and under the glow that light shades. */
+  const underLight = () => (map.getLayer('glow') ? 'glow' : map.getLayer('light') ? 'light' : firstRoad);
+
+  /** Where the corridor's sun lights it from. */
+  const SUN_AT = { lat: 49.9, lng: -123.1 };
+  /** The sun's height above the horizon and its bearing from north, in
+   *  degrees, at a moment (the usual low-precision formulas, as SunCalc). */
+  const sunAt = (when: Date) => {
+    const rad = Math.PI / 180;
+    const d = when.getTime() / 86400000 - 10957.5;
+    const M = rad * (357.5291 + 0.98560028 * d);
+    const L = M + rad * (1.9148 * Math.sin(M) + 0.02 * Math.sin(2 * M) + 0.0003 * Math.sin(3 * M)) + rad * 102.9372 + Math.PI;
+    const e = rad * 23.4397;
+    const dec = Math.asin(Math.sin(e) * Math.sin(L));
+    const ra = Math.atan2(Math.sin(L) * Math.cos(e), Math.cos(L));
+    const phi = rad * SUN_AT.lat;
+    const H = rad * (280.16 + 360.9856235 * d) + rad * SUN_AT.lng - ra;
+    const alt = Math.asin(Math.sin(phi) * Math.sin(dec) + Math.cos(phi) * Math.cos(dec) * Math.cos(H));
+    const az = Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(phi) - Math.tan(dec) * Math.cos(phi));
+    return { alt: alt / rad, az: (az / rad + 180) % 360 };
+  };
+  /** Clock time in the corridor (Pacific, with its summer hour) as a moment. */
+  const pacific = (day: number, minutes: number) => {
+    const year = new Date().getFullYear();
+    const noonUtc = new Date(Date.UTC(year, 0, 1 + day, 20));
+    const off = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Vancouver', timeZoneName: 'shortOffset' })
+      .formatToParts(noonUtc)
+      .find((p) => p.type === 'timeZoneName')!.value;
+    const hours = Number(off.replace('GMT', '')) || -8;
+    return new Date(Date.UTC(year, 0, 1 + day) + (minutes - hours * 60) * 60000);
+  };
+  const mix = (a: number[], b: number[], t: number) => a.map((v, i) => v + (b[i] - v) * t);
+  const rgba = ([r, g, b, a]: number[]) => `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, ${a.toFixed(3)})`;
+  const smooth = (a: number, b: number, x: number) => {
+    const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+    return t * t * (3 - 2 * t);
+  };
+  /** The look with the sun this high, morning or evening alike: the two
+   *  moments either side of it, blended; before the first or past the last,
+   *  that one as it is. */
+  const lookIn = (moments: Moment[], alt: number) => {
+    const ms = [...moments].sort((a, b) => a.at - b.at);
+    const i = ms.findIndex((m) => m.at > alt);
+    const [a, b] = i === -1 ? [ms.at(-1)!, ms.at(-1)!] : i === 0 ? [ms[0], ms[0]] : [ms[i - 1], ms[i]];
+    const t = a === b ? 0 : smooth(a.at, b.at, alt);
+    return {
+      shadow: mix(hexA(a.shadow), hexA(b.shadow), t),
+      light: mix(hexA(a.light), hexA(b.light), t),
+      glow: mix(hexA(a.glow), hexA(b.glow), t),
+      glowLine: a.glowLine + (b.glowLine - a.glowLine) * t,
+    };
+  };
+  const lookAt = (alt: number) => lookIn(SUN.moments, alt);
+  /** How the ground is lit with the sun this high. Lit as a surface is lit
+   *  ('basic'): ground turned from the sun, or all of it once the sun is
+   *  down, goes into shade. */
+  const sunLook = (alt: number, az: number, over: boolean) => {
+    const { shadow, light } = lookAt(alt);
+    // Over the layers, lighter: the colours of a layer still have to read.
+    if (over) (shadow[3] *= SUN.overShadow), (light[3] *= SUN.overLight);
+    // Lit from the sun's side only while it lights anything: from the first
+    // moment after Night down to Night, the shaping fades out, so the night
+    // is evenly dark rather than lit from wherever the sun has got to below
+    // the horizon.
+    const ms = [...SUN.moments].sort((x, y) => x.at - y.at);
+    const lit = ms.length > 1 ? smooth(ms[0].at, ms[1].at, alt) : 1;
+    return {
+      'hillshade-method': 'basic',
+      'hillshade-exaggeration': SUN.exaggeration * lit,
+      'hillshade-illumination-anchor': 'map',
+      'hillshade-illumination-altitude': Math.max(alt, 0),
+      'hillshade-shadow-color': rgba(shadow),
+      'hillshade-highlight-color': rgba(light),
+      'hillshade-accent-color': 'rgba(0, 0, 0, 0)',
+    };
+  };
+  /** Told where the sun is each time the light moves (the tuning panel). */
+  let sunChanged: ((alt: number, az: number) => void) | undefined;
+  const sunBar = document.getElementById('sun-bar')!;
+  const sunHour = sunBar.querySelector<HTMLInputElement>('.sun-hour')!;
+  const sunDate = sunBar.querySelector<HTMLInputElement>('.sun-date')!;
+  const sunTime = sunBar.querySelector<HTMLElement>('.sun-time')!;
+  const sunDay = sunBar.querySelector<HTMLElement>('.sun-day')!;
+  function lightBySun() {
+    const day = Number(sunDate.value);
+    const minutes = Number(sunHour.value);
+    const when = pacific(day, minutes);
+    const { alt, az } = sunAt(when);
+    const whole = Math.floor(minutes);
+    sunTime.textContent = `${Math.floor(whole / 60) % 12 || 12}:${String(whole % 60).padStart(2, '0')} ${whole < 720 ? 'am' : 'pm'}`;
+    sunDay.textContent = new Date(Date.UTC(2001, 0, 1 + day)).toLocaleDateString('en-CA', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+    for (const [id, over] of [['relief', false], ['light', true]] as const) {
+      if (!map.getLayer(id)) continue;
+      const paint = { ...sunLook(alt, az, over), 'hillshade-illumination-direction': az };
+      for (const [k, v] of Object.entries(paint)) map.setPaintProperty(id, k, v);
+    }
+    if (map.getLayer('glow')) {
+      const { glow, glowLine } = lookAt(alt);
+      map.setPaintProperty('glow', 'color-relief-color', [
+        'interpolate', ['linear'], ['elevation'],
+        glowLine - Math.max(1, SUN.glowSoft), rgba([...glow.slice(0, 3), 0]),
+        glowLine, rgba(glow),
+      ]);
+    }
+    sunChanged?.(alt, az);
+  }
+  function openSun(open: boolean) {
+    sunBar.hidden = !open;
+    if (!open) playSun(false);
+    syncLight();
+    if (open) {
+      // Opened on now: today, at this time in the corridor.
+      if (!sunHour.dataset.set) {
+        const parts = Object.fromEntries(
+          new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Vancouver', hour: 'numeric', minute: 'numeric', hourCycle: 'h23', month: 'numeric', day: 'numeric' })
+            .formatToParts(new Date())
+            .map((p) => [p.type, Number(p.value)]),
+        );
+        const start = Date.UTC(2001, 0, 1);
+        sunDate.value = String(Math.round((Date.UTC(2001, parts.month - 1, parts.day) - start) / 86400000));
+        sunHour.value = String(parts.hour * 60 + parts.minute);
+        sunHour.dataset.set = '1';
+      }
+      lightBySun();
+      return;
+    }
+    // Back to the usual light.
+    const usual = { 'hillshade-illumination-anchor': 'viewport', 'hillshade-illumination-altitude': 45 };
+    if (map.getLayer('relief') && reliefPaint) for (const [k, v] of Object.entries({ ...reliefPaint, ...usual })) map.setPaintProperty('relief', k, v);
+    if (map.getLayer('light')) for (const [k, v] of Object.entries({ ...usualPaint(), ...usual })) map.setPaintProperty('light', k, v);
+  }
+  // Played: the day goes by, round through midnight on the same date, at
+  // SUN_PACE minutes a second times the speed chosen.
+  const SUN_PACE = 20;
+  const SUN_SPEEDS = [1, 2, 4, 8, 16];
+  const sunPlay = sunBar.querySelector<HTMLButtonElement>('.sun-play')!;
+  const sunSpeed = sunBar.querySelector<HTMLButtonElement>('.sun-speed')!;
+  let speed = 1;
+  let playFrame = 0;
+  function playSun(on: boolean) {
+    cancelAnimationFrame(playFrame);
+    sunPlay.setAttribute('aria-pressed', String(on));
+    sunPlay.setAttribute('aria-label', on ? 'Pause the day' : 'Play the day');
+    if (!on) return;
+    let last = performance.now();
+    const step = (now: number) => {
+      const dt = Math.min(0.1, (now - last) / 1000);
+      last = now;
+      sunHour.value = String((Number(sunHour.value) + dt * SUN_PACE * speed) % 1440);
+      lightBySun();
+      playFrame = requestAnimationFrame(step);
+    };
+    playFrame = requestAnimationFrame(step);
+  }
+  sunPlay.addEventListener('click', () => playSun(sunPlay.getAttribute('aria-pressed') !== 'true'));
+  sunSpeed.addEventListener('click', () => {
+    speed = SUN_SPEEDS[(SUN_SPEEDS.indexOf(speed) + 1) % SUN_SPEEDS.length];
+    sunSpeed.textContent = `×${speed}`;
+  });
+  // Moved by hand, it stops.
+  sunHour.addEventListener('input', (e) => {
+    if (e.isTrusted) playSun(false);
+    lightBySun();
+  });
+  sunDate.addEventListener('input', lightBySun);
+  sunBar.querySelector('.sun-close')!.addEventListener('click', () => openSun(false));
+  document.addEventListener('keydown', (e) => {
+    const t = e.target as HTMLElement;
+    if (e.metaKey || e.ctrlKey || e.altKey || t.closest('input:not([type="range"]), textarea, select, [contenteditable]')) return;
+    if (e.key === 'l' || e.key === 'L') openSun(sunBar.hidden);
+    else if (e.key === 'Escape' && !sunBar.hidden) openSun(false);
+  });
+
+  // ?sun-light: a panel to tune the light by eye and copy out to hardcode.
+  // Pick a moment and the clock goes to it (this evening's, on the day set),
+  // so what you change is what you see. Kept in this browser between reloads.
+  if (new URLSearchParams(location.search).has('sun-light')) {
+    const KEPT = 'sun-light-3';
+    try {
+      Object.assign(SUN, JSON.parse(localStorage.getItem(KEPT) ?? '{}'));
+    } catch {}
+    const panel = document.createElement('div');
+    panel.className = 'sun-debug';
+    el.parentElement!.append(panel);
+    let pick = SUN.moments.findIndex((m) => m.name === 'Sunrise/Sunset');
+    if (pick < 0) pick = 0;
+    const tint = (path: string, [hex, a]: Tint) =>
+      `<input type="color" data-p="${path}" data-i="0" value="${hex}" /><input type="range" min="0" max="1" step="0.01" data-p="${path}" data-i="1" value="${a}" /><output>${a}</output>`;
+    const num = (path: string, v: number, min: number, max: number, step: number) =>
+      `<input class="wide" type="range" min="${min}" max="${max}" step="${step}" data-p="${path}" value="${v}" /><output>${v}</output>`;
+    const row = (label: string, input: string) => `<label><span>${label}</span>${input}</label>`;
+    /** The minute of the day, on the day set, the sun is at this height, in
+     *  the half of the day the clock is in -- coming up in the morning, going
+     *  down in the evening; at noon if it never climbs so high. */
+    const minuteFor = (at: number) => {
+      const day = Number(sunDate.value);
+      const alts = Array.from({ length: 1440 }, (_, m) => sunAt(pacific(day, m)).alt);
+      const noon = alts.indexOf(Math.max(...alts));
+      if (at >= alts[noon]) return noon;
+      if (Number(sunHour.value) < noon) {
+        for (let m = noon; m >= 0; m--) if (alts[m] <= at) return Math.min(noon, m + 1);
+        return 0;
+      }
+      for (let m = noon; m < 1440; m++) if (alts[m] <= at) return m;
+      return 1439;
+    };
+    const goTo = () => {
+      playSun(false);
+      sunHour.value = String(minuteFor(SUN.moments[pick].at));
+      lightBySun();
+    };
+    const draw = () => {
+      const m = SUN.moments[pick];
+      const path = `moments.${pick}`;
+      panel.innerHTML =
+        `<b>Sun light</b><p class="sun-debug-now"></p>` +
+        `<h4>Applied now</h4><div class="sun-debug-live"></div>` +
+        `<h4>Moments</h4>` +
+        `<div class="sun-debug-tabs">${SUN.moments.map((x, i) => `<button type="button" data-pick="${i}" aria-pressed="${i === pick}">${esc(x.name)}</button>`).join('')}</div>` +
+        `<h4>Edit: ${esc(m.name)}</h4>` +
+        row('Sun height °', num(`${path}.at`, m.at, -18, 70, 0.5)) +
+        row('Shade', tint(`${path}.shadow`, m.shadow)) +
+        row('Light', tint(`${path}.light`, m.light)) +
+        row('Peak glow', tint(`${path}.glow`, m.glow)) +
+        row('Glow above m', num(`${path}.glowLine`, m.glowLine, 0, 3000, 10)) +
+        `<h4>Every moment</h4>` +
+        row('Relief strength', num('exaggeration', SUN.exaggeration, 0, 1, 0.01)) +
+        row('Shade on layers', num('overShadow', SUN.overShadow, 0, 1, 0.01)) +
+        row('Light on layers', num('overLight', SUN.overLight, 0, 1, 0.01)) +
+        row('Glow fade m', num('glowSoft', SUN.glowSoft, 1, 1000, 10)) +
+        `<h4>Sun off (press L)</h4>` +
+        row('Relief strength', num('usualExaggeration', SUN.usualExaggeration, 0, 1, 0.01)) +
+        row('Shade', tint('usualShadow', SUN.usualShadow)) +
+        row('Light', tint('usualLight', SUN.usualLight)) +
+        `<div class="sun-debug-foot"><button type="button" data-copy>Copy</button><button type="button" data-reset>Reset</button></div><textarea readonly rows="5"></textarea>`;
+      show();
+      const { alt, az } = sunAt(pacific(Number(sunDate.value), Number(sunHour.value)));
+      sunChanged?.(alt, az);
+    };
+    const show = () => (panel.querySelector('textarea')!.value = `const SUN = ${JSON.stringify(SUN, null, 2)};`);
+    // Where the sun is now, and which moments it is between.
+    // What the light is right now, as the clock moves: the sun, the moments
+    // it is blended from and how much of each (on their buttons too), and
+    // the blended settings themselves.
+    sunChanged = (alt, az) => {
+      const now = panel.querySelector('.sun-debug-now');
+      const live = panel.querySelector('.sun-debug-live');
+      if (!now || !live) return;
+      const ms = [...SUN.moments].sort((a, b) => a.at - b.at);
+      const i = ms.findIndex((m) => m.at > alt);
+      const [a, b] = i === -1 ? [ms.at(-1)!, ms.at(-1)!] : i === 0 ? [ms[0], ms[0]] : [ms[i - 1], ms[i]];
+      const t = a === b ? 0 : smooth(a.at, b.at, alt);
+      const share = new Map<Moment, number>([[a, 1 - t]]);
+      if (b !== a) share.set(b, t);
+      const pct = (x: number) => `${Math.round(x * 100)}%`;
+      const mixText = [...share].filter(([, x]) => x >= 0.005).map(([m, x]) => `${pct(x)} ${esc(m.name)}`).join(' + ');
+      now.textContent = `Sun ${alt.toFixed(1)}° (${az < 180 ? 'morning' : 'afternoon'})`;
+      const look = lookAt(alt);
+      const hex = (c: number[]) => '#' + c.slice(0, 3).map((v) => Math.round(v).toString(16).padStart(2, '0')).join('');
+      const tintRow = (label: string, c: number[]) =>
+        `<div class="sun-debug-val"><span>${label}</span><i style="background:${hex(c)}"></i><code>${hex(c)}</code><output>${c[3].toFixed(2)}</output></div>`;
+      live.innerHTML =
+        `<p>${mixText}</p>` +
+        tintRow('Shade', look.shadow) +
+        tintRow('Light', look.light) +
+        tintRow('Peak glow', look.glow) +
+        `<div class="sun-debug-val"><span>Glow above m</span><i></i><code></code><output>${Math.round(look.glowLine)}</output></div>`;
+      panel.querySelectorAll<HTMLElement>('[data-pick]').forEach((el) => {
+        const x = share.get(SUN.moments[Number(el.dataset.pick)]) ?? 0;
+        el.style.setProperty('--share', String(x));
+        el.dataset.share = x >= 0.005 ? pct(x) : '';
+      });
+    };
+    const apply = () => {
+      try {
+        localStorage.setItem(KEPT, JSON.stringify(SUN));
+      } catch {}
+      show();
+      if (!sunBar.hidden) lightBySun();
+      else if (map.getLayer('light')) for (const [k, v] of Object.entries(usualPaint())) map.setPaintProperty('light', k, v);
+    };
+    panel.addEventListener('input', (e) => {
+      const i = e.target as HTMLInputElement;
+      if (!i.dataset.p) return;
+      const keys = i.dataset.p.split('.');
+      const last = keys.pop()!;
+      const owner = keys.reduce<Record<string, unknown>>((o, k) => o[k] as Record<string, unknown>, SUN as unknown as Record<string, unknown>);
+      const v = i.type === 'color' ? i.value : Number(i.value);
+      if (i.dataset.i) (owner[last] as (string | number)[])[Number(i.dataset.i)] = v;
+      else owner[last] = v;
+      const o = i.parentElement!.querySelector('output');
+      if (o && i.type === 'range' && (!i.dataset.i || i.dataset.i === '1')) o.textContent = i.value;
+      apply();
+      // A moment moved to another height: the clock follows it.
+      if (last === 'at') goTo();
+    });
+    panel.addEventListener('click', (e) => {
+      const t = e.target as HTMLElement;
+      const p = t.closest<HTMLElement>('[data-pick]');
+      if (p) {
+        pick = Number(p.dataset.pick);
+        draw();
+        if (sunBar.hidden) openSun(true);
+        goTo();
+      } else if (t.closest('[data-copy]')) {
+        show();
+        const out = panel.querySelector('textarea')!;
+        navigator.clipboard?.writeText(out.value).catch(() => {});
+        out.select();
+      } else if (t.closest('[data-reset]')) {
+        try {
+          localStorage.removeItem(KEPT);
+        } catch {}
+        location.reload();
+      }
+    });
+    draw();
+    const start = () => (openSun(true), goTo());
+    if (map.loaded()) start();
+    else map.once('load', start);
+  }
+
   // ---- 3D ----------------------------------------------------------------
   // Tilted by hand or by the button, the ground rises into 3D; level again,
   // it is flat and north-up (terrain.ts).
-  tilting(map, abs(config.terrain), document.getElementById('three-d')!, document.getElementById('tilt')!);
+  const ground = tilting(map, abs(config.terrain), document.getElementById('three-d')!, document.getElementById('tilt')!);
 
   // ---- The lens ------------------------------------------------------------
   // Down the stack from the top; opened on the layer under the topmost one
@@ -2874,7 +3591,7 @@ const config = {
         const id = idOf(s, y);
         const there = !!map.getLayer(id);
         if (keep.has(y) && !there) {
-          map.addSource(id, { type: 'raster', url: `pmtiles://${abs(s.src.replace('{year}', String(y)))}`, tileSize: 256 });
+          map.addSource(id, { type: 'raster', url: tileUrl(s.layer, s.src.replace('{year}', String(y)), s.legend), tileSize: 256 });
           map.addLayer(
             { id, type: 'raster', source: id, paint: { 'raster-opacity': 0, 'raster-resampling': s.resampling, 'raster-fade-duration': 0 } },
             s.layer,
@@ -3008,6 +3725,21 @@ const config = {
     return {
       /** The series for a layer, if it has one. */
       of: (layer: string) => series.find((s) => s.layer === layer),
+      /** To the year at `i`, stopped; settled once it is on the map. */
+      goTo: (i: number) =>
+        new Promise<void>((done) => {
+          if (!active) return done();
+          stopPlaying();
+          clearTimeout(restTimer);
+          index = Math.max(0, Math.min(active.years.length - 1, i));
+          aim();
+          load(done);
+        }),
+      /** The year showing hidden, leaving the map under it -- or back. */
+      bare(hide: boolean) {
+        if (!active || shown === undefined || !map.getLayer(idOf(active, shown))) return;
+        snapOpacity(map, idOf(active, shown), hide ? 0 : opacityOf(active.layer));
+      },
       /** Put away, as by its close button. */
       close: () => active && stop('closed'),
       /** The series showing, and the year the map shows (the one it is going
@@ -3105,6 +3837,8 @@ const config = {
   legendBody.addEventListener('click', (e) => {
     const off = (e.target as HTMLElement).closest<HTMLElement>('[data-off]');
     if (off) return setLayer(off.dataset.off!, false);
+    const few = (e.target as HTMLElement).closest<HTMLElement>('[data-fewer]');
+    if (few) return setFewer(few.dataset.fewer!, !fewer.has(few.dataset.fewer!));
   });
   /** The layers the legend keys, top of the map first: a year's name, words
    *  and key for a layer through time. */
@@ -3114,6 +3848,7 @@ const config = {
     return config.layers
       .filter((l) => (state.get(l.id)?.on || l.id === lensId) && l.legend.length)
       .map((l) => (now?.series.layer === l.id ? { ...l, name: `${l.name}, ${now.year}`, about: now.series.about.replace('{year}', String(now.year)), legend: now.series.legend } : l))
+      .map((l) => ({ ...l, legend: groupedKey(l.id, l.legend) }))
       .reverse()
       // The lens's layer first: it is drawn over everything, where it is; then
       // a network overlay, moved to the top of the map's stack.
@@ -3126,6 +3861,7 @@ const config = {
     // the finger mid-drag (a year landing redraws the legend).
     if (fadeHeld) return void (legendStale = true);
     years.sync((id) => state.get(id)?.on === true);
+    syncLight();
     const lensId = lensUi?.showing();
     const on = legendLayers();
     legendEl.hidden = on.length === 0;
@@ -3160,7 +3896,11 @@ const config = {
         const fade = lensOnly
           ? ''
           : `<label class="lg-fade"><span>Opacity</span><input type="range" min="0" max="1" step="0.05" value="${state.get(l.id)!.opacity}" data-fade="${esc(l.id)}" aria-label="${esc(l.name)} opacity" /></label>`;
-        return `<div>${lensOnly ? '<span class="lg-where">In the lens</span>' : ''}${name}` + (l.about ? `<p>${esc(l.about)}</p>` : '') + body + fade + `</div>`;
+        // Fewer colours, for a layer with groups: its classes gathered up.
+        const few = groupsOf(l.id)
+          ? `<button class="lg-fewer" type="button" data-fewer="${esc(l.id)}" aria-pressed="${fewer.has(l.id)}">${fewer.has(l.id) ? 'Show every class' : 'Fewer colours'}</button>`
+          : '';
+        return `<div>${lensOnly ? '<span class="lg-where">In the lens</span>' : ''}${name}` + (l.about ? `<p>${esc(l.about)}</p>` : '') + body + few + fade + `</div>`;
       })
       .join('');
   }
@@ -3343,7 +4083,7 @@ const config = {
         if (!netKept.has(overlay)) netKept.set(overlay, state.get(overlay)!.opacity);
         setOpacity(overlay, netFade);
         if (!state.get(overlay)!.on) setLayer(overlay, true);
-        if (map.getLayer(overlay)) map.moveLayer(overlay, firstRoad);
+        if (map.getLayer(overlay)) map.moveLayer(overlay, underLight());
       }
       renderLegend();
       hereAgain();
@@ -3822,7 +4562,7 @@ const config = {
       return;
     }
     const old = p.shown;
-    m.addSource(id, { type: 'raster', url: `pmtiles://${abs(src)}`, tileSize: 256 });
+    m.addSource(id, { type: 'raster', url: tileUrl(l.id, src, year ? now!.series.legend : l.legend), tileSize: 256 });
     m.addLayer(
       { id, type: 'raster', source: id, paint: { 'raster-opacity': state.get(l.id)!.opacity, 'raster-resampling': resampling, 'raster-fade-duration': 150 } },
       p.road,
@@ -5170,6 +5910,111 @@ const config = {
     if (e.key === 'Escape' && inspecting) inspect(false);
   });
 
+  // ---- ?pick: points for callouts -------------------------------------------
+  // Each click on the map (while picking is on) drops a numbered dot, which
+  // can be dragged, and lists it with a name to give it; "Where I am" adds
+  // your own position, for standing on the spot. The list is written out as
+  // it pastes into `callouts:` in map/content/sea-to-sky.md, and kept in this
+  // browser, so a reload in the field loses nothing.
+  if (new URLSearchParams(location.search).has('pick')) {
+    type Pick = { title: string; lat: number; lng: number };
+    const KEPT = 'map-pick';
+    let picks: Pick[] = [];
+    try {
+      picks = JSON.parse(localStorage.getItem(KEPT) ?? '[]');
+    } catch {}
+    let picking = true;
+    const dots: maplibregl.Marker[] = [];
+    const panel = document.createElement('div');
+    panel.className = 'pick-panel';
+    el.parentElement!.append(panel);
+    const r5 = (v: number) => Math.round(v * 1e5) / 1e5;
+    const keep = () => {
+      try {
+        localStorage.setItem(KEPT, JSON.stringify(picks));
+      } catch {}
+    };
+    const yaml = () =>
+      picks.length
+        ? 'callouts:\n' +
+          picks.map((p, i) => `  - title: ${JSON.stringify(p.title || `Point ${i + 1}`)}\n    lat: ${p.lat}\n    lng: ${p.lng}\n    body: >-\n      \n`).join('')
+        : '';
+    const writeOut = () => {
+      const out = panel.querySelector<HTMLTextAreaElement>('textarea');
+      if (out) out.value = yaml();
+      keep();
+    };
+    const render = () => {
+      for (const d of dots.splice(0)) d.remove();
+      picks.forEach((p, i) => {
+        const dot = document.createElement('div');
+        dot.className = 'pick-dot';
+        dot.textContent = String(i + 1);
+        const m = new maplibregl.Marker({ element: dot, draggable: true }).setLngLat([p.lng, p.lat]).addTo(map);
+        m.on('dragend', () => {
+          const { lng, lat } = m.getLngLat();
+          Object.assign(p, { lng: r5(lng), lat: r5(lat) });
+          render();
+        });
+        dots.push(m);
+      });
+      panel.innerHTML =
+        `<div class="pick-head"><b>Points</b><button type="button" data-a="on" aria-pressed="${picking}">${picking ? 'Picking: click the map' : 'Picking off'}</button></div>` +
+        picks
+          .map(
+            (p, i) =>
+              `<div class="pick-row" data-i="${i}"><b>${i + 1}</b><input type="text" value="${esc(p.title)}" placeholder="Point ${i + 1}" aria-label="Name of point ${i + 1}" />` +
+              `<button type="button" data-a="drop" aria-label="Remove point ${i + 1}">×</button><small>${p.lat}, ${p.lng}</small></div>`,
+          )
+          .join('') +
+        `<div class="pick-tools"><button type="button" data-a="here"${here ? '' : ' disabled'}>+ Where I am</button><button type="button" data-a="copy"${picks.length ? '' : ' disabled'}>Copy</button><button type="button" data-a="clear"${picks.length ? '' : ' disabled'}>Clear</button></div>` +
+        (picks.length ? `<textarea readonly aria-label="The points, to paste in"></textarea>` : '<span>Click the map to add a point. Drag a dot to move it.</span>');
+      writeOut();
+    };
+    const add = (lng: number, lat: number) => {
+      picks.push({ title: '', lat: r5(lat), lng: r5(lng) });
+      render();
+    };
+    map.on('click', (e) => {
+      if (!picking || placing || inspecting) return;
+      add(e.lngLat.lng, e.lngLat.lat);
+    });
+    panel.addEventListener('input', (e) => {
+      const row = (e.target as HTMLElement).closest<HTMLElement>('.pick-row');
+      if (!row) return;
+      picks[Number(row.dataset.i)].title = (e.target as HTMLInputElement).value;
+      writeOut();
+    });
+    panel.addEventListener('click', async (e) => {
+      const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-a]');
+      if (!b) return;
+      const a = b.dataset.a;
+      if (a === 'on') picking = !picking;
+      else if (a === 'drop') picks.splice(Number(b.closest<HTMLElement>('.pick-row')!.dataset.i), 1);
+      else if (a === 'here' && here) add(here[0], here[1]);
+      else if (a === 'clear' && confirm('Clear all the points?')) picks = [];
+      else if (a === 'copy') {
+        const out = panel.querySelector<HTMLTextAreaElement>('textarea')!;
+        try {
+          await navigator.clipboard.writeText(out.value);
+          say('Copied.');
+        } catch {
+          out.select();
+          say('Selected: copy it from the box.');
+        }
+        return;
+      }
+      render();
+    });
+    // "Where I am" comes on once there is a fix.
+    const hereWait = setInterval(() => {
+      if (!here) return;
+      clearInterval(hereWait);
+      render();
+    }, 1000);
+    render();
+  }
+
   // Asked for on arrival, since being placed on the map is the point of it --
   // unless the answer is already no, in which case the button is there.
   (async () => {
@@ -5369,8 +6214,9 @@ const config = {
             return;
           }
           // Nothing painted is an answer too: no change, no record, not in it.
+          // Read against every class, then named as its group if in groups.
           const c = px ? classOf(l, px) : { label: 'none here', colour: 'transparent' };
-          if (c) now.push({ layer: l, value: c.label, colour: c.colour });
+          if (c) now.push({ layer: { ...l, legend: groupedKey(l.id, l.legend) }, value: px ? groupedClass(l.id, c).label : c.label, colour: px ? groupedClass(l.id, c).colour : c.colour });
         });
         now = now.slice(0, cmpMulti ? SLICES : HERE_MOST);
       }
@@ -5615,13 +6461,16 @@ const config = {
     me?.getElement().classList.remove('facing');
   }
   // ---- Saving the map ---------------------------------------------------------
-  // As the Data Sandbox saves its: the whole area as a finished map with its
-  // key, or the view as it is. Pins, your dot and the panels are not in the
-  // picture: only what the map itself draws.
+  // Finished maps, with a title, a scale and each layer's key: the whole area
+  // (Map: Full), or an area framed on screen, 4:5 upright (Map: View). Or the
+  // map as it is on screen (Screengrab). Pins, your dot and the panels are
+  // not in any of them: only what the map itself draws.
   const saveWrap = document.getElementById('save-wrap')!;
   const saveBtn = document.getElementById('save-btn')!;
   const saveMenu = document.getElementById('save-menu')!;
+  const recItem = saveMenu.querySelector<HTMLButtonElement>('[data-save="years"]')!;
   const showSave = (open: boolean) => {
+    recItem.hidden = !years.active();
     saveMenu.hidden = !open;
     saveBtn.setAttribute('aria-expanded', String(open));
   };
@@ -5630,6 +6479,10 @@ const config = {
   saveMenu.addEventListener('click', async (e) => {
     const b = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-save]');
     if (!b || saving) return;
+    if (b.dataset.save === 'years' || b.dataset.save === 'view') {
+      showSave(false);
+      return frameBox(b.dataset.save);
+    }
     const all = saveMenu.querySelectorAll('button');
     saving = true;
     for (const x of all) x.disabled = true;
@@ -5717,42 +6570,55 @@ const config = {
   const logo = new Image();
   logo.src = config.logo;
 
-  /** The whole area, sharper than the screen, north up, with a north arrow,
-   *  a scale, and each layer's key and words under it. */
+  type Shot = { shot: HTMLCanvasElement; crop: { x: number; y: number; w: number; h: number }; zoom: number; lat: number; bearing: number; pitch: number };
+
+  /** The map drawn complete and copied, sharper than the screen: about
+   *  `long` pixels on the long side of `box` (CSS pixels of the map), within
+   *  what the graphics card takes. */
+  async function shoot(box: { x: number; y: number; w: number; h: number }, long: number): Promise<Shot> {
+    const ratio = map.getPixelRatio();
+    try {
+      const gl = map.getCanvas().getContext('webgl2');
+      const maxSide = Math.min(8192, gl ? (gl.getParameter(gl.MAX_RENDERBUFFER_SIZE) as number) : 4096);
+      map.setPixelRatio(Math.max(ratio, Math.min(4, long / Math.max(box.w, box.h), maxSide / Math.max(el.clientWidth, el.clientHeight))));
+      await settled();
+      const shot = await grab();
+      const k = shot.width / el.clientWidth;
+      const x0 = Math.round(box.x * k), y0 = Math.round(box.y * k);
+      const crop = { x: x0, y: y0, w: Math.round((box.x + box.w) * k) - x0, h: Math.round((box.y + box.h) * k) - y0 };
+      return { shot, crop, zoom: map.getZoom(), lat: map.getCenter().lat, bearing: map.getBearing(), pitch: map.getPitch() };
+    } finally {
+      map.setPixelRatio(ratio);
+    }
+  }
+
+  /** Map: Full -- the whole area, north up, as a finished map (drawSheet).
+   *  From straight above, but with the ground raised in 3D: it reads better
+   *  than the flat map. */
   async function saveFull() {
     say('Drawing the full map…');
     const before = { center: map.getCenter(), zoom: map.getZoom(), pitch: map.getPitch(), bearing: map.getBearing() };
-    const ratio = map.getPixelRatio();
     const [[bw, bs], [be, bn]] = config.limit;
-    let shot: HTMLCanvasElement, crop: { x: number; y: number; w: number; h: number }, zoom: number, lat: number;
+    let s: Shot;
     try {
       map.setMaxBounds(null);
+      ground.hold(true);
       map.jumpTo({ ...map.cameraForBounds(config.limit, { padding: 6 })!, pitch: 0, bearing: 0 });
-      // About 3200 pixels on the long side, within what the graphics card takes.
       const nw = map.project([bw, bn]), se = map.project([be, bs]);
-      const long = Math.max(se.x - nw.x, se.y - nw.y);
-      const gl = map.getCanvas().getContext('webgl2');
-      const maxSide = Math.min(8192, gl ? (gl.getParameter(gl.MAX_RENDERBUFFER_SIZE) as number) : 4096);
-      map.setPixelRatio(Math.max(ratio, Math.min(4, 3200 / long, maxSide / Math.max(el.clientWidth, el.clientHeight))));
-      await settled();
-      shot = await grab();
-      const k = shot.width / el.clientWidth;
-      const x0 = Math.round((nw.x - 1) * k), y0 = Math.round((nw.y - 1) * k);
-      crop = { x: x0, y: y0, w: Math.round((se.x + 1) * k) - x0, h: Math.round((se.y + 1) * k) - y0 };
-      zoom = map.getZoom();
-      lat = map.getCenter().lat;
+      s = await shoot({ x: nw.x - 1, y: nw.y - 1, w: se.x - nw.x + 2, h: se.y - nw.y + 2 }, 3200);
     } finally {
-      map.setPixelRatio(ratio);
       map.jumpTo(before);
+      ground.hold(false);
       map.setMaxBounds(panLimit);
     }
-    if (!logo.complete) await new Promise((r) => (logo.onload = logo.onerror = r));
+    await drawSheet(s, `ecoscapes-map-full-${stamp()}.png`);
+  }
 
-    // Laid out in thousandths of the map's width.
-    const u = crop.w / 1000;
-    const M = 36 * u;
-    const out = document.createElement('canvas');
-    const ctx = out.getContext('2d')!;
+  /** The words under a finished map `w` wide, measured on `ctx` and laid out
+   *  in thousandths of that width (u): the logo and title, each layer's key,
+   *  the credits -- and how tall they come to. */
+  function sheetWords(ctx: CanvasRenderingContext2D, width: number) {
+    const u = width / 1000;
     const font = (size: number, weight = 400) => (ctx.font = `${weight} ${size * u}px ${saveFont}`);
     const wrap = (text: string, w: number) => {
       const rows: string[] = [];
@@ -5772,7 +6638,7 @@ const config = {
     const shown = legendLayers();
     const gap = 30 * u, lh = 15 * u;
     const cols = shown.length > 1 ? 2 : 1;
-    const colW = (crop.w - gap * (cols - 1)) / cols;
+    const colW = (width - gap * (cols - 1)) / cols;
     const catW = 150 * u;
     const blocks = shown.map((l) => {
       font(10.5);
@@ -5791,10 +6657,22 @@ const config = {
       return at;
     });
     font(10);
-    const sources = wrap(credits(), crop.w);
+    const sources = wrap(credits(), width);
     const headH = 50 * u;
     const keysH = blocks.length ? 20 * u + Math.max(...colH) : 0;
     const footH = 24 * u + headH + 20 * u + keysH + 10 * u + sources.length * lh + 6 * u;
+    return { u, font, shown, gap, lh, colW, blocks, placed, colH, sources, headH, footH };
+  }
+
+  /** A finished map: the picture framed, a north arrow and a scale on it, and
+   *  under it the logo, the title with what is on, each layer's key and words,
+   *  and the credits. */
+  async function drawSheet({ shot, crop, zoom, lat, bearing, pitch }: Shot, name: string) {
+    if (!logo.complete) await new Promise((r) => (logo.onload = logo.onerror = r));
+    const out = document.createElement('canvas');
+    const ctx = out.getContext('2d')!;
+    const { u, font, shown, gap, lh, colW, blocks, placed, colH, sources, headH, footH } = sheetWords(ctx, crop.w);
+    const M = 36 * u;
     out.width = Math.round(crop.w + M * 2);
     out.height = Math.round(crop.h + M * 2 + footH);
 
@@ -5802,12 +6680,16 @@ const config = {
     ctx.fillRect(0, 0, out.width, out.height);
     ctx.drawImage(shot, crop.x, crop.y, crop.w, crop.h, M, M, crop.w, crop.h);
 
-    // North, top right, inside the edge.
+    // North, top right, inside the edge -- turned with the map.
     const ax = M + crop.w - 44 * u, ay = M + 44 * u;
     ctx.fillStyle = 'rgba(13,18,16,0.75)';
     ctx.beginPath();
     ctx.arc(ax, ay, 28 * u, 0, Math.PI * 2);
     ctx.fill();
+    ctx.save();
+    ctx.translate(ax, ay);
+    ctx.rotate((-bearing * Math.PI) / 180);
+    ctx.translate(-ax, -ay);
     ctx.fillStyle = '#eef2ee';
     ctx.beginPath();
     ctx.moveTo(ax, ay - 2 * u);
@@ -5820,25 +6702,29 @@ const config = {
     ctx.textAlign = 'center';
     ctx.fillText('N', ax, ay - 8 * u);
     ctx.textAlign = 'left';
+    ctx.restore();
 
-    // A scale, bottom left: a round distance near a fifth of the width.
-    const metresPerPx = (40075016.686 * Math.cos((lat * Math.PI) / 180)) / (512 * 2 ** zoom) / (shot.width / el.clientWidth);
-    const want = (crop.w / 5) * metresPerPx;
-    const step = 10 ** Math.floor(Math.log10(want));
-    const dist = [5, 2, 1].map((f) => f * step).find((d) => d <= want)!;
-    const barW = dist / metresPerPx, sx = M + 30 * u, sy = M + crop.h - 30 * u;
-    ctx.fillStyle = 'rgba(13,18,16,0.75)';
-    ctx.fillRect(sx - 12 * u, sy - 28 * u, barW + 24 * u, 44 * u);
-    ctx.fillStyle = '#eef2ee';
-    ctx.fillRect(sx, sy, barW / 2, 6 * u);
-    ctx.strokeStyle = '#eef2ee';
-    ctx.lineWidth = 1.5 * u;
-    ctx.strokeRect(sx, sy, barW, 6 * u);
-    font(12);
-    ctx.fillText('0', sx, sy - 8 * u);
-    ctx.textAlign = 'right';
-    ctx.fillText(`${dist >= 1000 ? dist / 1000 : dist} ${dist >= 1000 ? 'km' : 'm'}`, sx + barW, sy - 8 * u);
-    ctx.textAlign = 'left';
+    // A scale, bottom left: a round distance near a fifth of the width. Not
+    // on a tilted view, whose scale changes from the near edge to the far.
+    if (pitch < 1) {
+      const metresPerPx = (40075016.686 * Math.cos((lat * Math.PI) / 180)) / (512 * 2 ** zoom) / (shot.width / el.clientWidth);
+      const want = (crop.w / 5) * metresPerPx;
+      const step = 10 ** Math.floor(Math.log10(want));
+      const dist = [5, 2, 1].map((f) => f * step).find((d) => d <= want)!;
+      const barW = dist / metresPerPx, sx = M + 30 * u, sy = M + crop.h - 30 * u;
+      ctx.fillStyle = 'rgba(13,18,16,0.75)';
+      ctx.fillRect(sx - 12 * u, sy - 28 * u, barW + 24 * u, 44 * u);
+      ctx.fillStyle = '#eef2ee';
+      ctx.fillRect(sx, sy, barW / 2, 6 * u);
+      ctx.strokeStyle = '#eef2ee';
+      ctx.lineWidth = 1.5 * u;
+      ctx.strokeRect(sx, sy, barW, 6 * u);
+      font(12);
+      ctx.fillText('0', sx, sy - 8 * u);
+      ctx.textAlign = 'right';
+      ctx.fillText(`${dist >= 1000 ? dist / 1000 : dist} ${dist >= 1000 ? 'km' : 'm'}`, sx + barW, sy - 8 * u);
+      ctx.textAlign = 'left';
+    }
 
     // The head: the logo, and the title with what is on the map.
     let y = M + crop.h + 24 * u;
@@ -5909,19 +6795,255 @@ const config = {
     font(10);
     ctx.fillStyle = '#7d8a83';
     for (const row of sources) ctx.fillText(row, M, (y += lh));
-    download(`ecoscapes-map-full-${stamp()}.png`, out.toDataURL('image/png'));
+    download(name, out.toDataURL('image/png'));
+  }
+
+  /** Map: View's box, width over height: the whole picture comes out 4:5
+   *  upright, so the map gets what the words under it leave -- less, the
+   *  more layers are on (never under 45% of the width, when the picture is
+   *  taller than 4:5 instead). */
+  const viewAspect = () => {
+    const { footH } = sheetWords(document.createElement('canvas').getContext('2d')!, 1000);
+    return 1000 / Math.max(450, ((1000 + 72) * 5) / 4 - 72 - footH);
+  };
+  /** Map: View -- the box framed on screen as a finished map (drawSheet),
+   *  in 3D as it is if the map is tilted. */
+  async function saveMapView() {
+    const box = recBox.getBoundingClientRect(), at0 = el.getBoundingClientRect();
+    // The layers may have changed since the box was drawn: its height is
+    // taken again, about its middle.
+    const h = box.width / viewAspect();
+    const s = await shoot({ x: box.left - at0.left, y: box.top - at0.top + (box.height - h) / 2, w: box.width, h }, 2400);
+    await drawSheet(s, `ecoscapes-map-view-${stamp()}.png`);
+  }
+
+  // ---- The years, as a video for a post --------------------------------------
+  // A layer through time made into the clip a post's series plays: a 4:3 box
+  // of the map, each year drawn complete before it is copied, so the video is
+  // smooth however slowly the tiles came. Ten frames a year at 24 fps with a
+  // short dissolve centred on each change, as the posts' clips are -- so the
+  // post's `duration` and `changes` are known exactly, and handed over in a
+  // note beside the video. With it, the map alone (the year hidden) as the
+  // post's `base`. No year, key or pins: the post draws its own.
+  const REC_FPS = 24;
+  const REC_PER_YEAR = 10;
+  /** Frames either side of a change that it dissolves over. */
+  const REC_DISSOLVE = 2;
+  /** The video's width; 4:3, so 2000 by 1500. */
+  const REC_W = 2000;
+  const rec = document.getElementById('rec')!;
+  const recBox = document.getElementById('rec-box')!;
+  const recSay = document.getElementById('rec-say')!;
+  const recGo = document.getElementById('rec-go') as HTMLButtonElement;
+  const recStop = document.getElementById('rec-stop')!;
+  const mapPage = el.closest('.map-page')!;
+  let recording = false;
+  let recCancel = false;
+  /** What the box is being framed for: the years' video, or Map: View. */
+  let framing: 'years' | 'view' | null = null;
+  let boxAspect = 4 / 3;
+  const RECORD_HINT = 'Move the map to frame it: the box is what the video shows.';
+  const VIEW_HINT = 'Move the map to frame it: the box is the map in the picture.';
+
+  /** The largest box of its shape clear of the bar above and the controls
+   *  round it. */
+  const placeBox = () => {
+    const w = el.clientWidth - 2 * 80, h = el.clientHeight - 80 - 150;
+    const bw = Math.min(w, h * boxAspect), bh = bw / boxAspect;
+    Object.assign(recBox.style, { left: `${(el.clientWidth - bw) / 2}px`, top: `${80 + (h - bh) / 2}px`, width: `${bw}px`, height: `${bh}px` });
+  };
+  function frameBox(kind: 'years' | 'view') {
+    if (kind === 'years' && !years.active()) return;
+    framing = kind;
+    boxAspect = kind === 'years' ? 4 / 3 : viewAspect();
+    // The view as it is, tilted and turned or not; flat, from straight above
+    // with the ground raised, as Map: Full is.
+    if (kind === 'view') ground.hold(true);
+    placeBox();
+    recSay.textContent = kind === 'years' ? RECORD_HINT : VIEW_HINT;
+    recGo.textContent = kind === 'years' ? 'Record' : 'Save';
+    recGo.disabled = false;
+    rec.hidden = false;
+    mapPage.classList.add('rec-on');
+  }
+  const endFrame = () => {
+    if (framing === 'view') ground.hold(false);
+    framing = null;
+    rec.hidden = true;
+    mapPage.classList.remove('rec-on', 'rec-busy');
+  };
+  addEventListener('resize', () => !rec.hidden && !recording && placeBox());
+  recGo.addEventListener('click', async () => {
+    if (framing === 'years') return recordYears();
+    if (recording) return;
+    recording = true;
+    recGo.disabled = true;
+    mapPage.classList.add('rec-busy');
+    recSay.textContent = 'Drawing the map…';
+    try {
+      await saveMapView();
+    } catch (err) {
+      say(`The map could not be saved: ${(err as Error).message}`);
+    } finally {
+      recording = false;
+      endFrame();
+    }
+  });
+  recStop.addEventListener('click', () => (recording ? (recCancel = true) : endFrame()));
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || rec.hidden) return;
+    if (recording) recCancel = true;
+    else endFrame();
+  });
+  // Put away from under it: nothing left to record.
+  new MutationObserver(() => framing === 'years' && !recording && !years.active() && endFrame()).observe(document.getElementById('ts-bar')!, { attributes: true, attributeFilter: ['hidden'] });
+
+  async function recordYears() {
+    const now = years.active();
+    if (!now || recording) return;
+    const s = now.series;
+    const back = s.years.indexOf(now.year);
+    const W = REC_W, H = (REC_W * 3) / 4;
+    const mb = await import('mediabunny');
+    if (!(await mb.canEncodeVideo('avc', { width: W, height: H, bitrate: mb.QUALITY_HIGH }))) {
+      recSay.textContent = 'This browser cannot make videos. Chrome or Safari on a computer can.';
+      return;
+    }
+    recording = true;
+    recCancel = false;
+    recGo.disabled = true;
+    mapPage.classList.add('rec-busy');
+    const ratio = map.getPixelRatio();
+    const box = recBox.getBoundingClientRect(), at0 = el.getBoundingClientRect();
+    const gl = map.getCanvas().getContext('webgl2');
+    const maxSide = Math.min(8192, gl ? (gl.getParameter(gl.MAX_RENDERBUFFER_SIZE) as number) : 4096);
+    const out = document.createElement('canvas');
+    out.width = W;
+    out.height = H;
+    const ctx = out.getContext('2d')!;
+    /** The box out of a whole-map shot, at the video's size. */
+    const cut = (shot: HTMLCanvasElement) => {
+      const k = shot.width / el.clientWidth;
+      const c = document.createElement('canvas');
+      c.width = W;
+      c.height = H;
+      c.getContext('2d')!.drawImage(shot, (box.left - at0.left) * k, (box.top - at0.top) * k, box.width * k, box.height * k, 0, 0, W, H);
+      return c;
+    };
+    const shoot = async () => {
+      await new Promise((r) => setTimeout(r, YEAR_FADE + 100));
+      await settled();
+      return cut(await grab());
+    };
+    const target = new mb.BufferTarget();
+    const output = new mb.Output({ format: new mb.Mp4OutputFormat({ fastStart: 'in-memory' }), target });
+    const source = new mb.CanvasSource(out, { codec: 'avc', bitrate: mb.QUALITY_HIGH, keyFrameInterval: 1 });
+    output.addVideoTrack(source, { frameRate: REC_FPS });
+    const first = s.years[0], last = s.years.at(-1)!;
+    // Each calendar year owns its frames, so a series kept every ten years
+    // holds each picture for ten years' worth.
+    const changeAt = (y: number) => (y - first) * REC_PER_YEAR;
+    const total = changeAt(last) + REC_PER_YEAR;
+    let f = 0;
+    /** Frames up to `until`: `a`, dissolving into `b` about `change`. */
+    const emit = async (until: number, a: HTMLCanvasElement, b?: HTMLCanvasElement, change = 0) => {
+      for (; f < until; f++) {
+        ctx.globalAlpha = 1;
+        ctx.drawImage(a, 0, 0);
+        const t = b ? (f - (change - REC_DISSOLVE) + 0.5) / (2 * REC_DISSOLVE) : 0;
+        if (b && t > 0) {
+          ctx.globalAlpha = Math.min(1, t);
+          ctx.drawImage(b, 0, 0);
+        }
+        await source.add(f / REC_FPS, 1 / REC_FPS);
+      }
+    };
+    let base: HTMLCanvasElement | null = null;
+    try {
+      await output.start();
+      map.setPixelRatio(Math.min(4, Math.max(ratio, W / box.width), maxSide / Math.max(el.clientWidth, el.clientHeight)));
+      let prev: HTMLCanvasElement | null = null;
+      for (let i = 0; i < s.years.length; i++) {
+        if (recCancel) break;
+        recSay.textContent = `Drawing ${s.years[i]}, ${i + 1} of ${s.years.length}… Escape stops it.`;
+        await years.goTo(i);
+        const shot = await shoot();
+        if (prev) await emit(changeAt(s.years[i]) + REC_DISSOLVE, prev, shot, changeAt(s.years[i]));
+        prev = shot;
+      }
+      if (!recCancel) {
+        await emit(total, prev!);
+        recSay.textContent = 'The map on its own…';
+        years.bare(true);
+        base = await shoot();
+        years.bare(false);
+      }
+    } catch (err) {
+      recCancel = true;
+      say(`The video could not be made: ${(err as Error).message}`);
+    } finally {
+      years.bare(false);
+      map.setPixelRatio(ratio);
+    }
+    if (recCancel) {
+      await output.cancel().catch(() => {});
+    } else {
+      await output.finalize();
+      const name = `${s.layer}-${first}-${last}`;
+      const dur = +(total / REC_FPS).toFixed(3);
+      const changes = [changeAt(s.years[1] ?? last), changeAt(last)].map((x) => +(x / REC_FPS).toFixed(3));
+      const from = config.layers.find((l) => l.id === s.layer)?.source;
+      // The post's series block, filled in but for the slug.
+      const note = [
+        `# ${s.name}, ${first}–${last}: from the EcoScapes map, ${stamp()}.`,
+        `# Make the files the post plays, then paste this into its series:`,
+        `#   posts/tools/encode-walkthrough.sh ~/Downloads/${name}.mp4 <slug> ${name}`,
+        `#   cp ~/Downloads/${name}-base.jpg public/media/<slug>/`,
+        `series:`,
+        `  caption: ${JSON.stringify(`${s.name}, ${first}–${last}`)}`,
+        `  title: ${JSON.stringify(s.name)}`,
+        `  source: ${JSON.stringify(from ?? 'EcoScapes map')}`,
+        `  legend:`,
+        ...s.legend.flatMap((l) => [`    - colour: '${l.colour}'`, `      label: ${JSON.stringify(l.label)}`]),
+        `  video:`,
+        `    hevc: /media/<slug>/${name}.hevc.mp4`,
+        `    src: /media/<slug>/${name}.mp4`,
+        `    poster: /media/<slug>/${name}-poster.jpg`,
+        `    base: /media/<slug>/${name}-base.jpg`,
+        `    from: ${first}`,
+        `    to: ${last}`,
+        `    burnedIn: false`,
+        `    duration: ${dur}`,
+        `    changes: [${changes.join(', ')}]`,
+        ``,
+      ].join('\n');
+      const blob = new Blob([target.buffer!], { type: 'video/mp4' });
+      download(`${name}.mp4`, URL.createObjectURL(blob));
+      if (base) download(`${name}-base.jpg`, base.toDataURL('image/jpeg', 0.9));
+      download(`${name}.txt`, URL.createObjectURL(new Blob([note], { type: 'text/plain' })));
+    }
+    recording = false;
+    await years.goTo(Math.max(0, back));
+    if (recCancel) {
+      mapPage.classList.remove('rec-busy');
+      recSay.textContent = RECORD_HINT;
+      recGo.disabled = false;
+    } else endFrame();
   }
 
   // ---- A phone's control column, folded away but for the search --------------
   const mapSide = document.getElementById('map-side')!;
   const sideFold = document.getElementById('side-fold')!;
-  sideFold.addEventListener('click', () => {
-    const folded = mapSide.classList.toggle('folded');
+  const setFolded = (folded: boolean) => {
+    mapSide.classList.toggle('folded', folded);
     sideFold.setAttribute('aria-expanded', String(!folded));
     const label = folded ? 'Show the controls' : 'Hide the controls';
     sideFold.setAttribute('aria-label', label);
     sideFold.title = label;
-  });
+  };
+  sideFold.addEventListener('click', () => setFolded(!mapSide.classList.contains('folded')));
+  // Folded from the start with ?fold -- as a post's last panel opens it.
+  if (new URLSearchParams(location.search).has('fold')) setFolded(true);
 
   // ---- A phone on its side: the three ways behind one button ----------------
   const wayModes = document.getElementById('way-modes')!;

@@ -127,6 +127,15 @@ const config = {
     <div class="map" id="map" data-config={JSON.stringify(config)}></div>
     <!-- A flyover made into a video, played over the map. -->
     <video class="fly-video" id="fly-video" muted playsinline hidden></video>
+    <!-- Map: View's framing: the box the finished map shows, the rest dimmed. -->
+    <div class="frame" id="frame" hidden>
+      <div class="frame-box" id="frame-box"></div>
+      <div class="frame-bar">
+        <p id="frame-say">Move the map to frame it: the box is the map in the picture.</p>
+        <button type="button" class="frame-go" id="frame-go">Save</button>
+        <button type="button" id="frame-stop">Cancel</button>
+      </div>
+    </div>
 
     <!-- Down the left on a wider screen: the panel, and the legend under it. -->
     <div class="left-col">
@@ -325,12 +334,14 @@ const config = {
           </svg>
         </button>
       </div>
-      <!-- Sharing it: the whole area as a finished map, the view as it is,
-           the numbers, or a code that opens this model. -->
+      <!-- Sharing it: a finished map of the whole area or of an area framed on
+           screen, the view as it is, the numbers, or a code that opens this
+           model. -->
       <div class="pop-wrap" id="save-wrap">
         <div class="pop-menu" id="save-menu" hidden>
-          <button type="button" data-save="full">Full map<small>The whole area, with its key</small></button>
-          <button type="button" data-save="view">This view<small>The map as it is on screen</small></button>
+          <button type="button" data-save="full">Map: Full<small>The whole area, with its key</small></button>
+          <button type="button" data-save="view">Map: View<small>An area you frame, 4:5 upright, with its key</small></button>
+          <button type="button" data-save="grab">Screengrab<small>The map as it is on screen</small></button>
           <button type="button" data-save="csv">Numbers (CSV)<small>The model and the areas</small></button>
           <button type="button" data-save="qr">QR code<small>Opens this sandbox on a phone or tablet</small></button>
         </div>
@@ -716,7 +727,7 @@ const config = {
     right: calc(100% - var(--hi));
     top: 8.5px;
     height: 5px;
-    background: linear-gradient(var(--dir), rgba(154, 167, 159, 0.4), var(--ramp-hi, #ffdd80));
+    background: linear-gradient(var(--dir), var(--ramp-poor-track, rgba(154, 167, 159, 0.4)), var(--ramp-good-track, #ffdd80));
   }
   /* input[type='range'] to outrank the general slider rule further down. */
   #criteria :global(.dual input[type='range']) {
@@ -754,18 +765,18 @@ const config = {
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
     cursor: grab;
   }
-  #criteria :global(.t-bad::-webkit-slider-thumb) { background: #c9d2cc; }
-  #criteria :global(.t-bad::-moz-range-thumb) { background: #c9d2cc; }
-  #criteria :global(.t-good::-webkit-slider-thumb) { background: var(--ramp-hi, #ffdd80); }
-  #criteria :global(.t-good::-moz-range-thumb) { background: var(--ramp-hi, #ffdd80); }
+  #criteria :global(.t-bad::-webkit-slider-thumb) { background: var(--ramp-poor, #c9d2cc); }
+  #criteria :global(.t-bad::-moz-range-thumb) { background: var(--ramp-poor, #c9d2cc); }
+  #criteria :global(.t-good::-webkit-slider-thumb) { background: var(--ramp-good, #ffdd80); }
+  #criteria :global(.t-good::-moz-range-thumb) { background: var(--ramp-good, #ffdd80); }
   #criteria :global(.dual input:focus-visible) { outline: none; }
   #criteria :global(.dual input:focus-visible::-webkit-slider-thumb) { box-shadow: 0 0 0 3px var(--accent); }
   #criteria :global(.dual input:focus-visible::-moz-range-thumb) { box-shadow: 0 0 0 3px var(--accent); }
   #criteria :global(.thresh) { display: flex; justify-content: space-between; margin-top: 0.25rem; font-size: 0.72rem; color: var(--ink-dim); }
   #criteria :global(.thresh.flip) { flex-direction: row-reverse; }
   #criteria :global(.thresh i) { display: inline-block; width: 8px; height: 8px; margin-right: 0.35rem; border-radius: 50%; vertical-align: 0.05em; }
-  #criteria :global(.dot-bad) { background: #c9d2cc; }
-  #criteria :global(.dot-good) { background: var(--ramp-hi, #ffdd80); }
+  #criteria :global(.dot-bad) { background: var(--ramp-poor, #c9d2cc); }
+  #criteria :global(.dot-good) { background: var(--ramp-good, #ffdd80); }
   #criteria :global(.weight) {
     display: grid;
     gap: 0.15rem;
@@ -998,6 +1009,40 @@ const config = {
   /* Flying: the map and its legend, nothing else but the way to stop. */
   .fly-open .key, .flying .dst-panel, .flying .key, .flying .map-side, .flying .map :global(.maplibregl-popup), .flying :global(.best-pin) { display: none; }
   .flying .left-col { top: calc(var(--safe-t) + 1rem); }
+  /* Map: View's framing: a box of what the finished map shows, the rest
+     dimmed, and the panels, pins and popups out of the way; nothing takes a
+     click while it draws. */
+  .frame { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+  .frame[hidden] { display: none; }
+  .frame-box {
+    position: absolute;
+    border: 1.5px solid var(--accent);
+    border-radius: 3px;
+    box-shadow: 0 0 0 100vmax rgba(8, 12, 10, 0.55);
+  }
+  .frame-bar {
+    position: absolute;
+    left: 50%;
+    top: 1rem;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.45rem 0.5rem 0.45rem 1rem;
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    background: rgba(13, 18, 16, 0.92);
+    color: var(--ink);
+    font-size: 0.8rem;
+    white-space: nowrap;
+    pointer-events: auto;
+  }
+  .frame-bar p { margin: 0; }
+  .frame-bar button { padding: 0.4rem 0.8rem; border-radius: 9px; border: 1px solid var(--line); background: none; color: var(--ink); font: inherit; cursor: pointer; }
+  .frame-bar .frame-go { border-color: var(--accent); color: var(--accent); }
+  .frame-bar button:disabled { display: none; }
+  .framing .left-col, .framing .key, .framing .map :global(.maplibregl-popup), .framing :global(.best-pin), .framing .map :global(.maplibregl-marker) { display: none; }
+  .frame-busy > :not(.frame) { pointer-events: none; }
   .fly-stop {
     position: absolute;
     z-index: 7;
@@ -1155,6 +1200,9 @@ const config = {
   .pal-menu :global(button:hover) { background: var(--bg-lift); color: var(--ink); }
   .pal-menu :global(button[aria-checked='true']) { border-color: var(--accent); color: var(--ink); }
   .pal-menu :global(.pal-bar) { display: block; height: 8px; border-radius: 4px; }
+  .pal-menu :global(.pal-invert) { margin-top: 0.2rem; border-top: 1px solid var(--line); border-radius: 0 0 9px 9px; }
+  .pal-menu :global(.pal-invert[aria-checked='true']) { color: var(--ink); }
+  .pal-menu :global(.pal-invert small) { font-size: 0.66rem; color: var(--ink-dim); }
   #pal-btn[aria-expanded='true'], #best-btn[aria-expanded='true'], #save-btn[aria-expanded='true'] { border-color: var(--accent); color: var(--accent); }
   /* The save menu, and the best places: as the palettes, beside their button. */
   .pop-menu > button {
@@ -1506,7 +1554,7 @@ const config = {
 
   // The scores over the ground's own shape, tilted: the score layer follows
   // the terrain itself (score-layer.ts), so the sliders are as quick in 3D.
-  tilting(map, abs(config.terrain), document.getElementById('three-d')!, document.getElementById('tilt')!);
+  const ground = tilting(map, abs(config.terrain), document.getElementById('three-d')!, document.getElementById('tilt')!);
 
   const toast = document.getElementById('toast')!;
   let toastTimer = 0;
@@ -1598,10 +1646,22 @@ const config = {
       })
       .join('');
     const mark = (v: number, c: string) => `<line x1="${x(v)}" x2="${x(v)}" y1="0" y2="${H}" stroke="${c}" stroke-width="2"/>`;
-    return `<svg class="hist" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${bars}${mark(it.bad, '#9aa79f')}${mark(it.good, rgb(STOPS[4]))}</svg>`;
+    return `<svg class="hist" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${bars}${mark(it.bad, inverted ? rgb(STOPS[0]) : '#9aa79f')}${mark(it.good, inverted ? '#9aa79f' : rgb(STOPS[4]))}</svg>`;
   }
   /** The palette the score is drawn in (palettes.ts), for the key's charts. */
   let STOPS: number[][] = PALETTES[0].stops;
+  /** Inverted: the same ramp the other way up, so the poorest places are
+   *  the brightest -- for a layer where what stands out should be where it
+   *  is worst (where people have changed the land most). Which end is good
+   *  is unchanged; only its colour. */
+  let inverted = (() => {
+    try {
+      return localStorage.getItem('dst-invert') === '1';
+    } catch {
+      return false;
+    }
+  })();
+
   function rampCss(t: number) {
     const s = Math.min(1, Math.max(0, t)) * 4;
     const i = Math.min(3, Math.floor(s));
@@ -1952,20 +2012,35 @@ const config = {
   const palWrap = document.getElementById('pal-wrap')!;
   const palBtn = document.getElementById('pal-btn')!;
   const palMenu = document.getElementById('pal-menu')!;
+  let paletteId: string | null = null;
   function usePalette(id: string | null) {
     const p = paletteById(id);
-    STOPS = p.stops;
-    score.setPalette(p.stops);
-    el.parentElement!.style.setProperty('--ramp-hi', rgb(p.stops[4]));
-    el.parentElement!.style.setProperty('--ramp-mid', rgb(p.stops[3]));
-    el.parentElement!.style.setProperty('--ramp', `linear-gradient(90deg, ${p.stops.map(rgb).join(', ')})`);
-    palMenu.innerHTML = PALETTES.map(
-      (q) =>
-        `<button type="button" role="radio" aria-checked="${q.id === p.id}" data-palette="${q.id}">` +
-        `<span>${q.name}</span><i class="pal-bar" style="background:linear-gradient(90deg,${q.stops.map(rgb).join(',')})"></i></button>`,
-    ).join('');
+    paletteId = p.id;
+    const stops = inverted ? [...p.stops].reverse() : p.stops;
+    STOPS = stops;
+    score.setPalette(stops);
+    const root = el.parentElement!;
+    // Pins and the best places keep the palette's bright colour either way.
+    root.style.setProperty('--ramp-hi', rgb(p.stops[4]));
+    root.style.setProperty('--ramp-mid', rgb(p.stops[3]));
+    root.style.setProperty('--ramp', `linear-gradient(90deg, ${stops.map(rgb).join(', ')})`);
+    // A layer's poor and best ends: the bright colour on whichever end shows
+    // bright, grey on the one that fades into the ground.
+    const [bright, grey, greyTrack] = [rgb(p.stops[4]), '#c9d2cc', 'rgba(154, 167, 159, 0.4)'];
+    root.style.setProperty('--ramp-good', inverted ? grey : bright);
+    root.style.setProperty('--ramp-poor', inverted ? bright : grey);
+    root.style.setProperty('--ramp-good-track', inverted ? greyTrack : bright);
+    root.style.setProperty('--ramp-poor-track', inverted ? bright : greyTrack);
+    palMenu.innerHTML =
+      PALETTES.map(
+        (q) =>
+          `<button type="button" role="radio" aria-checked="${q.id === p.id}" data-palette="${q.id}">` +
+          `<span>${q.name}</span><i class="pal-bar" style="background:linear-gradient(90deg,${(inverted ? [...q.stops].reverse() : q.stops).map(rgb).join(',')})"></i></button>`,
+      ).join('') +
+      `<button class="pal-invert" type="button" role="switch" aria-checked="${inverted}" data-invert><span>Invert colours</span><small>${inverted ? 'Brightest where it scores worst' : 'Brightest where it scores best'}</small></button>`;
     try {
       localStorage.setItem('dst-palette', p.id);
+      localStorage.setItem('dst-invert', inverted ? '1' : '0');
     } catch {}
   }
   usePalette((() => {
@@ -1985,9 +2060,11 @@ const config = {
     showPalettes(palMenu.hidden);
   });
   palMenu.addEventListener('click', (e) => {
+    const flip = (e.target as HTMLElement).closest<HTMLElement>('[data-invert]');
+    if (flip) inverted = !inverted;
     const b = (e.target as HTMLElement).closest<HTMLElement>('[data-palette]');
-    if (!b) return;
-    usePalette(b.dataset.palette!);
+    if (!b && !flip) return;
+    usePalette(b ? b.dataset.palette! : paletteId);
     render();
     showNumbers();
   });
@@ -2706,8 +2783,9 @@ const config = {
       return `${axis}${l.name}: ${how}${wt}`;
     });
 
-  // The save button's menu: the whole area as a finished map, the view, or
-  // the numbers.
+  // The save button's menu: a finished map of the whole area (Map: Full) or
+  // of an area framed on screen, 4:5 upright (Map: View), the view as it is
+  // (Screengrab), the numbers, or a code.
   const saveWrap = document.getElementById('save-wrap')!;
   const saveBtn = document.getElementById('save-btn')!;
   const saveMenu = document.getElementById('save-menu')!;
@@ -2724,11 +2802,15 @@ const config = {
   saveMenu.addEventListener('click', async (e) => {
     const b = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-save]');
     if (!b || saving) return;
+    if (b.dataset.save === 'view') {
+      showSave(false);
+      return frameView();
+    }
     const all = saveMenu.querySelectorAll('button');
     saving = true;
     for (const x of all) x.disabled = true;
     try {
-      await ({ full: saveFull, view: saveView, csv: saveCsv, qr: saveQr } as Record<string, () => unknown>)[b.dataset.save!]();
+      await ({ full: saveFull, grab: saveView, csv: saveCsv, qr: saveQr } as Record<string, () => unknown>)[b.dataset.save!]();
       showSave(false);
     } finally {
       saving = false;
@@ -2853,45 +2935,134 @@ const config = {
     download(`ecoscapes-data-sandbox-qr-${stamp()}.png`, out.toDataURL('image/png'));
   }
 
-  /** The whole study area to its dashed edge, flat and north up, drawn
-   *  sharper than the screen and finished as a map: north, a scale, the key,
-   *  the model, where it all comes from, and a code that opens this model.
-   *  The camera goes back after. */
+  // ---- Map: View -------------------------------------------------------------
+  // An area framed on screen as a finished map: the whole picture 4:5
+  // upright, so the box gets what the words under it leave. The view as it
+  // is, tilted and turned or not; flat, from straight above with the ground
+  // raised, as Map: Full is.
+  const frameEl = document.getElementById('frame')!;
+  const frameBox = document.getElementById('frame-box')!;
+  const frameSay = document.getElementById('frame-say')!;
+  const frameGo = document.getElementById('frame-go') as HTMLButtonElement;
+  let viewAspect = 1;
+  let framingBusy = false;
+  /** Map: View's box, width over height; never under 45% of the width
+   *  tall, when the picture comes out taller than 4:5 instead. */
+  const aspectForView = async () => 1000 / Math.max(450, ((1000 + 72) * 5) / 4 - 72 - (await sheet(1000)).footH);
+  /** The largest box of that shape clear of the bar above and the controls. */
+  const placeFrame = () => {
+    const w = el.clientWidth - 2 * 90, h = el.clientHeight - 80 - 60;
+    const bw = Math.min(w, h * viewAspect), bh = bw / viewAspect;
+    Object.assign(frameBox.style, { left: `${(el.clientWidth - bw) / 2}px`, top: `${80 + (h - bh) / 2}px`, width: `${bw}px`, height: `${bh}px` });
+  };
+  async function frameView() {
+    stopTour();
+    popup.remove();
+    viewAspect = await aspectForView();
+    ground.hold(true);
+    placeFrame();
+    frameGo.disabled = false;
+    frameSay.textContent = 'Move the map to frame it: the box is the map in the picture.';
+    frameEl.hidden = false;
+    page.classList.add('framing');
+  }
+  const endFrame = () => {
+    ground.hold(false);
+    frameEl.hidden = true;
+    page.classList.remove('framing', 'frame-busy');
+  };
+  addEventListener('resize', () => !frameEl.hidden && !framingBusy && placeFrame());
+  document.getElementById('frame-stop')!.addEventListener('click', () => !framingBusy && endFrame());
+  document.addEventListener('keydown', (e) => e.key === 'Escape' && !frameEl.hidden && !framingBusy && endFrame());
+  frameGo.addEventListener('click', async () => {
+    if (framingBusy) return;
+    framingBusy = true;
+    frameGo.disabled = true;
+    page.classList.add('frame-busy');
+    frameSay.textContent = 'Drawing the map…';
+    try {
+      const box = frameBox.getBoundingClientRect(), at0 = el.getBoundingClientRect();
+      // The model may have changed since the box was drawn: its height is
+      // taken again, about its middle.
+      const h = box.width / (await aspectForView());
+      const s = await shoot({ x: box.left - at0.left, y: box.top - at0.top + (box.height - h) / 2, w: box.width, h }, 2400);
+      // Text wraps a little differently at full size: the map trimmed (or
+      // let out) about its middle to what makes it exactly 4:5.
+      const words = await sheet(s.crop.w);
+      const M = 36 * (s.crop.w / 1000);
+      const fit = Math.round(((s.crop.w + 2 * M) * 5) / 4 - 2 * M - words.footH);
+      if (fit > 0.45 * s.crop.w) {
+        const y = Math.max(0, Math.min(s.shot.height - fit, Math.round(s.crop.y + (s.crop.h - fit) / 2)));
+        s.crop = { ...s.crop, y, h: Math.min(fit, s.shot.height) };
+      }
+      const out = words.paint(s);
+      download(`ecoscapes-data-sandbox-view-${stamp()}.png`, out.toDataURL('image/png'));
+    } catch (err) {
+      say(`The map could not be saved: ${(err as Error).message}`);
+    } finally {
+      framingBusy = false;
+      endFrame();
+    }
+  });
+
+  /** Map: Full, saved (drawFull). */
   async function saveFull() {
     const out = await drawFull();
     download(`ecoscapes-data-sandbox-full-${stamp()}.png`, out.toDataURL('image/png'));
   }
+  type Shot = { shot: HTMLCanvasElement; crop: { x: number; y: number; w: number; h: number }; zoom: number; lat: number; bearing: number; pitch: number };
+
+  /** The map drawn complete and copied, sharper than the screen: about
+   *  `long` pixels on the long side of `box` (CSS pixels of the map), within
+   *  what the graphics card takes. */
+  async function shoot(box: { x: number; y: number; w: number; h: number }, long: number): Promise<Shot> {
+    const ratio = map.getPixelRatio();
+    try {
+      const gl = map.getCanvas().getContext('webgl2');
+      const maxSide = Math.min(8192, gl ? (gl.getParameter(gl.MAX_RENDERBUFFER_SIZE) as number) : 4096);
+      map.setPixelRatio(Math.max(ratio, Math.min(4, long / Math.max(box.w, box.h), maxSide / Math.max(el.clientWidth, el.clientHeight))));
+      await settled();
+      const shot = await grab();
+      const k = shot.width / el.clientWidth;
+      const x0 = Math.round(box.x * k), y0 = Math.round(box.y * k);
+      const crop = { x: x0, y: y0, w: Math.round((box.x + box.w) * k) - x0, h: Math.round((box.y + box.h) * k) - y0 };
+      return { shot, crop, zoom: map.getZoom(), lat: map.getCenter().lat, bearing: map.getBearing(), pitch: map.getPitch() };
+    } finally {
+      map.setPixelRatio(ratio);
+    }
+  }
+
+  /** Map: Full -- the whole study area to its dashed edge, north up, from
+   *  straight above but with the ground raised in 3D (it reads better than
+   *  the flat map), finished by sheet(). The camera goes back after. */
   async function drawFull() {
     stopTour();
     popup.remove();
     say('Drawing the full map…');
     const before = { center: map.getCenter(), zoom: map.getZoom(), pitch: map.getPitch(), bearing: map.getBearing() };
-    const ratio = map.getPixelRatio();
     const [[bw, bs], [be, bn]] = config.limit;
-    let shot: HTMLCanvasElement, crop: { x: number; y: number; w: number; h: number }, zoom: number, lat: number;
+    let s: Shot;
     try {
       map.setMaxBounds(null);
+      ground.hold(true);
       map.jumpTo({ ...map.cameraForBounds(config.limit, { padding: 6 })!, pitch: 0, bearing: 0 });
-      // Sharper than the screen: about 3200 pixels on the long side, within
-      // what the graphics card takes.
-      const nw = map.project([bw, bn]), se = map.project([be, bs]);
-      const long = Math.max(se.x - nw.x, se.y - nw.y);
-      const gl = map.getCanvas().getContext('webgl2');
-      const maxSide = Math.min(8192, gl ? (gl.getParameter(gl.MAX_RENDERBUFFER_SIZE) as number) : 4096);
-      map.setPixelRatio(Math.max(ratio, Math.min(4, 3200 / long, maxSide / Math.max(el.clientWidth, el.clientHeight))));
-      await settled();
-      shot = await grab();
       // Out by a pixel, so the dashed edge is inside the picture whole.
-      const k = shot.width / el.clientWidth;
-      const x0 = Math.round((nw.x - 1) * k), y0 = Math.round((nw.y - 1) * k);
-      crop = { x: x0, y: y0, w: Math.round((se.x + 1) * k) - x0, h: Math.round((se.y + 1) * k) - y0 };
-      zoom = map.getZoom();
-      lat = map.getCenter().lat;
+      const nw = map.project([bw, bn]), se = map.project([be, bs]);
+      s = await shoot({ x: nw.x - 1, y: nw.y - 1, w: se.x - nw.x + 2, h: se.y - nw.y + 2 }, 3200);
     } finally {
-      map.setPixelRatio(ratio);
       map.jumpTo(before);
+      ground.hold(false);
       map.setMaxBounds(ROOM);
     }
+    return (await sheet(s.crop.w)).paint(s);
+  }
+
+  /** A finished map for a picture `width` pixels wide: laid out first, so
+   *  how tall the words under the picture come to (footH) is known before
+   *  there is a picture -- Map: View shapes its box by it -- then painted
+   *  round the picture: north, a scale, the key, the model, where it all
+   *  comes from, and a code that opens this model. */
+  async function sheet(width: number) {
     if (!logo.complete) await new Promise((r) => (logo.onload = logo.onerror = r));
 
     await flushHash();
@@ -2901,7 +3072,7 @@ const config = {
     qr.make();
 
     // Laid out in units of a thousandth of the map's width.
-    const u = crop.w / 1000;
+    const u = width / 1000;
     const M = 36 * u;
     const out = document.createElement('canvas');
     const ctx = out.getContext('2d')!;
@@ -2925,7 +3096,7 @@ const config = {
     // The code in the head's right-hand corner; everything under the head
     // the full width.
     const qrSize = 76 * u;
-    const textW = crop.w;
+    const textW = width;
     // The model as a chart per layer: its values across the area, shaded by
     // the score each gets, with the poor and best marks on it.
     const crits = criteria();
@@ -2974,231 +3145,244 @@ const config = {
     const bodyH = modelH + aboutH + 14 * u + sources.length * 15 * u;
     // The head as tall as the code and its words under it.
     const footH = 24 * u + qrSize + 16 * u + 14 * u + 18 * u + bodyH;
-    out.width = Math.round(crop.w + M * 2);
-    out.height = Math.round(crop.h + M * 2 + footH);
+    return {
+      footH,
+      paint({ shot, crop, zoom, lat, bearing, pitch }: Shot) {
+        out.width = Math.round(crop.w + M * 2);
+        out.height = Math.round(crop.h + M * 2 + footH);
 
-    ctx.fillStyle = '#0d1210';
-    ctx.fillRect(0, 0, out.width, out.height);
-    ctx.drawImage(shot, crop.x, crop.y, crop.w, crop.h, M, M, crop.w, crop.h);
+        ctx.fillStyle = '#0d1210';
+        ctx.fillRect(0, 0, out.width, out.height);
+        ctx.drawImage(shot, crop.x, crop.y, crop.w, crop.h, M, M, crop.w, crop.h);
 
-    // North, top right, inside the dashed edge.
-    const ax = M + crop.w - 44 * u, ay = M + 44 * u;
-    ctx.fillStyle = 'rgba(13,18,16,0.75)';
-    ctx.beginPath();
-    ctx.arc(ax, ay, 28 * u, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#eef2ee';
-    ctx.beginPath();
-    ctx.moveTo(ax, ay - 2 * u);
-    ctx.lineTo(ax + 8 * u, ay + 21 * u);
-    ctx.lineTo(ax, ay + 16 * u);
-    ctx.lineTo(ax - 8 * u, ay + 21 * u);
-    ctx.closePath();
-    ctx.fill();
-    font(12, 700);
-    ctx.textAlign = 'center';
-    ctx.fillText('N', ax, ay - 8 * u);
-    ctx.textAlign = 'left';
-
-    // A scale, bottom left, inside the edge: a round distance near a fifth of
-    // the width.
-    const metresPerPx = (40075016.686 * Math.cos((lat * Math.PI) / 180)) / (512 * 2 ** zoom) / (shot.width / el.clientWidth);
-    const want = (crop.w / 5) * metresPerPx;
-    const step = 10 ** Math.floor(Math.log10(want));
-    const dist = [5, 2, 1].map((f) => f * step).find((d) => d <= want)!;
-    const barW = dist / metresPerPx, sx = M + 30 * u, sy = M + crop.h - 30 * u;
-    ctx.fillStyle = 'rgba(13,18,16,0.75)';
-    ctx.fillRect(sx - 12 * u, sy - 28 * u, barW + 24 * u, 44 * u);
-    ctx.fillStyle = '#eef2ee';
-    ctx.fillRect(sx, sy, barW / 2, 6 * u);
-    ctx.strokeStyle = '#eef2ee';
-    ctx.lineWidth = 1.5 * u;
-    ctx.strokeRect(sx, sy, barW, 6 * u);
-    font(12);
-    ctx.fillText('0', sx, sy - 8 * u);
-    ctx.textAlign = 'right';
-    ctx.fillText(`${dist >= 1000 ? dist / 1000 : dist} ${dist >= 1000 ? 'km' : 'm'}`, sx + barW, sy - 8 * u);
-    ctx.textAlign = 'left';
-
-    // The head of the foot: the logo and title, the key, and the code at the
-    // right, the rest centred on the code.
-    const headTop = M + crop.h + 24 * u;
-    let y = headTop + (qrSize - headH) / 2;
-    const lw = logo.naturalWidth ? (logo.naturalWidth / logo.naturalHeight) * headH : 0;
-    if (lw) ctx.drawImage(logo, M, y, lw, headH);
-    ctx.fillStyle = '#3a4843';
-    ctx.fillRect(M + lw + 20 * u, y + 4 * u, 1.5 * u, headH - 8 * u);
-    const tx = M + lw + 40 * u;
-    ctx.fillStyle = '#eef2ee';
-    font(23, 650);
-    ctx.fillText('Sea-to-Sky Data Sandbox', tx, y + 22 * u);
-    ctx.fillStyle = '#9aa79f';
-    font(13);
-    const two = effectiveMode() === 'two';
-    const t = tallies.region;
-    let headline = '';
-    if (t && t.total) {
-      if (two) {
-        const cell = only >= 0 ? only : 8;
-        headline = `${Math.round((t.cells[cell] / t.total) * 100)}% of the study area ${cellName(cell).toLowerCase()} (${km2(t.cells[cell])})`;
-      } else {
-        headline = `${Math.round((t.above / t.total) * 100)}% of the study area scores ${Math.round(cut() * 100)} or more (${km2(t.above)})`;
-      }
-    }
-    ctx.fillText(headline, tx, y + 44 * u);
-
-    const kx = M + crop.w - qrSize - 36 * u;
-    if (two) {
-      const c = 20 * u, g = 3 * u, gx = kx - 3 * c - 2 * g;
-      [6, 7, 8, 3, 4, 5, 0, 1, 2].forEach((cell, i) => {
-        ctx.fillStyle = palette[cell];
-        ctx.fillRect(gx + (i % 3) * (c + g), y - 6 * u + Math.floor(i / 3) * (c + g), c, c);
-      });
-      font(11);
-      ctx.fillStyle = '#9aa79f';
-      ctx.textAlign = 'right';
-      ctx.fillText(`${axisNames[1]} ↑`, gx - 10 * u, y + 10 * u);
-      ctx.fillText(`${axisNames[0]} →`, gx - 10 * u, y + 52 * u);
-      ctx.textAlign = 'left';
-    } else {
-      const rw = 200 * u, rh = 12 * u, rx = kx - rw, ry = y + 8 * u;
-      const grad = ctx.createLinearGradient(rx, 0, rx + rw, 0);
-      for (let i = 0; i <= 10; i++) grad.addColorStop(i / 10, rampCss(i / 10));
-      ctx.fillStyle = grad;
-      ctx.fillRect(rx, ry, rw, rh);
-      ctx.fillStyle = '#eef2ee';
-      ctx.fillRect(rx + rw * cut() - u, ry - 4 * u, 2 * u, rh + 8 * u);
-      font(11);
-      ctx.fillStyle = '#9aa79f';
-      ctx.fillText('Poor fit', rx, ry + rh + 17 * u);
-      ctx.textAlign = 'right';
-      ctx.fillText('Best fit', rx + rw, ry + rh + 17 * u);
-      ctx.textAlign = 'left';
-    }
-
-    // The body: the model and the sources, the full width.
-    y = headTop + qrSize + 16 * u + 14 * u;
-    ctx.fillStyle = '#2a3430';
-    ctx.fillRect(M, y, crop.w, 1.5 * u);
-    y += 18 * u;
-    ctx.fillStyle = '#eef2ee';
-    font(12, 650);
-    ctx.fillText(`The model · Calculation type: ${opLabel()}`, M, y + 10 * u);
-    font(10.5);
-    ctx.fillStyle = '#9aa79f';
-    let ey = y + 10 * u;
-    for (const row of explain) ctx.fillText(row, M, (ey += 15 * u));
-    const gridTop = ey + 14 * u;
-    const fit = (text: string, w: number) => {
-      let t = text;
-      while (ctx.measureText(t).width > w && t.length > 4) t = t.slice(0, -2);
-      return t === text ? text : `${t}…`;
-    };
-    crits.forEach((c, i) => {
-      const l = byId.get(c.layer.id)!;
-      const cx = M + (i % cols) * (chartW + chartGap);
-      const cy = gridTop + Math.floor(i / cols) * cellH;
-      // Name, and the weight at the right.
-      font(11, 650);
-      const wt = op === 'mean' && !soloing() ? `×${c.weight.toFixed(1)} · ${weightWord(c.weight)}` : '';
-      const wtW = wt ? ctx.measureText(wt).width + 10 * u : 0;
-      let nx = cx;
-      if (two) {
-        ctx.fillStyle = axisColour(c.axis ?? 0);
+        // North, top right, inside the dashed edge -- turned with the map.
+        const ax = M + crop.w - 44 * u, ay = M + 44 * u;
+        ctx.fillStyle = 'rgba(13,18,16,0.75)';
         ctx.beginPath();
-        ctx.arc(cx + 4 * u, cy + 7 * u, 4 * u, 0, Math.PI * 2);
+        ctx.arc(ax, ay, 28 * u, 0, Math.PI * 2);
         ctx.fill();
-        nx += 13 * u;
-      }
-      ctx.fillStyle = '#eef2ee';
-      ctx.fillText(fit(l.name, chartW - wtW - (nx - cx)), nx, cy + 11 * u);
-      if (wt) {
-        font(10);
-        ctx.fillStyle = '#9aa79f';
-        ctx.textAlign = 'right';
-        ctx.fillText(wt, cx + chartW, cy + 11 * u);
-        ctx.textAlign = 'left';
-      }
-      // The chart: square-root heights, as the panel draws it, so a layer
-      // mostly at one value still shows the rest.
-      const by = cy + 18 * u, n = l.hist.length;
-      const max = Math.sqrt(Math.max(...l.hist)) || 1;
-      const bw = chartW / n;
-      l.hist.forEach((count, b) => {
-        const h = (Math.sqrt(count) / max) * (chartH - 2 * u);
-        const mid = l.lo + ((b + 0.5) / n) * (l.hi - l.lo);
-        ctx.fillStyle = rampCss(scoreOf(c, mid));
-        ctx.fillRect(cx + b * bw, by + chartH - h, Math.max(bw - 0.6 * u, 0.5 * u), h);
-      });
-      const at = (v: number) => cx + ((v - l.lo) / (l.hi - l.lo || 1)) * chartW;
-      if (!c.scores) {
-        ctx.fillStyle = '#9aa79f';
-        ctx.fillRect(at(c.bad) - u, by - 2 * u, 2 * u, chartH + 4 * u);
-        ctx.fillStyle = rgb(STOPS[4]);
-        ctx.fillRect(at(c.good) - u, by - 2 * u, 2 * u, chartH + 4 * u);
-      }
-      // Under it: the ends, and the settings.
-      font(9.5);
-      ctx.fillStyle = '#7d8a83';
-      ctx.fillText(fmt(l, l.lo), cx, by + chartH + 12 * u);
-      ctx.textAlign = 'right';
-      ctx.fillText(fmt(l, l.hi), cx + chartW, by + chartH + 12 * u);
-      ctx.textAlign = 'center';
-      ctx.fillStyle = '#c9d2cc';
-      const how = c.scores
-        ? 'Scored kind by kind'
-        : `Poor at ${fmt(l, c.bad)} · Best at ${fmt(l, c.good)} · ${c.good >= c.bad ? 'Higher = better' : 'Lower = better'}`;
-      ctx.fillText(fit(how, chartW - 90 * u), cx + chartW / 2, by + chartH + 12 * u);
-      ctx.textAlign = 'left';
-    });
-    y += modelH;
-
-    // About these layers, in the same column.
-    if (blocks.length) {
-      y += 30 * u;
-      ctx.fillStyle = '#eef2ee';
-      font(12, 650);
-      ctx.fillText('About these layers', M, y);
-      y += 12 * u;
-      for (const b of placed) {
-        const bx = M + b.col * (aboutW + aboutGap);
-        let by = y + b.y + 14 * u;
+        ctx.save();
+        ctx.translate(ax, ay);
+        ctx.rotate((-bearing * Math.PI) / 180);
+        ctx.translate(-ax, -ay);
         ctx.fillStyle = '#eef2ee';
-        font(11, 650);
-        ctx.fillText(b.l.name, bx, by);
-        ctx.fillStyle = '#b7c1bb';
+        ctx.beginPath();
+        ctx.moveTo(ax, ay - 2 * u);
+        ctx.lineTo(ax + 8 * u, ay + 21 * u);
+        ctx.lineTo(ax, ay + 16 * u);
+        ctx.lineTo(ax - 8 * u, ay + 21 * u);
+        ctx.closePath();
+        ctx.fill();
+        font(12, 700);
+        ctx.textAlign = 'center';
+        ctx.fillText('N', ax, ay - 8 * u);
+        ctx.textAlign = 'left';
+        ctx.restore();
+
+        // A scale, bottom left, inside the edge: a round distance near a fifth of
+        // the width. Not on a tilted view, whose scale changes from the near
+        // edge to the far.
+        if (pitch < 1) {
+          const metresPerPx = (40075016.686 * Math.cos((lat * Math.PI) / 180)) / (512 * 2 ** zoom) / (shot.width / el.clientWidth);
+          const want = (crop.w / 5) * metresPerPx;
+          const step = 10 ** Math.floor(Math.log10(want));
+          const dist = [5, 2, 1].map((f) => f * step).find((d) => d <= want)!;
+          const barW = dist / metresPerPx, sx = M + 30 * u, sy = M + crop.h - 30 * u;
+          ctx.fillStyle = 'rgba(13,18,16,0.75)';
+          ctx.fillRect(sx - 12 * u, sy - 28 * u, barW + 24 * u, 44 * u);
+          ctx.fillStyle = '#eef2ee';
+          ctx.fillRect(sx, sy, barW / 2, 6 * u);
+          ctx.strokeStyle = '#eef2ee';
+          ctx.lineWidth = 1.5 * u;
+          ctx.strokeRect(sx, sy, barW, 6 * u);
+          font(12);
+          ctx.fillText('0', sx, sy - 8 * u);
+          ctx.textAlign = 'right';
+          ctx.fillText(`${dist >= 1000 ? dist / 1000 : dist} ${dist >= 1000 ? 'km' : 'm'}`, sx + barW, sy - 8 * u);
+          ctx.textAlign = 'left';
+        }
+
+        // The head of the foot: the logo and title, the key, and the code at the
+        // right, the rest centred on the code.
+        const headTop = M + crop.h + 24 * u;
+        let y = headTop + (qrSize - headH) / 2;
+        const lw = logo.naturalWidth ? (logo.naturalWidth / logo.naturalHeight) * headH : 0;
+        if (lw) ctx.drawImage(logo, M, y, lw, headH);
+        ctx.fillStyle = '#3a4843';
+        ctx.fillRect(M + lw + 20 * u, y + 4 * u, 1.5 * u, headH - 8 * u);
+        const tx = M + lw + 40 * u;
+        ctx.fillStyle = '#eef2ee';
+        font(23, 650);
+        ctx.fillText('Sea-to-Sky Data Sandbox', tx, y + 22 * u);
+        ctx.fillStyle = '#9aa79f';
+        font(13);
+        const two = effectiveMode() === 'two';
+        const t = tallies.region;
+        let headline = '';
+        if (t && t.total) {
+          if (two) {
+            const cell = only >= 0 ? only : 8;
+            headline = `${Math.round((t.cells[cell] / t.total) * 100)}% of the study area ${cellName(cell).toLowerCase()} (${km2(t.cells[cell])})`;
+          } else {
+            headline = `${Math.round((t.above / t.total) * 100)}% of the study area scores ${Math.round(cut() * 100)} or more (${km2(t.above)})`;
+          }
+        }
+        ctx.fillText(headline, tx, y + 44 * u);
+
+        const kx = M + crop.w - qrSize - 36 * u;
+        if (two) {
+          const c = 20 * u, g = 3 * u, gx = kx - 3 * c - 2 * g;
+          [6, 7, 8, 3, 4, 5, 0, 1, 2].forEach((cell, i) => {
+            ctx.fillStyle = palette[cell];
+            ctx.fillRect(gx + (i % 3) * (c + g), y - 6 * u + Math.floor(i / 3) * (c + g), c, c);
+          });
+          font(11);
+          ctx.fillStyle = '#9aa79f';
+          ctx.textAlign = 'right';
+          ctx.fillText(`${axisNames[1]} ↑`, gx - 10 * u, y + 10 * u);
+          ctx.fillText(`${axisNames[0]} →`, gx - 10 * u, y + 52 * u);
+          ctx.textAlign = 'left';
+        } else {
+          const rw = 200 * u, rh = 12 * u, rx = kx - rw, ry = y + 8 * u;
+          const grad = ctx.createLinearGradient(rx, 0, rx + rw, 0);
+          for (let i = 0; i <= 10; i++) grad.addColorStop(i / 10, rampCss(i / 10));
+          ctx.fillStyle = grad;
+          ctx.fillRect(rx, ry, rw, rh);
+          ctx.fillStyle = '#eef2ee';
+          ctx.fillRect(rx + rw * cut() - u, ry - 4 * u, 2 * u, rh + 8 * u);
+          font(11);
+          ctx.fillStyle = '#9aa79f';
+          ctx.fillText('Poor fit', rx, ry + rh + 17 * u);
+          ctx.textAlign = 'right';
+          ctx.fillText('Best fit', rx + rw, ry + rh + 17 * u);
+          ctx.textAlign = 'left';
+        }
+
+        // The body: the model and the sources, the full width.
+        y = headTop + qrSize + 16 * u + 14 * u;
+        ctx.fillStyle = '#2a3430';
+        ctx.fillRect(M, y, crop.w, 1.5 * u);
+        y += 18 * u;
+        ctx.fillStyle = '#eef2ee';
+        font(12, 650);
+        ctx.fillText(`The model · Calculation type: ${opLabel()}`, M, y + 10 * u);
         font(10.5);
-        for (const row of b.rows) ctx.fillText(row, bx, (by += aboutLH));
-      }
-      y += Math.max(...colH);
-    }
-    y += 24 * u;
-    font(10);
-    ctx.fillStyle = '#7d8a83';
-    for (const row of sources) {
-      ctx.fillText(row, M, y);
-      y += 15 * u;
-    }
+        ctx.fillStyle = '#9aa79f';
+        let ey = y + 10 * u;
+        for (const row of explain) ctx.fillText(row, M, (ey += 15 * u));
+        const gridTop = ey + 14 * u;
+        const fit = (text: string, w: number) => {
+          let t = text;
+          while (ctx.measureText(t).width > w && t.length > 4) t = t.slice(0, -2);
+          return t === text ? text : `${t}…`;
+        };
+        crits.forEach((c, i) => {
+          const l = byId.get(c.layer.id)!;
+          const cx = M + (i % cols) * (chartW + chartGap);
+          const cy = gridTop + Math.floor(i / cols) * cellH;
+          // Name, and the weight at the right.
+          font(11, 650);
+          const wt = op === 'mean' && !soloing() ? `×${c.weight.toFixed(1)} · ${weightWord(c.weight)}` : '';
+          const wtW = wt ? ctx.measureText(wt).width + 10 * u : 0;
+          let nx = cx;
+          if (two) {
+            ctx.fillStyle = axisColour(c.axis ?? 0);
+            ctx.beginPath();
+            ctx.arc(cx + 4 * u, cy + 7 * u, 4 * u, 0, Math.PI * 2);
+            ctx.fill();
+            nx += 13 * u;
+          }
+          ctx.fillStyle = '#eef2ee';
+          ctx.fillText(fit(l.name, chartW - wtW - (nx - cx)), nx, cy + 11 * u);
+          if (wt) {
+            font(10);
+            ctx.fillStyle = '#9aa79f';
+            ctx.textAlign = 'right';
+            ctx.fillText(wt, cx + chartW, cy + 11 * u);
+            ctx.textAlign = 'left';
+          }
+          // The chart: square-root heights, as the panel draws it, so a layer
+          // mostly at one value still shows the rest.
+          const by = cy + 18 * u, n = l.hist.length;
+          const max = Math.sqrt(Math.max(...l.hist)) || 1;
+          const bw = chartW / n;
+          l.hist.forEach((count, b) => {
+            const h = (Math.sqrt(count) / max) * (chartH - 2 * u);
+            const mid = l.lo + ((b + 0.5) / n) * (l.hi - l.lo);
+            ctx.fillStyle = rampCss(scoreOf(c, mid));
+            ctx.fillRect(cx + b * bw, by + chartH - h, Math.max(bw - 0.6 * u, 0.5 * u), h);
+          });
+          const at = (v: number) => cx + ((v - l.lo) / (l.hi - l.lo || 1)) * chartW;
+          if (!c.scores) {
+            ctx.fillStyle = inverted ? rgb(STOPS[0]) : '#9aa79f';
+            ctx.fillRect(at(c.bad) - u, by - 2 * u, 2 * u, chartH + 4 * u);
+            ctx.fillStyle = inverted ? '#9aa79f' : rgb(STOPS[4]);
+            ctx.fillRect(at(c.good) - u, by - 2 * u, 2 * u, chartH + 4 * u);
+          }
+          // Under it: the ends, and the settings.
+          font(9.5);
+          ctx.fillStyle = '#7d8a83';
+          ctx.fillText(fmt(l, l.lo), cx, by + chartH + 12 * u);
+          ctx.textAlign = 'right';
+          ctx.fillText(fmt(l, l.hi), cx + chartW, by + chartH + 12 * u);
+          ctx.textAlign = 'center';
+          ctx.fillStyle = '#c9d2cc';
+          const how = c.scores
+            ? 'Scored kind by kind'
+            : `Poor at ${fmt(l, c.bad)} · Best at ${fmt(l, c.good)} · ${c.good >= c.bad ? 'Higher = better' : 'Lower = better'}`;
+          ctx.fillText(fit(how, chartW - 90 * u), cx + chartW / 2, by + chartH + 12 * u);
+          ctx.textAlign = 'left';
+        });
+        y += modelH;
 
-    // A code that opens this exact model, light on dark as a phone reads it.
-    // Each square a whole number of pixels on whole pixels, so none blurs
-    // into the next; the code centred in its light square.
-    const n = qr.getModuleCount();
-    const cell = Math.max(1, Math.floor(qrSize / (n + 4)));
-    const qx = M + crop.w - qrSize, qy = headTop;
-    const [cx0, cy0] = [Math.round(qx + (qrSize - n * cell) / 2), Math.round(qy + (qrSize - n * cell) / 2)];
-    ctx.fillStyle = '#eef2ee';
-    ctx.fillRect(qx, qy, qrSize, qrSize);
-    ctx.fillStyle = '#0d1210';
-    for (let r = 0; r < n; r++)
-      for (let c = 0; c < n; c++) if (qr.isDark(r, c)) ctx.fillRect(cx0 + c * cell, cy0 + r * cell, cell, cell);
-    font(9);
-    ctx.fillStyle = '#9aa79f';
-    ctx.textAlign = 'center';
-    ctx.fillText('Open this sandbox', qx + qrSize / 2, qy + qrSize + 12 * u);
-    ctx.textAlign = 'left';
+        // About these layers, in the same column.
+        if (blocks.length) {
+          y += 30 * u;
+          ctx.fillStyle = '#eef2ee';
+          font(12, 650);
+          ctx.fillText('About these layers', M, y);
+          y += 12 * u;
+          for (const b of placed) {
+            const bx = M + b.col * (aboutW + aboutGap);
+            let by = y + b.y + 14 * u;
+            ctx.fillStyle = '#eef2ee';
+            font(11, 650);
+            ctx.fillText(b.l.name, bx, by);
+            ctx.fillStyle = '#b7c1bb';
+            font(10.5);
+            for (const row of b.rows) ctx.fillText(row, bx, (by += aboutLH));
+          }
+          y += Math.max(...colH);
+        }
+        y += 24 * u;
+        font(10);
+        ctx.fillStyle = '#7d8a83';
+        for (const row of sources) {
+          ctx.fillText(row, M, y);
+          y += 15 * u;
+        }
 
-    return out;
+        // A code that opens this exact model, light on dark as a phone reads it.
+        // Each square a whole number of pixels on whole pixels, so none blurs
+        // into the next; the code centred in its light square.
+        const n = qr.getModuleCount();
+        const cell = Math.max(1, Math.floor(qrSize / (n + 4)));
+        const qx = M + crop.w - qrSize, qy = headTop;
+        const [cx0, cy0] = [Math.round(qx + (qrSize - n * cell) / 2), Math.round(qy + (qrSize - n * cell) / 2)];
+        ctx.fillStyle = '#eef2ee';
+        ctx.fillRect(qx, qy, qrSize, qrSize);
+        ctx.fillStyle = '#0d1210';
+        for (let r = 0; r < n; r++)
+          for (let c = 0; c < n; c++) if (qr.isDark(r, c)) ctx.fillRect(cx0 + c * cell, cy0 + r * cell, cell, cell);
+        font(9);
+        ctx.fillStyle = '#9aa79f';
+        ctx.textAlign = 'center';
+        ctx.fillText('Open this sandbox', qx + qrSize / 2, qy + qrSize + 12 * u);
+        ctx.textAlign = 'left';
+
+        return out;
+      },
+    };
   }
 
   /** On a phone, the shared model as the full map image, to look at and

@@ -36,7 +36,7 @@ const DEFAULTS = { yaw: 0, pitch: 0, vfov: 75, width: 1080, height: 1920, qualit
 const publicPath = (url) => path.join(PUBLIC, url.replace(/^\//, ''));
 
 /** The YAML block of a location's markdown. */
-async function frontmatter(file) {
+export async function frontmatter(file) {
   const text = await readFile(file, 'utf8');
   const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   if (!m) throw new Error(`${path.basename(file)} has no frontmatter block`);

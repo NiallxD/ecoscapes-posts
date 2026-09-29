@@ -1,12 +1,12 @@
 ---
-import { getCollection } from 'astro:content';
+import { livePosts } from '../../shared/lib/posts';
 import Shell from '../../shared/layouts/Shell.astro';
 import { asset } from '../../shared/lib/paths';
 
 // This page, not a location, is the PWA start_url: an installed app has exactly
 // one, and a single post's page would be the wrong home for someone who scans a
 // second post somewhere else.
-const locations = (await getCollection('locations')).sort((a, b) => a.data.title.localeCompare(b.data.title));
+const locations = (await livePosts()).sort((a, b) => a.data.title.localeCompare(b.data.title));
 
 /** A series is either a video or a year-by-year image sequence; the card says
  *  which span it covers either way. */

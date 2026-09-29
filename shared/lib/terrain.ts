@@ -67,6 +67,8 @@ const LEVEL = 3;
 export function tilting(map: MlMap, url: string, button: HTMLElement, tilt: HTMLElement) {
   const input = tilt.querySelector('input')!;
   let raised = false;
+  /** Kept up while level (hold): the 3D ground seen from straight above. */
+  let held = false;
 
   const show = (on: boolean) => {
     button.setAttribute('aria-pressed', String(on));
@@ -88,7 +90,7 @@ export function tilting(map: MlMap, url: string, button: HTMLElement, tilt: HTML
   // ...and down once it is level again: kept up until then, so it lowers with
   // the camera rather than dropping out from under it.
   const lower = () => {
-    if (!raised) return;
+    if (!raised || held) return;
     raised = false;
     map.setTerrain(null);
     map.touchZoomRotate.disableRotation();
@@ -126,6 +128,17 @@ export function tilting(map: MlMap, url: string, button: HTMLElement, tilt: HTML
     else map.easeTo({ pitch: PITCH, duration: 900 });
   });
   input.addEventListener('input', () => map.setPitch(Number(input.value)));
+
+  return {
+    /** The ground kept raised however level the map goes -- for a picture
+     *  of the 3D ground from straight above, which reads better than the flat
+     *  map -- or, false, back to following the tilt. Set before levelling. */
+    hold(on: boolean) {
+      held = on;
+      if (on) raise();
+      else if (map.getPitch() <= LEVEL) lower();
+    },
+  };
 }
 
 /** The sky and haze a tilted view looks out into: the ground's own dark at
