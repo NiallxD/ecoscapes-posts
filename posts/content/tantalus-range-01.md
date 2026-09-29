@@ -1,7 +1,7 @@
 ---
 title: Tantalus Range
 # In the works: shown in dev, left out of the built site until this is true.
-published: false
+published: true
 place: Sea-to-Sky · above the Cheakamus River, BC
 installed: 2026-09-28
 lat: 49.84631
